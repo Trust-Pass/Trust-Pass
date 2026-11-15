@@ -1,0 +1,19 @@
+{
+  "name": "trustpass",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @trustpass/api --filter @trustpass/web dev",
+    "build": "pnpm --filter @trustpass/web build && pnpm --filter @trustpass/api build",
+    "start": "pnpm --filter @trustpass/api start",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter @trustpass/api test",
+    "e2e": "pnpm --filter @trustpass/e2e test",
+    "db:migrate": "pnpm --filter @trustpass/api db:migrate",
+    "db:seed": "pnpm --filter @trustpass/api db:seed"
+  }
+}
