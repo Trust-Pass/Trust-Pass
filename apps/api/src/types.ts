@@ -1,0 +1,29 @@
+import type { PrismaClient, User, Session } from '@prisma/client';
+import type { AppConfig } from './config';
+import type { GeoProvider } from './lib/geo';
+import type { Mailer } from './lib/mail';
+import type { ObjectStorage } from './lib/storage';
+
+export interface AppDeps {
+  config: AppConfig;
+  prisma: PrismaClient;
+  storage: ObjectStorage;
+  geo: GeoProvider;
+  mailer: Mailer;
+  /** Injectable clock so expiry can be tested without waiting. */
+  now: () => Date;
+}
+
+export interface AuthContext {
+  user: User;
+  session: Session;
+}
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    deps: AppDeps;
+  }
+  interface FastifyRequest {
+    auth: AuthContext | null;
+  }
+}
