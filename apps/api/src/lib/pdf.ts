@@ -120,14 +120,22 @@ export interface WatermarkInfo {
 function watermarkPage(page: PDFPage, font: PDFFont, bold: PDFFont, info: WatermarkInfo) {
   const { width, height } = page.getSize();
   const stamp = 'CONFIDENTIAL';
-  const size = Math.max(28, Math.min(width, height) / 9);
-  const stampWidth = bold.widthOfTextAtSize(stamp, size);
-
-  // Diagonal tiles across the whole page.
-  for (let y = -height * 0.2; y < height * 1.2; y += size * 3.2) {
-    for (let x = -width * 0.3; x < width * 1.1; x += stampWidth + size * 1.5) {
-      page.drawText(stamp, { x, y, size, font: bold, color: NAVY, opacity: 0.08, rotate: degrees(30) });
-    }
+  const angle = 30;
+  const cos = Math.cos((angle * Math.PI) / 180);
+  const sin = Math.sin((angle * Math.PI) / 180);
+  // Size the stamp so the whole word fits across the page diagonally.
+  const unitWidth = bold.widthOfTextAtSize(stamp, 1);
+  const size = Math.max(14, Math.min(72, (width * 0.8) / (unitWidth * cos)));
+  const dx = unitWidth * size * cos;
+  const dy = unitWidth * size * sin;
+  const x = (width - dx) / 2;
+  // Evenly spaced stamps, every one fully on the page.
+  const usable = Math.max(0, height - dy - size * 2);
+  const count = Math.max(1, Math.min(4, Math.floor(usable / (dy + size * 2)) + 1));
+  const step = count > 1 ? usable / (count - 1) : 0;
+  const y0 = count > 1 ? size : (height - dy) / 2;
+  for (let i = 0; i < count; i++) {
+    page.drawText(stamp, { x, y: y0 + i * step, size, font: bold, color: NAVY, opacity: 0.09, rotate: degrees(angle) });
   }
 
   const when = `${info.viewedAt.toISOString().slice(0, 16).replace('T', ' ')} UTC`;

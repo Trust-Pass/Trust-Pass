@@ -168,6 +168,21 @@ export async function authRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  // Same as /api/auth/me, but answers 200 { authenticated: false } for visitors,
+  // so public pages do not log a 401 on every load.
+  app.get('/api/auth/session', async (request) => {
+    if (!request.auth) return { authenticated: false };
+    const { user, session } = request.auth;
+    const unread = await prisma.notification.count({ where: { userId: user.id, readAt: null } });
+    return {
+      authenticated: true,
+      user: publicUser(user),
+      organizations: await userOrganizations(prisma, user.id),
+      csrfToken: session.csrfToken,
+      unreadNotifications: unread,
+    };
+  });
+
   app.get('/api/auth/me', async (request) => {
     const { user, session } = requireUser(request);
     const unread = await prisma.notification.count({ where: { userId: user.id, readAt: null } });

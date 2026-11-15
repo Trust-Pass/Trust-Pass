@@ -228,7 +228,10 @@ async function buildSharedView(deps: AppDeps, request: FastifyRequest, link: Gat
       fields = claims.map((c) => ({ label: c.label, value: c.value, source: 'self_declared' as const }));
       verification = {
         result: 'unverified' as const,
-        reason: 'These details were entered by the document owner. No trusted issuer has signed them.',
+        reason:
+          fields.length > 0
+            ? 'These details were entered by the document owner. No trusted issuer has signed them.'
+            : 'This file was uploaded by its owner. No trusted issuer has signed it, so its authenticity is not verified.',
         checks: [],
         issuer: null,
         claims: [],
