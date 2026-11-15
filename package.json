@@ -15,5 +15,10 @@
     "e2e": "pnpm --filter @trustpass/e2e test",
     "db:migrate": "pnpm --filter @trustpass/api db:migrate",
     "db:seed": "pnpm --filter @trustpass/api db:seed"
+  },
+  "pnpm": {
+    "overrides": {
+      "deepmerge-ts": "^8.0.2"
+    }
   }
 }
