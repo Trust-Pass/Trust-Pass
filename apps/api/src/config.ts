@@ -77,7 +77,10 @@ function parseTrustProxy(value: string, isProduction: boolean): boolean | number
 }
 
 export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
-  const parsed = envSchema.safeParse(source);
+  // Hosting dashboards often leave variables as empty strings: treat those as unset.
+  const cleaned = Object.fromEntries(Object.entries(source).filter(([, v]) => v !== undefined && v !== ''));
+  // On Render, the public https URL is provided automatically.
+  const parsed = envSchema.safeParse({ ...cleaned, APP_URL: cleaned.APP_URL ?? cleaned.RENDER_EXTERNAL_URL });
   if (!parsed.success) {
     const problems = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('\n  ');
     throw new Error(`Invalid configuration:\n  ${problems}`);
