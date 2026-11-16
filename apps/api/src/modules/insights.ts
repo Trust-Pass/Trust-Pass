@@ -58,7 +58,7 @@ export async function insightRoutes(app: FastifyInstance) {
         WHERE owner_id = ${user.id}::uuid AND created_at >= ${from} AND created_at < ${end} ${docFilter}`,
       prisma.accessLog.findFirst({
         where: { ownerId: user.id, outcome: 'granted', ...(query.documentId ? { documentId: query.documentId } : {}) },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         select: { createdAt: true, countryCode: true },
       }),
       prisma.sharingLink.findMany({
@@ -161,7 +161,7 @@ export async function insightRoutes(app: FastifyInstance) {
     };
     const pageSize = 25;
     const [rows, total] = await Promise.all([
-      prisma.accessLog.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (query.page - 1) * pageSize, take: pageSize }),
+      prisma.accessLog.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (query.page - 1) * pageSize, take: pageSize }),
       prisma.accessLog.count({ where }),
     ]);
     const links = await prisma.sharingLink.findMany({
@@ -201,7 +201,7 @@ export async function insightRoutes(app: FastifyInstance) {
     // Users only ever see events filed under their own account.
     const where: Prisma.SecurityEventWhereInput = { userId: user.id, ...(query.type ? { eventType: query.type } : {}) };
     const [rows, total] = await Promise.all([
-      prisma.securityEvent.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (query.page - 1) * pageSize, take: pageSize }),
+      prisma.securityEvent.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (query.page - 1) * pageSize, take: pageSize }),
       prisma.securityEvent.count({ where }),
     ]);
     const docIds = Array.from(new Set(rows.map((r) => r.documentId).filter((x): x is string => Boolean(x))));
@@ -266,8 +266,8 @@ export async function insightRoutes(app: FastifyInstance) {
       prisma.credential.count({ where: { document: { ownerId: user.id, deletedAt: null }, expiresAt: { gt: current }, issuer: { status: 'trusted' } } }),
       prisma.sharingLink.count({ where: { ownerId: user.id, revokedAt: null, expiresAt: { gt: current } } }),
       prisma.accessLog.groupBy({ by: ['outcome'], where: { ownerId: user.id, createdAt: { gte: weekAgo }, ...attemptFilter }, _count: { _all: true } }),
-      prisma.accessLog.findMany({ where: { ownerId: user.id, resource: 'details' }, orderBy: { createdAt: 'desc' }, take: 5 }),
-      prisma.securityEvent.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' }, take: 6 }),
+      prisma.accessLog.findMany({ where: { ownerId: user.id, resource: 'details' }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 5 }),
+      prisma.securityEvent.findMany({ where: { userId: user.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 6 }),
     ]);
     const links = await prisma.sharingLink.findMany({
       where: { id: { in: recentAccess.map((r) => r.linkId) } },

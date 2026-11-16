@@ -201,7 +201,7 @@ export async function sharingRoutes(app: FastifyInstance) {
     const link = await getOwnedLink(deps, parseId(request, 'Link'), user.id);
     const recent = await prisma.accessLog.findMany({
       where: { linkId: link.id, ownerId: user.id },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 25,
     });
     return {

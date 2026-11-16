@@ -132,7 +132,7 @@ export async function adminRoutes(app: FastifyInstance) {
     };
     const pageSize = 40;
     const [rows, total] = await Promise.all([
-      prisma.securityEvent.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (query.page - 1) * pageSize, take: pageSize }),
+      prisma.securityEvent.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (query.page - 1) * pageSize, take: pageSize }),
       prisma.securityEvent.count({ where }),
     ]);
     const userIds = Array.from(new Set(rows.flatMap((r) => [r.userId, r.actorUserId]).filter((x): x is string => Boolean(x))));
