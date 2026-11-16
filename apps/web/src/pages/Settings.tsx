@@ -1,12 +1,12 @@
 import { PASSWORD_MIN_LENGTH } from '@trustpass/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { KeyRound, LogOut, Monitor, UserRound } from 'lucide-react';
+import { Globe2, KeyRound, LogOut, Monitor, UserRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { Alert, Badge, Button, Card, CardHeader, Field, Input, PageHeader, Spinner } from '../components/ui';
 import { api, ApiError, errorMessage } from '../lib/api';
 import { useAuth, useMe } from '../lib/auth';
-import { formatDate, relativeTime } from '../lib/format';
+import { country, formatDate, relativeTime } from '../lib/format';
 
 export function SettingsPage() {
   const me = useMe();
@@ -18,6 +18,10 @@ export function SettingsPage() {
   const [pw, setPw] = useState({ current: '', next: '' });
   const [pwMsg, setPwMsg] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
 
+  const connection = useQuery({
+    queryKey: ['connection'],
+    queryFn: () => api<{ approximateCountry: string | null; usedAddressKind: string; forwardedHops: number }>('/api/me/connection'),
+  });
   const sessions = useQuery({
     queryKey: ['sessions'],
     queryFn: () => api<{ sessions: Array<{ id: string; client: string | null; createdAt: string; lastSeenAt: string; current: boolean }> }>('/api/me/sessions'),
@@ -138,6 +142,22 @@ export function SettingsPage() {
             ))}
           </ul>
         )}
+      </Card>
+
+      <Card>
+        <CardHeader title="Your connection" subtitle="The country rules on share links use this approximate location." icon={<Globe2 className="size-5" />} />
+        <div className="p-4 sm:p-5" data-testid="connection-country">
+          {connection.isLoading ? (
+            <Spinner />
+          ) : (
+            <>
+              <p className="text-lg font-semibold text-navy-950">{country(connection.data?.approximateCountry)}</p>
+              <p className="mt-1 text-[13px] text-slate-500">
+                Estimated from your internet connection, never stored as a full IP address. A VPN or mobile network can show a different country.
+              </p>
+            </>
+          )}
+        </div>
       </Card>
 
       <Button

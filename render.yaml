@@ -29,9 +29,10 @@ services:
         value: database
       - key: GEO_PROVIDER
         value: mmdb
-      # Render's load balancer adds one X-Forwarded-For hop. Confirm in Admin > Health after deploy.
+      # Render's internal proxies use private addresses: trust only those, so the visitor is the
+      # right-most public address in X-Forwarded-For. Confirm in Admin > Health after deploy.
       - key: TRUST_PROXY
-        value: "1"
+        value: "loopback,linklocal,uniquelocal,100.64.0.0/10"
       - key: MAIL_TRANSPORT
         value: none
       # You type these in the Render dashboard during setup (12+ character password).

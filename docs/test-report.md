@@ -71,6 +71,7 @@ Run against the production Docker image (`NODE_ENV=production`) with `zap-baseli
 | GitHub CI | Three accesses with the same timestamp made "last access" arbitrary | Time-ordered queries break ties by insertion order |
 | GitHub CI | The gitleaks GitHub Action requires a paid licence for organizations | CI runs the open-source gitleaks CLI instead |
 | Screenshot review | Long titles made pages wider than phone screens | Grid columns use minmax(0, 1fr); every page measured at 390 px and 360 px |
+| Live deployment check | On Render, the visitor's country resolved as unknown: TRUST_PROXY=1 picked an internal proxy's private address, so country-restricted links refused everyone (fail closed) | TRUST_PROXY accepts trusted private ranges; the visitor is the right-most public address. Added connection diagnostics in Admin > Health and Settings |
 | Browser test | 1.3 MB main JavaScript bundle on phones | pdf.js and charts load on demand; main bundle 145 KB gzipped |
 | Production boot | Empty environment variables (common in hosting dashboards) failed validation | Empty values are treated as unset |
 | Dependency audit | 23 known vulnerabilities, including a pdf.js script-execution flaw (high), nodemailer SMTP injection and zod memory exhaustion | Upgraded pdf.js 6.5, nodemailer 10.6, zod 4.6; forced patched deepmerge-ts in the Prisma CLI. Audit now clean and all tests re-run |

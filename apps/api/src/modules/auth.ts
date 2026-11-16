@@ -10,6 +10,7 @@ import {
 } from '@trustpass/shared';
 import { hashToken, randomToken } from '../lib/crypto';
 import { AppError, notFound, parse } from '../lib/errors';
+import { describeConnection } from '../lib/connection';
 import { userAgentFamily } from '../lib/user-agent';
 import { clearSessionCookie, requireUser, startSession } from '../plugins/auth';
 import { logEvent, notify } from '../services/audit';
@@ -276,6 +277,12 @@ export async function authRoutes(app: FastifyInstance) {
       return { ok: true };
     },
   );
+
+  // Where TrustPass believes the signed-in user is connecting from (no IP addresses returned).
+  app.get('/api/me/connection', async (request) => {
+    requireUser(request);
+    return describeConnection(request, app.deps.geo);
+  });
 
   app.get('/api/me/sessions', async (request) => {
     const { user, session } = requireUser(request);

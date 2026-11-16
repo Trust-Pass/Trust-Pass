@@ -132,3 +132,22 @@ describe('configuration safety', () => {
     expect(config.cookieSecure).toBe(true);
   });
 });
+
+describe('trusted proxy configuration', () => {
+  const base = { NODE_ENV: 'production', DATABASE_URL: 'postgres://x', APP_URL: 'https://trustpass.example', ...TEST_SECRETS };
+
+  it('accepts hop counts and private-range lists', () => {
+    expect(loadConfig({ ...base, TRUST_PROXY: '2' }).trustProxy).toBe(2);
+    expect(loadConfig({ ...base, TRUST_PROXY: 'loopback, linklocal,uniquelocal,100.64.0.0/10' }).trustProxy).toEqual([
+      'loopback',
+      'linklocal',
+      'uniquelocal',
+      '100.64.0.0/10',
+    ]);
+  });
+
+  it('rejects anything else', () => {
+    expect(() => loadConfig({ ...base, TRUST_PROXY: 'everyone' })).toThrow(/not loopback/);
+    expect(() => loadConfig({ ...base, TRUST_PROXY: '10.0.0.0/99' })).toThrow(/not loopback/);
+  });
+});

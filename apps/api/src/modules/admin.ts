@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { updateIssuerStatusSchema, updateSettingsSchema, updateStatusSchema } from '@trustpass/shared';
 import { z } from 'zod';
 import { AppError, notFound, parse } from '../lib/errors';
+import { describeConnection } from '../lib/connection';
 import { checkStorage } from '../lib/storage';
 import { requireAdmin } from '../plugins/auth';
 import { logEvent } from '../services/audit';
@@ -233,13 +234,15 @@ export async function adminRoutes(app: FastifyInstance) {
       checks.push({ name: 'Encrypted file storage', ok: false, detail: `${storage.driver} driver failed the write/read check` });
     }
 
-    const forwarded = request.headers['x-forwarded-for'];
-    const hops = typeof forwarded === 'string' ? forwarded.split(',').length : 0;
-    const country = geo.lookup(request.ip);
+    const connection = describeConnection(request, geo);
     checks.push({
       name: 'Geolocation',
-      ok: true,
-      detail: `${geo.name} provider; your approximate country: ${country ?? 'unknown'}; proxy hops seen: ${hops}; trusted hops: ${String(config.trustProxy)}`,
+      ok: connection.approximateCountry !== null,
+      detail:
+        `${geo.name} provider; your approximate country: ${connection.approximateCountry ?? 'unknown'}; ` +
+        `address used: ${connection.usedAddressKind}; forwarded hops: ${connection.forwardedHops} ` +
+        `(${connection.chain.map((c) => c.kind).join(' > ')}); trusted proxies: ${String(config.trustProxy)}` +
+        (connection.platformHeadersPresent.length ? `; platform headers: ${connection.platformHeadersPresent.join(', ')}` : ''),
     });
     checks.push({
       name: 'Email',

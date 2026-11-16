@@ -133,3 +133,55 @@ describe('behind a trusted proxy', () => {
     expect(real.statusCode).toBe(200);
   });
 });
+
+describe('behind a platform with private internal proxies', () => {
+  let platform: TestContext;
+  const CLIENT_SA = '203.0.113.10';
+  const SPOOF_US = '198.51.100.7';
+  beforeAll(async () => {
+    platform = await createTestContext({
+      TRUST_PROXY: 'loopback,linklocal,uniquelocal,100.64.0.0/10',
+      GEO_SIMULATED_MAP: `${CLIENT_SA}=SA,${SPOOF_US}=US`,
+    });
+  });
+  afterAll(async () => {
+    await platform.app.close();
+  });
+
+  it('uses the right-most public address and ignores what the client prepends', async () => {
+    const s = await registerUser(platform);
+    const id = (await uploadDocument(platform, s)).json().document.id;
+    const link = await createLink(platform, s, id, { includeFile: true, allowedCountries: ['SA'] });
+    const viaPlatform = await platform.app.inject({
+      method: 'GET',
+      url: `/api/share/${link.token}`,
+      remoteAddress: '10.20.0.5',
+      headers: { 'x-forwarded-for': `${CLIENT_SA}, 10.10.1.2` },
+    });
+    expect(viaPlatform.statusCode).toBe(200);
+    expect(viaPlatform.json().viewer.approximateCountry).toBe('SA');
+
+    // A US visitor writes a Saudi address in front: the platform appends the real one.
+    const spoofed = await platform.app.inject({
+      method: 'GET',
+      url: `/api/share/${link.token}`,
+      remoteAddress: '10.20.0.5',
+      headers: { 'x-forwarded-for': `${CLIENT_SA}, ${SPOOF_US}, 10.10.1.2` },
+    });
+    expect(spoofed.statusCode).toBe(403);
+  });
+
+  it('describes the connection without revealing addresses', async () => {
+    const s = await registerUser(platform);
+    const res = await as(platform, s, {
+      method: 'GET',
+      url: '/api/me/connection',
+      ip: '10.20.0.5',
+      headers: { 'x-forwarded-for': `${CLIENT_SA}, 10.10.1.2` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ approximateCountry: 'SA', usedAddressKind: 'public', forwardedHops: 2 });
+    expect(res.body).not.toContain(CLIENT_SA);
+    expect(res.body).not.toContain('10.10.1.2');
+  });
+});
