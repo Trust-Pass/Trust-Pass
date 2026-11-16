@@ -1,5 +1,6 @@
 import { hkdfSync } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { isIP } from 'node:net';
 import path from 'node:path';
 import { z } from 'zod';
 
@@ -22,7 +23,8 @@ const envSchema = z.object({
   GEO_SIMULATED_DEFAULT: z.string().length(2).optional(),
   // "203.0.113.5=SA,198.51.100.7=US"
   GEO_SIMULATED_MAP: z.string().optional(),
-  // "false" (direct), "true" (trust all - never in production), or a hop count
+  // "false" (direct), "true" (trust all - never in production), a hop count, or a comma list of
+  // trusted proxy ranges such as "loopback,linklocal,uniquelocal,100.64.0.0/10"
   TRUST_PROXY: z.string().default('false'),
   MAIL_TRANSPORT: z.enum(['console', 'smtp', 'none']).default('console'),
   SMTP_URL: z.string().optional(),
@@ -47,7 +49,7 @@ export interface AppConfig {
   appOrigin: string;
   cookieName: string;
   cookieSecure: boolean;
-  trustProxy: boolean | number;
+  trustProxy: boolean | number | string[];
   masterKeys: { current: MasterKey; all: Map<number, Buffer> };
   ipHashKey: Buffer;
   issuerSeed: Buffer;
@@ -65,15 +67,38 @@ export function deriveKey(secret: string, label: string): Buffer {
   return Buffer.from(hkdfSync('sha256', Buffer.from(secret, 'utf8'), Buffer.from('trustpass'), Buffer.from(label), 32));
 }
 
-function parseTrustProxy(value: string, isProduction: boolean): boolean | number {
+const PROXY_RANGE_NAMES = new Set(['loopback', 'linklocal', 'uniquelocal']);
+
+function isCidr(value: string): boolean {
+  const [ip, bits, extra] = value.split('/');
+  if (!ip || extra !== undefined || !isIP(ip)) return false;
+  if (bits === undefined) return true;
+  const n = Number(bits);
+  return Number.isInteger(n) && n >= 0 && n <= (isIP(ip) === 4 ? 32 : 128);
+}
+
+/**
+ * How to find the visitor's address behind proxies:
+ *  - a hop count trusts exactly that many proxies;
+ *  - a list of ranges trusts only proxies inside them (e.g. the platform's
+ *    private network), so the visitor is the right-most address outside them.
+ *    Addresses a client writes into X-Forwarded-For sit further left and are ignored.
+ */
+function parseTrustProxy(value: string, isProduction: boolean): boolean | number | string[] {
   if (value === 'false' || value === '0' || value === '') return false;
   if (value === 'true') {
-    if (isProduction) throw new Error('TRUST_PROXY=true is unsafe in production; set the number of proxy hops instead');
+    if (isProduction) throw new Error('TRUST_PROXY=true is unsafe in production; set the hop count or the trusted proxy ranges instead');
     return true;
   }
-  const hops = Number(value);
-  if (!Number.isInteger(hops) || hops < 0) throw new Error('TRUST_PROXY must be false, true or a hop count');
-  return hops;
+  if (/^\d+$/.test(value)) return Number(value);
+  const ranges = value.split(',').map((s) => s.trim()).filter(Boolean);
+  for (const range of ranges) {
+    if (!PROXY_RANGE_NAMES.has(range) && !isCidr(range)) {
+      throw new Error(`TRUST_PROXY entry "${range}" is not loopback, linklocal, uniquelocal or an IP/CIDR range`);
+    }
+  }
+  if (ranges.length === 0) throw new Error('TRUST_PROXY must be false, true, a hop count or a list of proxy ranges');
+  return ranges;
 }
 
 export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
