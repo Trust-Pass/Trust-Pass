@@ -95,7 +95,7 @@ export async function authRoutes(app: FastifyInstance) {
           // Per IP and email, so one person's typos never lock out a shared Wi-Fi.
           keyGenerator: (req) => {
             const email = (req.body as { email?: unknown } | undefined)?.email;
-            return `${req.ip}|${typeof email === 'string' ? email.toLowerCase().slice(0, 254) : ''}`;
+            return `${req.clientIp}|${typeof email === 'string' ? email.toLowerCase().slice(0, 254) : ''}`;
           },
         },
       },
@@ -204,7 +204,7 @@ export async function authRoutes(app: FastifyInstance) {
           timeWindow: '1 hour',
           keyGenerator: (req) => {
             const email = (req.body as { email?: unknown } | undefined)?.email;
-            return `reset:${req.ip}|${typeof email === 'string' ? email.toLowerCase().slice(0, 254) : ''}`;
+            return `reset:${req.clientIp}|${typeof email === 'string' ? email.toLowerCase().slice(0, 254) : ''}`;
           },
         },
       },
@@ -281,7 +281,7 @@ export async function authRoutes(app: FastifyInstance) {
   // Where TrustPass believes the signed-in user is connecting from (no IP addresses returned).
   app.get('/api/me/connection', async (request) => {
     requireUser(request);
-    return describeConnection(request, app.deps.geo);
+    return describeConnection(request, app.deps.geo, app.deps.config.clientIpHeader);
   });
 
   app.get('/api/me/sessions', async (request) => {

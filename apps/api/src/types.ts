@@ -25,5 +25,7 @@ declare module 'fastify' {
   }
   interface FastifyRequest {
     auth: AuthContext | null;
+    /** The visitor's address: the trusted edge header when configured, otherwise the proxy-aware request.ip. */
+    clientIp: string;
   }
 }

@@ -26,6 +26,13 @@ const envSchema = z.object({
   // "false" (direct), "true" (trust all - never in production), a hop count, or a comma list of
   // trusted proxy ranges such as "loopback,linklocal,uniquelocal,100.64.0.0/10"
   TRUST_PROXY: z.string().default('false'),
+  // Header set by the platform's edge with the real visitor address, e.g. "cf-connecting-ip" behind
+  // Cloudflare. Only use a header the edge always overwrites, or visitors could choose their own address.
+  CLIENT_IP_HEADER: z
+    .string()
+    .regex(/^[A-Za-z0-9-]{1,64}$/, 'CLIENT_IP_HEADER must be a header name')
+    .transform((v) => v.toLowerCase())
+    .optional(),
   MAIL_TRANSPORT: z.enum(['console', 'smtp', 'none']).default('console'),
   SMTP_URL: z.string().optional(),
   MAIL_FROM: z.string().default('TrustPass <no-reply@trustpass.local>'),
@@ -50,6 +57,7 @@ export interface AppConfig {
   cookieName: string;
   cookieSecure: boolean;
   trustProxy: boolean | number | string[];
+  clientIpHeader: string | null;
   masterKeys: { current: MasterKey; all: Map<number, Buffer> };
   ipHashKey: Buffer;
   issuerSeed: Buffer;
@@ -144,6 +152,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     cookieName: isProduction ? '__Host-tp_session' : 'tp_session',
     cookieSecure: isProduction,
     trustProxy: parseTrustProxy(env.TRUST_PROXY, isProduction),
+    clientIpHeader: env.CLIENT_IP_HEADER ?? null,
     masterKeys: {
       current: { version: env.MASTER_KEY_VERSION, key: masterKeys.get(env.MASTER_KEY_VERSION)! },
       all: masterKeys,

@@ -33,6 +33,11 @@ services:
       # right-most public address in X-Forwarded-For. Confirm in Admin > Health after deploy.
       - key: TRUST_PROXY
         value: "loopback,linklocal,uniquelocal,100.64.0.0/10"
+      # onrender.com is served through Cloudflare, which sets CF-Connecting-IP to the visitor's
+      # address and overwrites any value the visitor sends. Without it, every visitor would appear
+      # to come from the Cloudflare server next to Render's region (Germany).
+      - key: CLIENT_IP_HEADER
+        value: cf-connecting-ip
       - key: MAIL_TRANSPORT
         value: none
       # You type these in the Render dashboard during setup (12+ character password).

@@ -185,3 +185,65 @@ describe('behind a platform with private internal proxies', () => {
     expect(res.body).not.toContain('10.10.1.2');
   });
 });
+
+describe('behind Cloudflare (Render)', () => {
+  let edge: TestContext;
+  const CLIENT_SA = '203.0.113.10';
+  const CLOUDFLARE_DE = '198.51.100.7';
+  beforeAll(async () => {
+    edge = await createTestContext({
+      TRUST_PROXY: 'loopback,linklocal,uniquelocal,100.64.0.0/10',
+      CLIENT_IP_HEADER: 'CF-Connecting-IP',
+      GEO_SIMULATED_MAP: `${CLIENT_SA}=SA,${CLOUDFLARE_DE}=DE`,
+    });
+  });
+  afterAll(async () => {
+    await edge.app.close();
+  });
+
+  const chain = `${CLIENT_SA}, ${CLOUDFLARE_DE}, 10.10.1.2`;
+
+  it('uses the visitor address from the edge header, not the Cloudflare hop', async () => {
+    const s = await registerUser(edge);
+    const id = (await uploadDocument(edge, s)).json().document.id;
+    const link = await createLink(edge, s, id, { includeFile: true, allowedCountries: ['SA'] });
+    const res = await edge.app.inject({
+      method: 'GET',
+      url: `/api/share/${link.token}`,
+      remoteAddress: '10.20.0.5',
+      headers: { 'x-forwarded-for': chain, 'cf-connecting-ip': CLIENT_SA },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().viewer.approximateCountry).toBe('SA');
+  });
+
+  it('falls back to the proxy chain when the header is missing or not an address', async () => {
+    const s = await registerUser(edge);
+    const id = (await uploadDocument(edge, s)).json().document.id;
+    const link = await createLink(edge, s, id, { includeFile: true, allowedCountries: ['SA'] });
+    for (const header of [undefined, 'not-an-ip', `${CLIENT_SA}, 1.2.3.4`]) {
+      const res = await edge.app.inject({
+        method: 'GET',
+        url: `/api/share/${link.token}`,
+        remoteAddress: '10.20.0.5',
+        headers: { 'x-forwarded-for': chain, ...(header ? { 'cf-connecting-ip': header } : {}) },
+      });
+      expect(res.statusCode, String(header)).toBe(403);
+    }
+  });
+
+  it('keys per-IP rate limits on the visitor, not on the shared Cloudflare hop', async () => {
+    const codes: number[] = [];
+    for (let i = 0; i < 12; i++) {
+      const res = await edge.app.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: { email: 'nobody@example.test', password: 'Wrong-Password-1' },
+        remoteAddress: '10.20.0.5',
+        headers: { 'x-forwarded-for': `203.0.113.${50 + i}, ${CLOUDFLARE_DE}, 10.10.1.2`, 'cf-connecting-ip': `203.0.113.${50 + i}` },
+      });
+      codes.push(res.statusCode);
+    }
+    expect(codes.every((c) => c === 401)).toBe(true);
+  });
+});

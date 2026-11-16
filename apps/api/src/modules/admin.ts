@@ -234,13 +234,13 @@ export async function adminRoutes(app: FastifyInstance) {
       checks.push({ name: 'Encrypted file storage', ok: false, detail: `${storage.driver} driver failed the write/read check` });
     }
 
-    const connection = describeConnection(request, geo);
+    const connection = describeConnection(request, geo, config.clientIpHeader);
     checks.push({
       name: 'Geolocation',
       ok: connection.approximateCountry !== null,
       detail:
         `${geo.name} provider; your approximate country: ${connection.approximateCountry ?? 'unknown'}; ` +
-        `address used: ${connection.usedAddressKind}; forwarded hops: ${connection.forwardedHops} ` +
+        `address used: ${connection.usedAddressKind} from ${connection.addressSource}; forwarded hops: ${connection.forwardedHops} ` +
         `(${connection.chain.map((c) => c.kind).join(' > ')}); trusted proxies: ${String(config.trustProxy)}` +
         (connection.platformHeadersPresent.length ? `; platform headers: ${connection.platformHeadersPresent.join(', ')}` : ''),
     });
