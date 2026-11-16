@@ -127,7 +127,7 @@ export function SharePage() {
             <div className="rounded-xl bg-slate-50 p-3 font-mono text-xs break-all text-navy-900 ring-1 ring-slate-200" data-testid="share-url">
               {result.url}
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <CopyButton value={result.url} label="Copy link" size="md" variant="primary" />
               {canShare ? (
                 <Button

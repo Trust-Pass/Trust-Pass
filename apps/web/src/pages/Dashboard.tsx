@@ -80,7 +80,7 @@ export function DashboardPage() {
         />
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card>
           <CardHeader title="Recent views of your links" icon={<Share2 className="size-5" />} action={<Link to="/app/analytics" className="text-sm font-medium text-navy-700 hover:underline">Analytics</Link>} />
           {data.recentAccess.length === 0 ? (

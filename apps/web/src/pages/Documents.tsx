@@ -59,7 +59,7 @@ export function DocumentsPage() {
           />
         </Card>
       ) : (
-        <ul className="grid gap-3 md:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {shown.map((doc) => (
             <li key={doc.id}>
               <Link to={`/app/documents/${doc.id}`} className="block rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200/70 transition hover:ring-teal-300">

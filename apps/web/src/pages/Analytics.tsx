@@ -131,7 +131,7 @@ export function AnalyticsPage() {
             <StatCard label="Revoked links" value={s.revokedLinks} icon={<ShieldAlert className="size-4" />} tone="slate" hint={`${s.expiredLinks} expired`} />
           </div>
 
-          <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
             <Card>
               <CardHeader title="Attempts per day" subtitle={`${data.range.from} to ${data.range.to}`} />
               <div className="h-64 px-2 py-4">
@@ -177,7 +177,7 @@ export function AnalyticsPage() {
             </Card>
           </div>
 
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <Card>
               <CardHeader title="By document" />
               {data.byDocument.length === 0 ? (

@@ -263,6 +263,9 @@ export const SECURITY_EVENT_LABELS: Record<string, string> = {
   admin_issuer_status_changed: 'Issuer trust changed by admin',
   admin_settings_updated: 'System settings updated',
   log_retention_run: 'Log retention cleanup',
+  repeated_denied_access: 'Several blocked attempts on one link',
+  integrity_check_failed: 'Stored file failed its integrity check',
+  invalid_link_attempt: 'Attempt with an invalid link',
 };
 
 export const updateSettingsSchema = z.object({

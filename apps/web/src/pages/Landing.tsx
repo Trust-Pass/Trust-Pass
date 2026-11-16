@@ -131,7 +131,7 @@ export function LandingPage() {
       </section>
 
       <section className="page-pad mx-auto max-w-6xl py-16 sm:py-24">
-        <div className="grid gap-8 lg:grid-cols-2 lg:gap-14">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-14">
           <div>
             <div className="inline-flex rounded-xl bg-amber-100 p-2.5 text-amber-700">
               <EyeOff className="size-5" />

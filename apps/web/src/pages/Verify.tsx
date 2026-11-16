@@ -58,7 +58,7 @@ export function VerifyPage() {
         title="Verify a document"
         description="Check whether a document or credential was signed by a trusted issuer and has not been changed since."
       />
-      <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card className="p-4 sm:p-5">
           <Tabs
             value={mode}

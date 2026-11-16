@@ -61,7 +61,7 @@ export function SettingsPage() {
           <Field label="Full name" htmlFor="fullName">
             <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={100} />
           </Field>
-          <dl className="grid gap-3 text-sm sm:grid-cols-3">
+          <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
             <div>
               <dt className="text-slate-500">Email</dt>
               <dd className="font-medium break-all text-navy-950">{me.user.email}</dd>

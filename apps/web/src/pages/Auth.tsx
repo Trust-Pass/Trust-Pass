@@ -175,7 +175,7 @@ export function RegisterPage() {
         </div>
         {error && <Alert tone="error">{error}</Alert>}
         {accountType === 'organization' && (
-          <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto]">
             <Field label="Organization name" htmlFor="org" error={fields.organizationName}>
               <Input id="org" value={form.organizationName} onChange={(e) => set('organizationName')(e.target.value)} required invalid={Boolean(fields.organizationName)} />
             </Field>

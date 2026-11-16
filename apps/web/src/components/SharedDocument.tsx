@@ -82,7 +82,7 @@ export function SharedDocument({ view, fileUrl }: { view: SharedView; fileUrl: s
             </div>
           )}
 
-          <div className="grid gap-2 text-[13px] text-slate-600 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 text-[13px] text-slate-600 sm:grid-cols-2">
             <p className="flex items-center gap-2">
               <MapPin className="size-4 shrink-0 text-slate-400" /> Your approximate location: {country(view.viewer.approximateCountry)}
             </p>
