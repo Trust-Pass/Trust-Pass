@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: trustpass
+          POSTGRES_PASSWORD: trustpass_dev
+          POSTGRES_DB: trustpass_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U trustpass"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://trustpass:trustpass_dev@localhost:5432/trustpass_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @trustpass/api db:generate
+      - name: Type check
+        run: pnpm typecheck
+      - name: Unit, integration and security tests
+        run: pnpm test
+      - name: Build
+        run: pnpm build
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: test
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: trustpass
+          POSTGRES_PASSWORD: trustpass_dev
+          POSTGRES_DB: trustpass_e2e
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U trustpass"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @trustpass/api db:generate
+      - run: pnpm --filter @trustpass/web build
+      - run: pnpm --filter @trustpass/e2e exec playwright install --with-deps chromium
+      - name: End-to-end tests (phone and desktop)
+        run: pnpm e2e
+
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # The open-source gitleaks CLI needs no licence key (the GitHub Action does for organizations).
+      - name: Scan git history for secrets
+        run: docker run -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --no-banner --verbose
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm audit --prod --audit-level high
