@@ -14,7 +14,7 @@ This page maps the security requirements to the code that implements them and th
 | Recipient sees more than intended | Only selected disclosures leave the server; the file is served only if explicitly included | `modules/access.ts` | `sharing.test.ts`, e2e |
 | Link used after expiry or revocation | Checked on every request in one gate; first failing check wins and is logged | `modules/access.ts` | `sharing.test.ts`, e2e |
 | Link forwarded to the wrong organization | Organization-only links require a signed-in member | `modules/access.ts` | `sharing.test.ts`, e2e |
-| Access from unexpected countries | Server-side country check; unknown location fails closed; client headers ignored; proxy hops configurable | `modules/access.ts`, `lib/geo.ts`, `app.ts` | `geo.test.ts`, e2e |
+| Access from unexpected countries | Server-side country check; unknown location fails closed; client headers ignored; trusted proxies configurable; behind Cloudflare the edge-set `CF-Connecting-IP` is used (Cloudflare overwrites any client value) | `modules/access.ts`, `lib/geo.ts`, `app.ts` | `geo.test.ts`, e2e |
 | IDOR / broken access control | Ownership is part of every query; other users' ids return 404; admin routes require the admin role | all modules | `documents.test.ts`, `security.test.ts`, e2e |
 | SQL injection | Prisma parameterised queries; raw SQL only through tagged templates | all modules | `security.test.ts` |
 | XSS | React escaping, no raw HTML rendering, strict CSP (`script-src 'self'`, no inline, no eval) | `plugins/security.ts` | `security.test.ts`, e2e |

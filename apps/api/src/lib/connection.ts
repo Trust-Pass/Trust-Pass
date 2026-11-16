@@ -25,10 +25,23 @@ export function addressKind(value: string): AddressKind {
 const PLATFORM_HEADERS = ['cf-connecting-ip', 'true-client-ip', 'x-real-ip', 'fly-client-ip', 'x-client-ip'];
 
 /**
+ * The configured edge header wins when it holds one valid address; otherwise
+ * fall back to request.ip, which already honours TRUST_PROXY.
+ */
+export function resolveClientIp(request: FastifyRequest, header: string | null): string {
+  if (header) {
+    const value = request.headers[header];
+    const candidate = (Array.isArray(value) ? value[0] : value)?.trim().replace(/^::ffff:/, '');
+    if (candidate && isIP(candidate)) return candidate;
+  }
+  return request.ip;
+}
+
+/**
  * Describes how a request reached the server, for diagnosing geolocation
  * behind proxies. It never returns IP addresses, only their kind and country.
  */
-export function describeConnection(request: FastifyRequest, geo: GeoProvider) {
+export function describeConnection(request: FastifyRequest, geo: GeoProvider, clientIpHeader: string | null = null) {
   const forwarded = request.headers['x-forwarded-for'];
   const entries = (Array.isArray(forwarded) ? forwarded.join(',') : (forwarded ?? ''))
     .split(',')
@@ -39,8 +52,10 @@ export function describeConnection(request: FastifyRequest, geo: GeoProvider) {
     { position: 'direct connection', kind: addressKind(request.socket.remoteAddress ?? ''), country: null as string | null },
   ];
   return {
-    approximateCountry: geo.lookup(request.ip),
-    usedAddressKind: addressKind(request.ip),
+    approximateCountry: geo.lookup(request.clientIp),
+    usedAddressKind: addressKind(request.clientIp),
+    addressSource: clientIpHeader && request.clientIp !== request.ip ? clientIpHeader : 'x-forwarded-for / socket',
+    proxyChainCountry: geo.lookup(request.ip),
     forwardedHops: entries.length,
     chain,
     platformHeadersPresent: PLATFORM_HEADERS.filter((h) => request.headers[h] !== undefined),

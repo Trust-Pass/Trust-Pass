@@ -53,7 +53,7 @@ export async function evaluateAccess(
 ): Promise<GateDecision> {
   const { prisma, geo, config, now } = deps;
   const current = now();
-  const country = geo.lookup(request.ip);
+  const country = geo.lookup(request.clientIp);
   const auth = request.auth;
 
   let accessorOrgId: string | null = null;
@@ -86,7 +86,7 @@ export async function evaluateAccess(
       outcome,
       countryCode: country,
       // Keyed hash: counts distinct visitors without storing the IP address.
-      ipHmac: hmacHex(config.ipHashKey, request.ip),
+      ipHmac: hmacHex(config.ipHashKey, request.clientIp),
       userAgentFamily: userAgentFamily(request.headers['user-agent']),
       accessorUserId: auth?.user.id ?? null,
       accessorOrgId,

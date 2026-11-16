@@ -43,7 +43,7 @@ export async function securityPlugin(app: FastifyInstance) {
   // public IP address does not lock itself out.
   await app.register(rateLimit, {
     global: false,
-    keyGenerator: (request) => (request.auth ? `user:${request.auth.user.id}` : `ip:${request.ip}`),
+    keyGenerator: (request) => (request.auth ? `user:${request.auth.user.id}` : `ip:${request.clientIp}`),
   });
 
   /**

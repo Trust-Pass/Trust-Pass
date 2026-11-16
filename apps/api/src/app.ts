@@ -7,6 +7,7 @@ import fastifyStatic from '@fastify/static';
 import type { PrismaClient } from '@prisma/client';
 import Fastify, { type FastifyServerOptions } from 'fastify';
 import type { AppConfig } from './config';
+import { resolveClientIp } from './lib/connection';
 import { errorHandler } from './lib/errors';
 import { createGeoProvider, type GeoProvider } from './lib/geo';
 import { createMailer, type Mailer } from './lib/mail';
@@ -73,6 +74,12 @@ export async function buildApp(options: BuildOptions) {
   };
   app.decorate('deps', deps);
   app.setErrorHandler(errorHandler);
+
+  // Resolved once per request, before rate limits and the access gate read it.
+  app.decorateRequest('clientIp', '');
+  app.addHook('onRequest', async (request) => {
+    request.clientIp = resolveClientIp(request, config.clientIpHeader);
+  });
 
   await app.register(cookie);
   await app.register(multipart, { limits: { fileSize: config.maxUploadBytes, files: 1, fields: 5 } });
