@@ -17,6 +17,8 @@ Every number below comes from an actual run. Nothing here is estimated.
 | Docker image build and start on an empty database | Pass (migrations, seed, health, admin sign-in, runs as non-root user) |
 | Dependency audit (`pnpm audit --prod`) | No known vulnerabilities (after upgrades, see below) |
 | OWASP ZAP baseline scan (production container) | 0 failures, 61 checks passed, 1 informational warning |
+| GitHub Actions CI (type check, tests, build, end-to-end, audit, gitleaks) | All 4 jobs pass on GitHub ([run 43882092323](https://github.com/Trust-Pass/Trust-Pass/actions/runs/43882092323)) |
+| Secret scan of the git history (gitleaks 8.30.1) | No leaks |
 | Deployment to a public URL | **Not done yet**: needs a Render account (see README) |
 
 ## Unit tests (36)
@@ -66,6 +68,9 @@ Run against the production Docker image (`NODE_ENV=production`) with `zap-baseli
 | Integration test | Rate limits keyed only by IP would lock out a whole classroom sharing one Wi-Fi | Signed-in requests are limited per user; sign-in is limited per IP + email |
 | Browser test | Anonymous visitors produced a 401 console error on every page | New `/api/auth/session` endpoint answers 200 for visitors |
 | Browser test | Watermark text was cut off at page edges | Stamps are sized and spaced to fit the page |
+| GitHub CI | Three accesses with the same timestamp made "last access" arbitrary | Time-ordered queries break ties by insertion order |
+| GitHub CI | The gitleaks GitHub Action requires a paid licence for organizations | CI runs the open-source gitleaks CLI instead |
+| Screenshot review | Long titles made pages wider than phone screens | Grid columns use minmax(0, 1fr); every page measured at 390 px and 360 px |
 | Browser test | 1.3 MB main JavaScript bundle on phones | pdf.js and charts load on demand; main bundle 145 KB gzipped |
 | Production boot | Empty environment variables (common in hosting dashboards) failed validation | Empty values are treated as unset |
 | Dependency audit | 23 known vulnerabilities, including a pdf.js script-execution flaw (high), nodemailer SMTP injection and zod memory exhaustion | Upgraded pdf.js 6.5, nodemailer 10.6, zod 4.6; forced patched deepmerge-ts in the Prisma CLI. Audit now clean and all tests re-run |
