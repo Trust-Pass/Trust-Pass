@@ -131,6 +131,21 @@ Branch `claude/encryption-hardening`, commit `d90678c`. Fake KMS only; nothing d
 | H: link copies | An unreadable copy fails the rewrap (exit 1) and is listed; the link itself still works |
 | Secrets | No key bytes in logs through start-up, upload, sharing, rotation, reload and rewrap |
 
+## Backup and recovery (17 November 2026)
+
+Branch `claude/encryption-hardening`, commit `f66e785`. Runbook: [recovery.md](recovery.md). Nothing deployed; production untouched.
+
+| Check | Result |
+| --- | --- |
+| GitHub CI: type check, API tests, build | 212 / 212 API tests pass (13 new: 9 backup-restore, 4 unit); `dist/backup.js` is built into the production bundle |
+| End-to-end (Playwright, iPhone 13 + desktop) | 16 / 16 pass |
+| Real `pg_dump` → `pg_restore` into a brand-new database | Data under a legacy key (v1) and a KMS-protected key (v2) restores; the restore drill reports `RESTORE OK` (4 documents, 7 fields, 1 credential, 2 link copies) and changes no row in any table |
+| App on the restored database | Every file byte for byte, fields, issuer-verified credential through a share link, shared file |
+| Backup time state | Deleted before the backup stays gone; created after is absent; deleted after comes back (documented limit) |
+| Manifest | No secret, key, fake-KMS root key or document content in it |
+| Wrong or missing secrets | Wrong or missing `MASTER_KEY` and a wrong `ISSUER_SIGNING_SEED` are named before anything is decrypted (no secret printed); a different KMS key and an app without the legacy key are refused |
+| Damaged restore | A changed encrypted file and a missing one are reported by document id; drill exits 1 |
+
 ## Issues found and fixed during testing
 
 | Found by | Problem | Fix |
