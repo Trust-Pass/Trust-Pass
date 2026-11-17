@@ -17,7 +17,9 @@
     "keys:status": "tsx src/scripts/keys.ts status",
     "keys:rewrap": "tsx src/scripts/keys.ts rewrap",
     "keys:rotate": "tsx src/scripts/keys.ts rotate",
-    "keys:destroy-retired": "tsx src/scripts/keys.ts destroy-retired"
+    "keys:destroy-retired": "tsx src/scripts/keys.ts destroy-retired",
+    "backup:manifest": "tsx src/scripts/backup.ts manifest",
+    "backup:verify": "tsx src/scripts/backup.ts verify"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",

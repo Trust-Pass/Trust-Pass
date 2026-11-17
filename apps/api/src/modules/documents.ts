@@ -239,8 +239,9 @@ export async function documentRoutes(app: FastifyInstance) {
     const { user } = requireUser(request);
     const document = await getOwnedDocument(deps, parseId(request, 'Document'), user.id);
     const current = now();
-    // Crypto-shredding: once the wrapped key and ciphertext are gone, the
-    // document can never be decrypted again, even from a backup of the database.
+    // Crypto-shredding: once the wrapped key and ciphertext are gone, this database can
+    // never decrypt the document again. A backup taken before the deletion still holds both,
+    // and stays readable while its keys exist (see docs/recovery.md, "Deleted documents").
     await prisma.$transaction(async (tx) => {
       await tx.sharingLink.updateMany({ where: { documentId: document.id, revokedAt: null }, data: { revokedAt: current } });
       await tx.documentClaim.deleteMany({ where: { documentId: document.id } });

@@ -266,3 +266,41 @@ export async function createLink(ctx: TestContext, session: Session, documentId:
   const json = res.json();
   return { id: json.link.id as string, url: json.url as string, token: (json.url as string).split('/s/')[1]! };
 }
+
+// ---------------------------------------------------------------------------
+// Operator commands and database snapshots
+// ---------------------------------------------------------------------------
+
+/** Environment for the `keys` and `backup` commands, as an operator would set it. */
+export function cliEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
+  return {
+    NODE_ENV: 'test',
+    APP_URL: 'http://localhost:5173',
+    DATABASE_URL: TEST_DATABASE_URL,
+    IP_HASH_SECRET: TEST_SECRETS.IP_HASH_SECRET,
+    ISSUER_SIGNING_SEED: TEST_SECRETS.ISSUER_SIGNING_SEED,
+    KEY_PROVIDER: 'fake-kms',
+    FAKE_KMS_KEY_FILE: TEST_KMS_KEY_FILE,
+    STORAGE_DRIVER: 'database',
+    GEO_PROVIDER: 'simulated',
+    GEO_SIMULATED_DEFAULT: 'SA',
+    MAIL_TRANSPORT: 'none',
+    LOG_LEVEL: 'silent',
+    ...extra,
+  };
+}
+
+/** Every row of every table, hashed: proves that a command changed nothing at all. */
+export async function fingerprint(prisma: PrismaClient): Promise<string> {
+  const tables = await prisma.$queryRaw<Array<{ table_name: string }>>`
+    SELECT table_name FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name`;
+  const parts: string[] = [];
+  for (const { table_name } of tables) {
+    const [row] = await prisma.$queryRawUnsafe<Array<{ h: string; n: bigint }>>(
+      `SELECT md5(coalesce(string_agg(x::text, '|' ORDER BY x::text), '')) AS h, count(*) AS n FROM "${table_name}" x`,
+    );
+    parts.push(`${table_name}:${row!.n}:${row!.h}`);
+  }
+  return parts.join('\n');
+}

@@ -48,7 +48,7 @@ KMS root key (Google Cloud KMS; never leaves the KMS, every use is logged by Goo
 - **Commands** (none print key material). Production image: `node apps/api/dist/keys.js <status|rewrap|rotate|destroy-retired> [--dry-run]`; development: `pnpm keys:<command>`.
 - **The database protects stored keys against mistakes:** rows in `key_encryption_keys` cannot be deleted, truncated or altered (only `status` can change, and only from active to retired) unless a transaction explicitly sets `trustpass.allow_key_destroy`. **Limit:** this guards against application errors, not against someone with the app's own database login, which owns the tables and can disable triggers or drop the table (the same single-role limit as the audit tables). The real protection is the KMS: without it, stored keys cannot be decrypted, and nobody can create keys the app would accept. The length check only rejects a raw 32-byte key stored by mistake, not every possible plaintext form.
 - **Fail-closed start-up:** if a key that documents need is really lost, the whole app refuses to start (before E2 only those documents failed). Run the E0 read-only check before each deploy that changes keys.
-- Deleting a document deletes its wrapped key, claims and ciphertext (crypto-shredding). Database backups still hold wrapped keys; with a KMS they stay unreadable once the KMS key version that protects their KEK is destroyed.
+- Deleting a document deletes its wrapped key, claims and ciphertext (crypto-shredding). A backup taken before the deletion still holds both and stays readable while its keys exist. Backup, restore and the restore drill are described in [recovery.md](recovery.md).
 
 ## Known limits
 
