@@ -11,7 +11,7 @@ This runbook says what to back up, how to take a safe backup, how to restore it,
 | Fact | Consequence |
 | --- | --- |
 | Production uses Render's **free** PostgreSQL (version 18, Frankfurt). Render makes **no automatic backups and offers no point-in-time recovery** on the free plan. | Nothing is backed up unless someone does it by hand. |
-| A manual export (database > **Recovery** > **Create export**) is kept by Render for **7 days**. | A backup only lasts if it is downloaded and stored elsewhere. |
+| Render's dashboard export (**Recovery** > **Create export**) is **not available on the free plan**; on paid plans it is kept 7 days. | Back up with `scripts/backup/trustpass-backup-drill.sh` (section 3, option A). |
 | The free database **expires on 16 December 2026**. | Take a backup, and practise a restore, before that date. |
 | `STORAGE_DRIVER=database`: encrypted files live in the database (`stored_objects`). | One database dump contains every encrypted file. |
 | Keys come from `MASTER_KEY` today (`KEY_PROVIDER=env`); a KMS is planned. | The dump alone is not enough to read documents, and must never be stored with the keys. |
@@ -50,22 +50,43 @@ A document can only be read again when **all** of the parts it depends on come b
 
 ## 3. Taking a backup
 
-You do not need PostgreSQL installed. Use one of the two options.
+You do not need PostgreSQL installed.
 
-### Option A: Render dashboard (simplest)
-1. **Manifest first** (optional but recommended): run `node apps/api/dist/backup.js manifest --out manifest-YYYY-MM-DD.json` with production's settings. This needs a place where the app runs: Render Shell (paid plans), or a computer with the repository and the production environment. Skip it if neither is available; the restore check still works without it, it just cannot compare file by file.
-2. Render dashboard > **trustpass-db** > **Recovery** > **Create export**. Wait until it is ready, then **Download** it (`.dir.tar.gz`).
-3. Go straight to section 4 (encrypt) and delete the unencrypted download afterwards.
+> **Render's "Create export" does not work on the free plan.** Render's documentation says exports are not available on the Free instance type (checked 17 Nov 2026). Use option A below; option C is only for a paid database.
 
-### Option B: `pg_dump` through Docker (no PostgreSQL installation)
-Use the same major version as the server (18):
-```bash
-read -s PGPASSWORD && export PGPASSWORD      # paste the database password; it is not shown or saved in history
-docker run --rm -e PGPASSWORD -v "$PWD:/backup" postgres:18 \
-  pg_dump --format=custom --host <external host> --username trustpass --dbname <database> --file /backup/trustpass-YYYY-MM-DD.dump
-unset PGPASSWORD
+### Option A (recommended): one-command encrypted backup and restore drill
+`scripts/backup/trustpass-backup-drill.sh` does the whole job inside one temporary container, and **the unencrypted dump never touches the disk** (it only exists in a RAM disk that disappears with the container):
+
+1. read-only `pg_dump` over TLS **verify-full** (certificate and host name checked), session forced to `default_transaction_read_only=on`;
+2. 7-Zip AES-256 encryption with encrypted file names; it refuses to save the archive if a wrong passphrase can still list it;
+3. saves only `trustpass-<time>.7z`, its `.sha256` and a report;
+4. decrypts the saved archive back into RAM and checks it is byte-identical;
+5. restores it into a throw-away PostgreSQL in RAM (no network, local socket only) with `--exit-on-error` and compares row counts.
+
+It refuses any host that is not a Render host name, so a pasted connection string (with its password) is never sent anywhere. Passwords are only typed at hidden prompts: the database password once, the 7-Zip passphrase three times (create, confirm, test).
+
+One-time setup (local, does not touch Render), from the repository root:
+```powershell
+Get-Content scripts/backup/Dockerfile -Raw | docker build -t trustpass-pgtools:18 -
 ```
-The host, user and database name are on the database's **Info** page in Render. Never paste the full connection string into chats, tickets or scripts.
+Each backup, from the folder that keeps backups (for example `C:\TrustPass-Backups`, outside OneDrive and outside this repository), with the script copied into it:
+```powershell
+docker run --rm -it --tmpfs /work:rw,size=512m,mode=0711 -v "${PWD}:/backup" trustpass-pgtools:18 bash /backup/trustpass-backup-drill.sh
+```
+It must end with `RESTORE DRILL OK`. Then do section 4 steps 2–3 and 5 (passphrase in the password manager, copy the `.7z` off this computer). This drill checks structure and data; the full decryption check (`backup verify`, section 5 step 6) additionally needs the secrets and the branch's migrations, and is done separately.
+
+### Option B: plain `pg_dump` through Docker
+Use the same major version as the server (18). Only when option A is not possible: this writes an **unencrypted** file, so encrypt it straight away (section 4) and delete the plain file.
+```bash
+docker run --rm -it -e PGSSLMODE=verify-full -e PGSSLROOTCERT=system -v "$PWD:/backup" trustpass-pgtools:18 \
+  pg_dump --host <external host> --username trustpass --dbname <database> --password --format=custom --file /backup/trustpass-YYYY-MM-DD.dump
+```
+The host, user and database name are on the database's **Info** page in Render. Type the password at the prompt; never put it in the command, an environment variable, chats, tickets or scripts. `PGSSLMODE=require` is **not** a safe fallback: it encrypts but does not check that the server is Render, so someone in between could capture the password.
+
+### Option C: Render dashboard export (paid plans only)
+1. **Manifest first** (optional): `node apps/api/dist/backup.js manifest --out manifest-YYYY-MM-DD.json` with production's settings (Render Shell on paid plans, or a computer with the repository and the production environment).
+2. Render dashboard > **trustpass-db** > **Recovery** > **Create export**, then **Download** it (`.dir.tar.gz`). Render keeps it 7 days.
+3. Go straight to section 4 (encrypt) and delete the unencrypted download afterwards.
 
 ### Never in a backup
 Do not copy `.env` files, the Render environment or the password manager into the backup folder. Keep the dump and the secrets in **different places**.
@@ -124,7 +145,7 @@ A backup only counts once a restore from it has worked. Practise:
 - before and after any key change (switching to the KMS, `keys rotate`, `keys destroy-retired`);
 - once a month.
 
-Restore the latest backup into a temporary database (steps 1–6 of section 5), check for `RESTORE OK`, write the result into `docs/test-report.md`, then delete the temporary database.
+Quick drill: option A in section 3 restores every backup it takes and must end with `RESTORE DRILL OK`. Full drill: restore the latest backup into a temporary database (steps 1–6 of section 5), check for `RESTORE OK`, write the result into `docs/test-report.md`, then delete the temporary database.
 
 ---
 
