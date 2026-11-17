@@ -28,8 +28,9 @@ import {
  * so other test files keep starting from a fresh key.
  */
 const open: TestContext[] = [];
+// Database storage (as in production), so every instance sees the same encrypted files.
 async function start(overrides: Record<string, string | undefined> = {}) {
-  const ctx = await createTestContext(overrides);
+  const ctx = await createTestContext({ STORAGE_DRIVER: 'database', ...overrides });
   open.push(ctx);
   return ctx;
 }
@@ -87,7 +88,7 @@ describe('key-encryption keys protected by a KMS', () => {
     const ctx = await start();
     const owner = await registerUser(ctx);
     const id = (await uploadDocument(ctx, owner)).json().document.id as string;
-    const link = await createLink(ctx, owner, id, {});
+    const link = await createLink(ctx, owner, id, { includeFile: true });
     const linkId = (await ctx.prisma.sharingLink.findFirstOrThrow()).id;
     const { open: openSealed, linkTokenAad } = await import('../../src/lib/crypto');
     const stored = (await ctx.prisma.sharingLink.findUniqueOrThrow({ where: { id: linkId } })).tokenEncrypted;
@@ -245,7 +246,7 @@ describe('logs never contain key material', () => {
         done();
       },
     });
-    const config = testConfig({ KEY_PROVIDER: 'fake-kms', FAKE_KMS_KEY_FILE: TEST_KMS_KEY_FILE, MASTER_KEY: TEST_SECRETS.MASTER_KEY, LOG_LEVEL: 'trace' });
+    const config = testConfig({ KEY_PROVIDER: 'fake-kms', FAKE_KMS_KEY_FILE: TEST_KMS_KEY_FILE, MASTER_KEY: TEST_SECRETS.MASTER_KEY, STORAGE_DRIVER: 'database', LOG_LEVEL: 'trace' });
     const app = await buildApp({ config, prisma: testPrisma(), logger: { level: 'trace', stream } });
     try {
       const ctx = { app, prisma: testPrisma(), config, clock: { now: new Date(), advance() {} }, mail: [] } as unknown as TestContext;

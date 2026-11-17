@@ -105,7 +105,7 @@ function mockGoogle(options: { failures?: number[]; tokenTtl?: number; corrupt?:
       return Response.json({
         name: `${KEY_NAME}/cryptoKeyVersions/1`,
         ciphertext: ct.toString('base64'),
-        ciphertextCrc32c: String(crc32c(ct) ^ (options.corrupt === 'ciphertext' ? 1 : 0)),
+        ciphertextCrc32c: String((crc32c(ct) ^ (options.corrupt === 'ciphertext' ? 1 : 0)) >>> 0),
         verifiedPlaintextCrc32c: !options.unverified,
         verifiedAdditionalAuthenticatedDataCrc32c: true,
       });
@@ -118,7 +118,7 @@ function mockGoogle(options: { failures?: number[]; tokenTtl?: number; corrupt?:
     } catch {
       return new Response('{"error":{"status":"INVALID_ARGUMENT"}}', { status: 400 });
     }
-    return Response.json({ plaintext: pt.toString('base64'), plaintextCrc32c: String(crc32c(pt) ^ (options.corrupt === 'plaintext' ? 1 : 0)) });
+    return Response.json({ plaintext: pt.toString('base64'), plaintextCrc32c: String((crc32c(pt) ^ (options.corrupt === 'plaintext' ? 1 : 0)) >>> 0) });
   }) as typeof fetch;
   return { calls, fetchFn, tokenCount: () => tokens };
 }
