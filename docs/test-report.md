@@ -59,6 +59,26 @@ A separate manual browser check on iPhone 13, Pixel 7 and a 1366 px desktop repo
 
 Run against the production Docker image (`NODE_ENV=production`) with `zap-baseline.py`: 0 failures, 61 passive checks passed, 1 informational "Modern Web Application" notice (the site is a single-page app). The crawler reached 7 URLs because pages are rendered client-side; API behaviour is covered by the security tests above. Report: [reports/zap-baseline-2026-11-15.html](reports/zap-baseline-2026-11-15.html).
 
+## Encryption hardening E0–E1 (17 November 2026)
+
+Branch `claude/encryption-hardening`, commit `239a969`. Plan: [`docs/encryption-plan.md`](encryption-plan.md).
+
+| Check | Result |
+| --- | --- |
+| API tests on GitHub CI | 153 / 153 pass (23 new); e2e, dependency audit and gitleaks pass |
+| AES-256-GCM known-answer tests (GCM spec test cases 15 and 16) | 4 / 4 pass: the wrapper is real AES-256-GCM, not only self-consistent |
+| File content and field values at rest, `local` driver | Not found in any table or stored file |
+| File content and field values at rest, `database` driver (production) | Not found in any table, including `stored_objects` |
+| Stored objects | 12-byte IV, 16-byte tag, 32-byte wrapped key, no `%PDF-` signature, same length as the plaintext |
+| One changed byte in storage (both drivers) | Detected: 500 `integrity_error`, no content returned |
+| Recipient response (raw JSON) | Contains the selected field only; the unselected value is absent; file refused when not shared |
+| Deletion (both drivers) | Wrapped key, fields and ciphertext removed; markers gone from every table |
+| Server with a different master key | Every request fails; no marker, stack trace or key error text in any response |
+| Titles, field labels, recipient names (expected failure, `it.fails`) | **Found in clear**: title in `documents`, `notifications`, `security_events`; label in `document_claims`; recipient name in `sharing_links`, `notifications`, `security_events` (to be fixed by E3/E4) |
+| Older at-rest test | Could not fail: `samplePdf()` does not contain its marker as raw bytes (`false` in CI), so "marker absent from storage" was always true. The new suite checks presence first |
+
+E0 (`docs/security/e0-readonly-check.sql`) was run against a local PostgreSQL 16 with the real schema and planted good and bad rows; it detected every planted problem. The run against the live Render database is pending.
+
 ## Issues found and fixed during testing
 
 | Found by | Problem | Fix |
