@@ -309,5 +309,5 @@ Sizes: S ≈ 1 hour, M ≈ half a day, L ≈ 1–2 days of Claude sessions. E3 n
 
 ## Checklist
 
-- [x] E0 · [x] E1 · [x] E2 (code; not deployed) · [x] E3a · [ ] E3 · [ ] E4 · [ ] E5 · [ ] E6 · [ ] E7 · [ ] E8
+- [x] E0 · [x] E1 · [x] E2 (code + review fixes A–H; not deployed) · [x] E3a · [ ] E3 · [ ] E4 · [ ] E5 · [ ] E6 · [ ] E7 · [ ] E8
 - [ ] E9a · [ ] E9b · [ ] E9c · [ ] E9d · [ ] E9e · [ ] E9f

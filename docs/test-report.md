@@ -114,6 +114,23 @@ Branch `claude/encryption-hardening`, commit `540aa9e`. Only the fake KMS was us
 | Database guards | Stored keys cannot be deleted, truncated or altered; a plaintext-length key is rejected |
 | Secrets | No KEK, link-token key, fake root key or `MASTER_KEY` in any table (as text or hex), API response or log line |
 
+## E2 independent review fixes (17 November 2026)
+
+Branch `claude/encryption-hardening`, commit `d90678c`. Fake KMS only; nothing deployed or merged; production untouched.
+
+| Check | Result |
+| --- | --- |
+| GitHub CI: type check, API tests, build | 199 / 199 API tests pass (15 new regression tests); build passes |
+| End-to-end (Playwright, iPhone 13 + desktop) | 16 / 16 pass |
+| A: rotation with an old server still running | The old server serves documents, fields, "Copy link" and shared files after `keys rotate` without a restart, and new uploads and links use the new keys; an upload made before it checks stays readable and the next rewrap moves it |
+| B: version clash | One numbering for all keys; a refused start writes nothing; adding `MASTER_KEY` afterwards starts cleanly |
+| C: retired keys | An undecryptable retired key is skipped when unused and stops start-up only when documents need it; `destroy-retired` keeps needed or recently retired keys, needs `--confirm`, and leaves every document and link working |
+| E: dry runs | `rewrap`, `rotate` and `destroy-retired` dry runs and `status` leave every table byte-identical (hash of every row), including before the first KMS key exists and when a key is wrong |
+| F: fake KMS vs production | Refused for non-local database hosts (no password in the error); production marks its database; app and every command refuse before writing (database byte-identical); the database rejects fake keys and protects the marker; refused when real-KMS keys exist |
+| G: production commands | `keys` is built into the image; documented as `node apps/api/dist/keys.js` |
+| H: link copies | An unreadable copy fails the rewrap (exit 1) and is listed; the link itself still works |
+| Secrets | No key bytes in logs through start-up, upload, sharing, rotation, reload and rewrap |
+
 ## Issues found and fixed during testing
 
 | Found by | Problem | Fix |
