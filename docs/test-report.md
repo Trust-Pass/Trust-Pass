@@ -77,7 +77,23 @@ Branch `claude/encryption-hardening`, commit `239a969`. Plan: [`docs/encryption-
 | Titles, field labels, recipient names (expected failure, `it.fails`) | **Found in clear**: title in `documents`, `notifications`, `security_events`; label in `document_claims`; recipient name in `sharing_links`, `notifications`, `security_events` (to be fixed by E3/E4) |
 | Older at-rest test | Could not fail: `samplePdf()` does not contain its marker as raw bytes (`false` in CI), so "marker absent from storage" was always true. The new suite checks presence first |
 
-E0 (`docs/security/e0-readonly-check.sql`) was run against a local PostgreSQL 16 with the real schema and planted good and bad rows; it detected every planted problem. The run against the live Render database is pending.
+E0 (`docs/security/e0-readonly-check.sql`) was run against a local PostgreSQL 16 with the real schema and planted good and bad rows; it detected every planted problem.
+
+### E0 on the live database (17 November 2026)
+
+Run with `docs/security/e0-readonly-check-single.sql` through the Render connector's `query_render_postgres` tool (wrapped in a read-only transaction by Render) against `trustpass-db` (PostgreSQL 18, free plan, Frankfurt). Only aggregate counts were returned; no data was changed.
+
+| Area | Result |
+| --- | --- |
+| Session | `transaction_read_only` = on (PASS) |
+| Data | 2 active and 2 deleted documents, 2 wrapped keys, 2 stored objects, 6 field values, 1 credential, 8 links, 1 master-key version |
+| Keys | Every active document has a wrapped key and a stored object; deleted documents have no key or ciphertext left; no orphans (all PASS) |
+| AES-256-GCM shapes | IVs 12 bytes, tags 16 bytes, wrapped keys 32 bytes, no repeated IVs (all PASS) |
+| At rest | No stored file starts like a PDF, PNG or JPEG or contains `endobj` / `%%EOF`; sizes match; 256 distinct byte values in the first 4 KB (PASS) |
+| Field values, credential, link copies | All sealed, none readable as text (PASS) |
+| Known gaps (E3–E5) | Titles in clear: 2 · field labels: 6 · recipient names: 8 · unkeyed SHA-256 hashes: 4 (including the 2 deleted documents) · log rows with a title: 6 · deleted documents whose title is still in logs: 2 |
+
+Seen in the database settings (not part of the SQL check): the free database expires on 16 December 2026 (plan item D2), and its IP allow list is `0.0.0.0/0` (anyone on the internet can reach the login prompt).
 
 ## Issues found and fixed during testing
 
