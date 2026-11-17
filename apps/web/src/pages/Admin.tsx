@@ -222,7 +222,7 @@ function HealthTab() {
   const { data, refetch, isFetching } = useQuery({
     queryKey: ['admin', 'health'],
     queryFn: () =>
-      api<{ checks: Array<{ name: string; ok: boolean; detail: string }>; runtime: { uptimeSeconds: number; node: string; environment: string; memoryMb: number; masterKeyVersion: number } }>('/api/admin/health'),
+      api<{ checks: Array<{ name: string; ok: boolean; detail: string }>; runtime: { uptimeSeconds: number; node: string; environment: string; memoryMb: number; masterKeyVersion: number; keyProvider: string } }>('/api/admin/health'),
   });
   const retention = useMutation({ mutationFn: () => api<{ result: Record<string, number> }>('/api/admin/retention/run', { method: 'POST' }) });
   return (
@@ -242,7 +242,7 @@ function HealthTab() {
         </ul>
         {data && (
           <p className="border-t border-slate-100 px-5 py-3 text-[13px] text-slate-500">
-            {data.runtime.environment} · Node {data.runtime.node} · up {Math.round(data.runtime.uptimeSeconds / 60)} min · {data.runtime.memoryMb} MB · master key v{data.runtime.masterKeyVersion}
+            {data.runtime.environment} · Node {data.runtime.node} · up {Math.round(data.runtime.uptimeSeconds / 60)} min · {data.runtime.memoryMb} MB · keys: {data.runtime.keyProvider} v{data.runtime.masterKeyVersion}
           </p>
         )}
       </Card>

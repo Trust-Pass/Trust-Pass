@@ -102,7 +102,10 @@ describe('security headers', () => {
   });
 
   it('enables HSTS in production mode', async () => {
+    // The fake KMS is refused in production, so this instance uses the legacy env key.
     const prod = await createTestContext({
+      KEY_PROVIDER: 'env',
+      MASTER_KEY: TEST_SECRETS.MASTER_KEY,
       NODE_ENV: 'production',
       APP_URL: 'https://trustpass.example',
       GEO_PROVIDER: 'mmdb',
@@ -205,6 +208,8 @@ describe('encryption and key management', () => {
       TEST_SECRETS.IP_HASH_SECRET,
       ctx.config.masterKeys.current.key.toString('base64'),
       ctx.config.masterKeys.current.key.toString('hex'),
+      ctx.config.linkTokenKeys.current.key.toString('base64'),
+      ctx.config.linkTokenKeys.current.key.toString('hex'),
       ctx.config.issuerSeed.toString('base64url'),
       ...keys.flatMap((k) => [Buffer.from(k.wrappedDek).toString('base64'), Buffer.from(k.wrappedDek).toString('hex')]),
     ];

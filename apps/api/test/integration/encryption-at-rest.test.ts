@@ -1,4 +1,5 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { PDFDocument, PDFName, PDFString, StandardFonts } from 'pdf-lib';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -214,24 +215,40 @@ describe.each(['local', 'database'] as const)('encryption at rest (STORAGE_DRIVE
     expect(report.value).toEqual([]);
   });
 
-  it('a server with a different master key cannot decrypt anything and leaks nothing', async () => {
-    const { documentId, link } = await seedEverything();
-    const other = await createTestContext({
-      STORAGE_DRIVER: driver,
-      STORAGE_DIR: ctx.config.env.STORAGE_DIR,
-      MASTER_KEY: 'a-completely-different-master-key-0123456789-abcdefgh',
-    });
-    try {
-      const res = await other.app.inject({ method: 'GET', url: `/api/share/${link.token}`, remoteAddress: IPS.SA });
-      expect(res.statusCode).toBeGreaterThanOrEqual(500);
-      for (const marker of Object.values(MARK)) expect(res.body).not.toContain(marker);
-      expect(res.body).not.toMatch(/stack|unwrap|authenticate|at \//i);
-      const file = await other.app.inject({ method: 'GET', url: `/api/share/${link.token}/file`, remoteAddress: IPS.SA });
-      expect(file.statusCode).toBeGreaterThanOrEqual(500);
-      expect(file.rawPayload.includes(Buffer.from(MARK.file))).toBe(false);
-      expect(await ctx.prisma.document.count({ where: { id: documentId } })).toBe(1);
-    } finally {
-      await other.app.close();
+  it('a server with a different KMS root key refuses to start and serves nothing', async () => {
+    await seedEverything();
+    const otherKmsFile = path.join(mkdtempSync(path.join(tmpdir(), 'trustpass-other-kms-')), 'root.key');
+    await expect(
+      createTestContext({ STORAGE_DRIVER: driver, STORAGE_DIR: ctx.config.env.STORAGE_DIR, FAKE_KMS_KEY_FILE: otherKmsFile }),
+    ).rejects.toThrow(/KMS key|could not decrypt/i);
+  });
+
+  it('a server with a wrong legacy master key refuses to start', async () => {
+    await seedEverything();
+    await expect(
+      createTestContext({
+        STORAGE_DRIVER: driver,
+        STORAGE_DIR: ctx.config.env.STORAGE_DIR,
+        KEY_PROVIDER: 'env',
+        MASTER_KEY: 'a-completely-different-master-key-0123456789-abcdefgh',
+      }),
+    ).rejects.toThrow(/does not open the stored document keys|not configured/);
+  });
+
+  it('never stores a key-encryption key in clear', async () => {
+    await seedEverything();
+    const tables = await ctx.prisma.$queryRaw<Array<{ table_name: string }>>`
+      SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> '_prisma_migrations'`;
+    const secrets = [...ctx.config.masterKeys.all.values(), ...ctx.config.linkTokenKeys.all.values()].map((k) => k.toString('hex'));
+    for (const { table_name } of tables) {
+      for (const hex of secrets) {
+        const rows = await ctx.prisma.$queryRawUnsafe<Array<{ hits: bigint }>>(
+          `SELECT count(*)::bigint AS hits FROM "${table_name}" x WHERE x::text ILIKE $1`,
+          `%${hex}%`,
+        );
+        expect(Number(rows[0]!.hits), `key material in ${table_name}`).toBe(0);
+      }
     }
   });
 });

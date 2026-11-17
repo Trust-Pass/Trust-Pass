@@ -420,3 +420,20 @@ model StoredObject {
 
   @@map("stored_objects")
 }
+
+/// Key-encryption keys (KEKs) and link-token keys, stored only encrypted by a KMS (E2).
+/// Rows can never be deleted or altered except for their status (database trigger):
+/// losing a row makes every document wrapped by it unreadable.
+model KeyEncryptionKey {
+  purpose      String
+  version      Int
+  provider     String
+  kmsKeyName   String    @map("kms_key_name")
+  encryptedKey Bytes     @map("encrypted_key")
+  status       String    @default("active")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  retiredAt    DateTime? @map("retired_at") @db.Timestamptz(3)
+
+  @@id([purpose, version])
+  @@map("key_encryption_keys")
+}

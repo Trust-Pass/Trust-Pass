@@ -28,9 +28,22 @@ This page maps the security requirements to the code that implements them and th
 
 ## Key management
 
-- `MASTER_KEY` is never used directly: HKDF-SHA256 derives the key-encryption key (`kek:v<version>`). Other secrets derive their own keys with different labels.
-- Rotation: set a new `MASTER_KEY` and `MASTER_KEY_VERSION`, move the old secret to `PREVIOUS_MASTER_KEYS`, then run `pnpm keys:rewrap`. Files are not re-encrypted.
-- Deleting a document deletes its wrapped key, claims and ciphertext (crypto-shredding).
+```text
+KMS root key (Google Cloud KMS; never leaves the KMS, every use is logged by Google)
+  └─ encrypts → key-encryption keys (KEKs) and link-token keys: random 32 bytes,
+       stored only as KMS ciphertext in key_encryption_keys
+       └─ KEK wraps → one random data key per document (document_keys)
+            └─ data key encrypts → file, field values, credential (AES-256-GCM)
+```
+
+- `KEY_PROVIDER` chooses where KEKs come from: `gcp-kms` (production target), `fake-kms` (a local stand-in with a random root key in a file; development and tests only, refused in production) or `env` (legacy: derived from `MASTER_KEY` with HKDF-SHA256).
+- With a KMS, the KEKs are decrypted once at start-up and kept only in memory. KMS is not called per document. Google Cloud KMS is called over its REST API with a service account that should hold only *Cloud KMS CryptoKey Encrypter/Decrypter* on the one key; requests and responses carry CRC32C checksums and the key's purpose and version as additional authenticated data.
+- **Start-up refuses** a key setup that does not match the data: a KEK the KMS cannot decrypt, a different KMS key or provider, a key version used by stored documents but not configured, or a KEK that does not open the stored document keys.
+- **Key separation:** link tokens are sealed with their own key, never with the KEK.
+- **The database protects stored keys:** rows in `key_encryption_keys` cannot be deleted, truncated or altered (only `status` can change, and only from active to retired) unless a transaction explicitly sets `trustpass.allow_key_destroy`. A plaintext key cannot be stored by mistake (length check).
+- **Moving from `MASTER_KEY` to a KMS:** set `KEY_PROVIDER=gcp-kms` and keep `MASTER_KEY` as a legacy key; new documents use the KMS-protected KEK at once. Run `pnpm keys:rewrap --dry-run`, then `pnpm keys:rewrap`, then remove `MASTER_KEY`. Only wrapped data keys and link-token copies change; files are not re-encrypted.
+- **Rotation:** `pnpm keys:rotate` creates a new KMS-protected KEK and link-token key (the old ones stay, retired, for reading) and re-wraps everything. `pnpm keys:status` shows provider, versions and documents per version. None of these commands print key material.
+- Deleting a document deletes its wrapped key, claims and ciphertext (crypto-shredding). Database backups still hold wrapped keys; with a KMS they stay unreadable once the KMS key version that protects their KEK is destroyed.
 
 ## Known limits
 

@@ -20,9 +20,9 @@ function shareUrl(deps: AppDeps, token: string) {
   return `${deps.config.env.APP_URL}/s/${token}`;
 }
 
-function decryptToken(deps: AppDeps, linkId: string, encrypted: Uint8Array): string {
-  // Try every configured master key so links survive a key rotation.
-  for (const key of deps.config.masterKeys.all.values()) {
+export function decryptToken(deps: Pick<AppDeps, 'config'>, linkId: string, encrypted: Uint8Array): string {
+  // Link-token keys first; links created before E2 were sealed with the key-encryption key.
+  for (const key of [...deps.config.linkTokenKeys.all.values(), ...deps.config.masterKeys.all.values()]) {
     try {
       return open(key, encrypted, linkTokenAad(linkId)).toString('utf8');
     } catch {
@@ -93,7 +93,7 @@ export async function sharingRoutes(app: FastifyInstance) {
             ownerId: user.id,
             tokenHash: hashToken(token),
             // Encrypted copy so the owner can copy the link again; lookups use the hash.
-            tokenEncrypted: seal(config.masterKeys.current.key, token, linkTokenAad(linkId)),
+            tokenEncrypted: seal(config.linkTokenKeys.current.key, token, linkTokenAad(linkId)),
             recipientType: input.recipientType,
             recipientOrgId,
             recipientLabel: input.recipientLabel,

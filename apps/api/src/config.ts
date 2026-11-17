@@ -3,6 +3,11 @@ import { createRequire } from 'node:module';
 import { isIP } from 'node:net';
 import path from 'node:path';
 import { z } from 'zod';
+import { KeySet, type MasterKey } from './lib/keyset';
+
+export type { MasterKey };
+export const GCP_KMS_KEY_NAME_RE =
+  /^projects\/[a-z][a-z0-9-]{4,28}[a-z0-9]\/locations\/[a-z0-9-]{1,63}\/keyRings\/[A-Za-z0-9_-]{1,63}\/cryptoKeys\/[A-Za-z0-9_-]{1,63}$/;
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -10,10 +15,22 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   APP_URL: z.string().url().default('http://localhost:5173'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
-  MASTER_KEY: z.string().min(32, 'MASTER_KEY must be at least 32 characters of random data'),
+  // Where the key-encryption keys (KEKs) come from:
+  //   env      - derived from MASTER_KEY (legacy; the key sits next to the app)
+  //   gcp-kms  - random KEKs, stored only encrypted by a Google Cloud KMS key
+  //   fake-kms - same as gcp-kms with a local stand-in for KMS (development and tests; refused in production)
+  KEY_PROVIDER: z.enum(['env', 'gcp-kms', 'fake-kms']).default('env'),
+  // Legacy master key. Required with KEY_PROVIDER=env; with a KMS provider it is only
+  // needed until `keys:rewrap` has moved every document to a KMS-protected KEK.
+  MASTER_KEY: z.string().min(32, 'MASTER_KEY must be at least 32 characters of random data').optional(),
   MASTER_KEY_VERSION: z.coerce.number().int().min(1).default(1),
   // Older master keys kept for unwrapping during rotation: "1:secret,2:secret"
   PREVIOUS_MASTER_KEYS: z.string().optional(),
+  // KEY_PROVIDER=gcp-kms: full key resource name, and the service account key (JSON or base64 JSON)
+  GCP_KMS_KEY_NAME: z.string().regex(GCP_KMS_KEY_NAME_RE, 'GCP_KMS_KEY_NAME must look like projects/<p>/locations/<l>/keyRings/<r>/cryptoKeys/<k>').optional(),
+  GCP_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  // KEY_PROVIDER=fake-kms: file holding the fake root key (created with random bytes on first use)
+  FAKE_KMS_KEY_FILE: z.string().optional(),
   IP_HASH_SECRET: z.string().min(32, 'IP_HASH_SECRET must be at least 32 characters'),
   ISSUER_SIGNING_SEED: z.string().min(32, 'ISSUER_SIGNING_SEED must be at least 32 characters'),
   STORAGE_DRIVER: z.enum(['local', 'database']).default('local'),
@@ -45,11 +62,6 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
-export interface MasterKey {
-  version: number;
-  key: Buffer;
-}
-
 export interface AppConfig {
   env: Env;
   isProduction: boolean;
@@ -58,7 +70,12 @@ export interface AppConfig {
   cookieSecure: boolean;
   trustProxy: boolean | number | string[];
   clientIpHeader: string | null;
-  masterKeys: { current: MasterKey; all: Map<number, Buffer> };
+  /** Key-encryption keys that wrap per-document data keys. Filled at start-up when a KMS is used. */
+  masterKeys: KeySet;
+  /** Keys that seal the owner's copy of each share-link token (kept apart from the KEKs). */
+  linkTokenKeys: KeySet;
+  /** KEK versions that come from MASTER_KEY / PREVIOUS_MASTER_KEYS rather than from a KMS. */
+  legacyKekVersions: number[];
   ipHashKey: Buffer;
   issuerSeed: Buffer;
   maxUploadBytes: number;
@@ -128,17 +145,38 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     throw new Error('APP_URL must use https:// in production');
   }
 
-  const masterKeys = new Map<number, Buffer>();
-  masterKeys.set(env.MASTER_KEY_VERSION, deriveKey(env.MASTER_KEY, `kek:v${env.MASTER_KEY_VERSION}`));
+  if (env.KEY_PROVIDER === 'env' && !env.MASTER_KEY) {
+    throw new Error('Invalid configuration:\n  MASTER_KEY: required when KEY_PROVIDER=env');
+  }
+  if (env.KEY_PROVIDER === 'fake-kms' && isProduction) {
+    throw new Error('KEY_PROVIDER=fake-kms is refused in production: it is a local stand-in, not a key management service');
+  }
+  if (env.KEY_PROVIDER === 'gcp-kms' && (!env.GCP_KMS_KEY_NAME || !env.GCP_SERVICE_ACCOUNT_JSON)) {
+    throw new Error('Invalid configuration:\n  KEY_PROVIDER=gcp-kms needs GCP_KMS_KEY_NAME and GCP_SERVICE_ACCOUNT_JSON');
+  }
+
+  // Legacy keys from the environment. With a KMS provider they can still decrypt older
+  // data, but the current (encrypting) KEK is loaded from the keyring at start-up.
+  const masterKeys = new KeySet('key-encryption');
+  const linkTokenKeys = new KeySet('link-token');
+  const legacy: Array<[number, string]> = [];
+  if (env.MASTER_KEY) legacy.push([env.MASTER_KEY_VERSION, env.MASTER_KEY]);
   if (env.PREVIOUS_MASTER_KEYS) {
     for (const entry of env.PREVIOUS_MASTER_KEYS.split(',')) {
       const [v, secret] = entry.split(':');
       const version = Number(v);
-      if (!Number.isInteger(version) || !secret || secret.length < 32) {
+      if (!Number.isInteger(version) || version < 1 || !secret || secret.length < 32) {
         throw new Error('PREVIOUS_MASTER_KEYS entries must look like "1:<secret of 32+ chars>"');
       }
-      if (!masterKeys.has(version)) masterKeys.set(version, deriveKey(secret, `kek:v${version}`));
+      if (!legacy.some(([existing]) => existing === version)) legacy.push([version, secret]);
     }
+  }
+  const useEnvKeys = env.KEY_PROVIDER === 'env';
+  for (const [version, secret] of legacy) {
+    const current = useEnvKeys && version === env.MASTER_KEY_VERSION;
+    masterKeys.add(version, deriveKey(secret, `kek:v${version}`), { current });
+    // Separate key for link tokens, so the KEK only ever wraps data keys.
+    linkTokenKeys.add(version, deriveKey(secret, `link-token:v${version}`), { current });
   }
 
   const geoPackage = createRequire(import.meta.url).resolve('@ip-location-db/dbip-country-mmdb/package.json');
@@ -153,10 +191,9 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     cookieSecure: isProduction,
     trustProxy: parseTrustProxy(env.TRUST_PROXY, isProduction),
     clientIpHeader: env.CLIENT_IP_HEADER ?? null,
-    masterKeys: {
-      current: { version: env.MASTER_KEY_VERSION, key: masterKeys.get(env.MASTER_KEY_VERSION)! },
-      all: masterKeys,
-    },
+    masterKeys,
+    linkTokenKeys,
+    legacyKekVersions: legacy.map(([version]) => version).sort((a, b) => a - b),
     ipHashKey: deriveKey(env.IP_HASH_SECRET, 'ip-hmac'),
     issuerSeed: deriveKey(env.ISSUER_SIGNING_SEED, 'issuer-ed25519-seed'),
     maxUploadBytes: env.MAX_UPLOAD_MB * 1024 * 1024,

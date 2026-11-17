@@ -4,6 +4,7 @@ import { updateIssuerStatusSchema, updateSettingsSchema, updateStatusSchema } fr
 import { z } from 'zod';
 import { AppError, notFound, parse } from '../lib/errors';
 import { describeConnection } from '../lib/connection';
+import { keyringStatus } from '../lib/keyring';
 import { checkStorage } from '../lib/storage';
 import { requireAdmin } from '../plugins/auth';
 import { logEvent } from '../services/audit';
@@ -234,6 +235,22 @@ export async function adminRoutes(app: FastifyInstance) {
       checks.push({ name: 'Encrypted file storage', ok: false, detail: `${storage.driver} driver failed the write/read check` });
     }
 
+    // Key protection: provider and versions only, never key material.
+    const keys = await keyringStatus(config, prisma);
+    const kmsProtected = keys.provider === 'gcp-kms' && keys.documentsOnLegacyKeys === 0;
+    checks.push({
+      name: 'Encryption keys',
+      ok: config.isProduction ? kmsProtected : keys.documentsOnLegacyKeys === 0 || keys.provider === 'env',
+      detail:
+        (keys.provider === 'env'
+          ? 'Master key read from the environment (not protected by a KMS)'
+          : keys.provider === 'gcp-kms'
+            ? `Protected by Google Cloud KMS (${keys.kmsKey})`
+            : 'Fake KMS (development and tests only)') +
+        `; current key-encryption key v${keys.currentKekVersion}` +
+        (keys.documentsOnLegacyKeys > 0 ? `; ${keys.documentsOnLegacyKeys} document(s) still on legacy keys, run keys:rewrap` : ''),
+    });
+
     const connection = describeConnection(request, geo, config.clientIpHeader);
     checks.push({
       name: 'Geolocation',
@@ -258,6 +275,7 @@ export async function adminRoutes(app: FastifyInstance) {
         environment: config.env.NODE_ENV,
         memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
         masterKeyVersion: config.masterKeys.current.version,
+        keyProvider: config.env.KEY_PROVIDER,
       },
     };
   });

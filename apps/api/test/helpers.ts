@@ -8,7 +8,9 @@ import sharp from 'sharp';
 import { buildApp } from '../src/app';
 import { loadConfig, type AppConfig } from '../src/config';
 import type { MailMessage, Mailer } from '../src/lib/mail';
-import { TEST_DATABASE_URL } from './env';
+import { TEST_DATABASE_URL, TEST_KMS_KEY_FILE } from './env';
+
+export { TEST_KMS_KEY_FILE };
 
 export const TEST_SECRETS = {
   MASTER_KEY: 'test-master-key-0123456789-abcdefghijklmnopqrstuvwxyz',
@@ -72,6 +74,14 @@ const TABLES = [
   'system_settings',
 ];
 
+/** Removes every stored key (tests that start from an empty keyring only). */
+export async function resetKeyring(prisma: PrismaClient) {
+  await prisma.$transaction([
+    prisma.$executeRawUnsafe(`SELECT set_config('trustpass.allow_key_destroy', 'on', true)`),
+    prisma.$executeRawUnsafe(`TRUNCATE "key_encryption_keys"`),
+  ]);
+}
+
 export async function resetDatabase(prisma: PrismaClient) {
   await prisma.$transaction([
     prisma.$executeRawUnsafe(`SELECT set_config('trustpass.allow_log_purge', 'on', true)`),
@@ -87,8 +97,13 @@ export interface TestContext {
   mail: MailMessage[];
 }
 
+/**
+ * App instances in tests use the fake KMS (KEY_PROVIDER=fake-kms) with no MASTER_KEY,
+ * the same path production takes with Google Cloud KMS. Pass MASTER_KEY or KEY_PROVIDER
+ * to test the legacy path.
+ */
 export async function createTestContext(overrides: Record<string, string | undefined> = {}): Promise<TestContext> {
-  const config = testConfig(overrides);
+  const config = testConfig({ KEY_PROVIDER: 'fake-kms', FAKE_KMS_KEY_FILE: TEST_KMS_KEY_FILE, MASTER_KEY: undefined, ...overrides });
   const prisma = testPrisma();
   const clock = {
     now: new Date(),

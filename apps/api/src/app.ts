@@ -10,6 +10,8 @@ import type { AppConfig } from './config';
 import { resolveClientIp } from './lib/connection';
 import { errorHandler } from './lib/errors';
 import { createGeoProvider, type GeoProvider } from './lib/geo';
+import { initKeyring } from './lib/keyring';
+import { createKmsProvider, type KmsProvider } from './lib/kms';
 import { createMailer, type Mailer } from './lib/mail';
 import { createStorage, type ObjectStorage } from './lib/storage';
 import { accessRoutes } from './modules/access';
@@ -32,6 +34,8 @@ export interface BuildOptions {
   mailer?: Mailer;
   now?: () => Date;
   logger?: FastifyServerOptions['logger'];
+  /** Overrides the KMS chosen by KEY_PROVIDER (tests). */
+  kms?: KmsProvider | null;
 }
 
 /** Share tokens appear in URLs; keep them out of logs. */
@@ -63,6 +67,15 @@ export async function buildApp(options: BuildOptions) {
     genReqId: () => randomUUID(),
     requestIdHeader: false,
   });
+
+  // Load and verify the encryption keys before anything can read or write a document.
+  // Any mismatch stops start-up here rather than failing later on individual documents.
+  try {
+    await initKeyring({ config, prisma, kms: options.kms !== undefined ? options.kms : createKmsProvider(config), log: app.log });
+  } catch (err) {
+    await app.close();
+    throw err;
+  }
 
   const deps: AppDeps = {
     config,
