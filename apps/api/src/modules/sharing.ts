@@ -32,6 +32,17 @@ export function decryptToken(deps: Pick<AppDeps, 'config'>, linkId: string, encr
   throw new AppError(500, 'token_unavailable', 'The link could not be recovered');
 }
 
+/** Like decryptToken, but loads keys added by a rotation since start-up before giving up. */
+async function recoverToken(deps: AppDeps, linkId: string, encrypted: Uint8Array): Promise<string> {
+  try {
+    return decryptToken(deps, linkId, encrypted);
+  } catch (err) {
+    if (!deps.keys?.enabled) throw err;
+    await deps.keys.reload();
+    return decryptToken(deps, linkId, encrypted);
+  }
+}
+
 async function getOwnedLink(deps: AppDeps, id: string, ownerId: string) {
   const link = await deps.prisma.sharingLink.findFirst({
     where: { id, ownerId },
@@ -83,6 +94,7 @@ export async function sharingRoutes(app: FastifyInstance) {
         throw badRequest(`Links can last at most ${settings.maxLinkDays} days`);
       }
 
+      await deps.keys?.refreshIfStale();
       const token = randomToken(32);
       const linkId = randomUUID();
       const link = await prisma.$transaction(async (tx) => {
@@ -235,7 +247,7 @@ export async function sharingRoutes(app: FastifyInstance) {
   app.get('/api/links/:id/url', async (request) => {
     const { user } = requireUser(request);
     const link = await getOwnedLink(deps, parseId(request, 'Link'), user.id);
-    return { url: shareUrl(deps, decryptToken(deps, link.id, link.tokenEncrypted)) };
+    return { url: shareUrl(deps, await recoverToken(deps, link.id, link.tokenEncrypted)) };
   });
 
   app.put('/api/links/:id/countries', async (request) => {

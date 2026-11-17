@@ -31,6 +31,11 @@ const envSchema = z.object({
   GCP_SERVICE_ACCOUNT_JSON: z.string().optional(),
   // KEY_PROVIDER=fake-kms: file holding the fake root key (created with random bytes on first use)
   FAKE_KMS_KEY_FILE: z.string().optional(),
+  // The fake KMS only runs against a database on this machine. To use it with another
+  // database host (e.g. a Docker service name), name that exact host here.
+  FAKE_KMS_ALLOW_DATABASE_HOST: z.string().optional(),
+  // How often a running server checks whether a newer key-encryption key became active.
+  KEY_REFRESH_SECONDS: z.coerce.number().int().min(0).max(3600).default(30),
   IP_HASH_SECRET: z.string().min(32, 'IP_HASH_SECRET must be at least 32 characters'),
   ISSUER_SIGNING_SEED: z.string().min(32, 'ISSUER_SIGNING_SEED must be at least 32 characters'),
   STORAGE_DRIVER: z.enum(['local', 'database']).default('local'),
@@ -92,6 +97,18 @@ export function deriveKey(secret: string, label: string): Buffer {
   return Buffer.from(hkdfSync('sha256', Buffer.from(secret, 'utf8'), Buffer.from('trustpass'), Buffer.from(label), 32));
 }
 
+/** Host of a postgres URL (empty for a Unix socket). Never returns credentials. */
+export function databaseHost(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const socketHost = parsed.searchParams.get('host');
+    if (socketHost?.startsWith('/')) return '';
+    return parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  } catch {
+    return 'unparseable';
+  }
+}
+
 const PROXY_RANGE_NAMES = new Set(['loopback', 'linklocal', 'uniquelocal']);
 
 function isCidr(value: string): boolean {
@@ -150,6 +167,18 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
   }
   if (env.KEY_PROVIDER === 'fake-kms' && isProduction) {
     throw new Error('KEY_PROVIDER=fake-kms is refused in production: it is a local stand-in, not a key management service');
+  }
+  if (env.KEY_PROVIDER === 'fake-kms') {
+    // A developer machine pointed at a hosted (e.g. production) database must never write
+    // fake-KMS keys into it: only local databases, or one host named explicitly.
+    const host = databaseHost(env.DATABASE_URL);
+    const local = host === '' || host === 'localhost' || host === '::1' || /^127\./.test(host);
+    if (!local && host !== env.FAKE_KMS_ALLOW_DATABASE_HOST) {
+      throw new Error(
+        `KEY_PROVIDER=fake-kms is refused for the database host "${host}": the fake KMS only runs against a local database ` +
+          '(set FAKE_KMS_ALLOW_DATABASE_HOST to that exact host for a local container)',
+      );
+    }
   }
   if (env.KEY_PROVIDER === 'gcp-kms' && (!env.GCP_KMS_KEY_NAME || !env.GCP_SERVICE_ACCOUNT_JSON)) {
     throw new Error('Invalid configuration:\n  KEY_PROVIDER=gcp-kms needs GCP_KMS_KEY_NAME and GCP_SERVICE_ACCOUNT_JSON');

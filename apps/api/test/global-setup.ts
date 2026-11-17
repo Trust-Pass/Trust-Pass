@@ -15,7 +15,9 @@ export default async function setup() {
   try {
     await prisma.$transaction([
       prisma.$executeRawUnsafe(`SELECT set_config('trustpass.allow_key_destroy', 'on', true)`),
-      prisma.$executeRawUnsafe(`TRUNCATE "key_encryption_keys", "document_keys"`),
+      prisma.$executeRawUnsafe(`SELECT set_config('trustpass.allow_log_purge', 'on', true)`),
+      // system_settings too: a production marker left by an interrupted run would make the fake KMS refuse.
+      prisma.$executeRawUnsafe(`TRUNCATE "key_encryption_keys", "document_keys", "system_settings"`),
     ]);
   } finally {
     await prisma.$disconnect();

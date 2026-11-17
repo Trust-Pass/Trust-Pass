@@ -232,7 +232,7 @@ describe.each(['local', 'database'] as const)('encryption at rest (STORAGE_DRIVE
         KEY_PROVIDER: 'env',
         MASTER_KEY: 'a-completely-different-master-key-0123456789-abcdefgh',
       }),
-    ).rejects.toThrow(/does not open the stored document keys|not configured/);
+    ).rejects.toThrow(/does not open the stored document keys|not configured|clashes with a legacy master key/);
   });
 
   it('never stores a key-encryption key in clear', async () => {

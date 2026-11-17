@@ -254,6 +254,37 @@ describe('key provider configuration', () => {
     expect(legacy.linkTokenKeys.current.key.equals(legacy.masterKeys.current.key)).toBe(false);
   });
 
+  it('runs the fake KMS only against a local database, unless one exact host is allowed (fix F)', () => {
+    const dev = { NODE_ENV: 'development', APP_URL: 'http://localhost:5173', ...TEST_SECRETS, MASTER_KEY: undefined, KEY_PROVIDER: 'fake-kms' };
+    const url = (host: string) => `postgresql://user:secret-password@${host}:5432/trustpass`;
+    for (const host of ['localhost', '127.0.0.1', '[::1]']) expect(() => loadConfig({ ...dev, DATABASE_URL: url(host) })).not.toThrow();
+    for (const host of ['dpg-abc123-a.frankfurt-postgres.render.com', 'dpg-abc123-a', '10.0.0.5', 'db.example.com']) {
+      let message = '';
+      try {
+        loadConfig({ ...dev, DATABASE_URL: url(host) });
+      } catch (err) {
+        message = String(err);
+      }
+      expect(message, host).toMatch(/fake-kms is refused for the database host/);
+      expect(message).not.toContain('secret-password');
+    }
+    expect(() => loadConfig({ ...dev, DATABASE_URL: 'not a url' })).toThrow(/fake-kms is refused/);
+    expect(() => loadConfig({ ...dev, DATABASE_URL: url('postgres'), FAKE_KMS_ALLOW_DATABASE_HOST: 'postgres' })).not.toThrow();
+    expect(() => loadConfig({ ...dev, DATABASE_URL: url('postgres.evil'), FAKE_KMS_ALLOW_DATABASE_HOST: 'postgres' })).toThrow(/refused/);
+  });
+
+  it('builds the key commands into the production image and documents how to run them there (fix G)', () => {
+    const root = process.cwd(); // vitest runs in apps/api
+    expect(readFileSync(path.join(root, 'tsup.config.ts'), 'utf8')).toContain("keys: 'src/scripts/keys.ts'");
+    expect(readFileSync(path.join(root, 'src/scripts/keys.ts'), 'utf8')).toContain('node apps/api/dist/keys.js');
+    expect(readFileSync(path.join(root, '..', '..', 'docs/security.md'), 'utf8')).toContain('node apps/api/dist/keys.js');
+    // The entry point runs only when started as keys(.js), never when imported by rewrap-keys.
+    const runsDirectly = /(^|[\\/])keys(\.[cm]?[jt]s)?$/;
+    expect(runsDirectly.test('/app/apps/api/dist/keys.js')).toBe(true);
+    expect(runsDirectly.test('/app/apps/api/dist/rewrap-keys.js')).toBe(false);
+    expect(readFileSync(path.join(root, 'src/scripts/keys.ts'), 'utf8')).toContain(String(runsDirectly).slice(1, -1));
+  });
+
   it('keeps one key per version and refuses conflicting duplicates', () => {
     const set = new KeySet('test');
     const key = randomBytes(32);

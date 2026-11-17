@@ -16,7 +16,8 @@
     "db:seed": "tsx src/scripts/seed.ts",
     "keys:status": "tsx src/scripts/keys.ts status",
     "keys:rewrap": "tsx src/scripts/keys.ts rewrap",
-    "keys:rotate": "tsx src/scripts/keys.ts rotate"
+    "keys:rotate": "tsx src/scripts/keys.ts rotate",
+    "keys:destroy-retired": "tsx src/scripts/keys.ts destroy-retired"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",

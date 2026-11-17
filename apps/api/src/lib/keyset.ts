@@ -45,3 +45,11 @@ export class KeySet {
     return [...this.all.keys()].sort((a, b) => a - b);
   }
 }
+
+/** A stored item uses a key version this process has not loaded (e.g. created by a rotation after start-up). */
+export class UnknownKeyVersionError extends Error {
+  constructor(readonly version: number) {
+    super(`Master key version ${version} is not configured`);
+    this.name = 'UnknownKeyVersionError';
+  }
+}

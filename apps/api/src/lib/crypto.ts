@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { AppConfig } from '../config';
+import { UnknownKeyVersionError } from './keyset';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_BYTES = 12;
@@ -82,7 +83,7 @@ export function unwrapDataKey(
   documentId: string,
 ): Buffer {
   const kek = config.masterKeys.all.get(wrapped.kekVersion);
-  if (!kek) throw new Error(`Master key version ${wrapped.kekVersion} is not configured`);
+  if (!kek) throw new UnknownKeyVersionError(wrapped.kekVersion);
   return decrypt(
     kek,
     { ciphertext: Buffer.from(wrapped.wrappedDek), iv: Buffer.from(wrapped.wrapIv), tag: Buffer.from(wrapped.wrapTag) },

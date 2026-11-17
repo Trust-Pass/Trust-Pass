@@ -10,7 +10,7 @@ import type { AppConfig } from './config';
 import { resolveClientIp } from './lib/connection';
 import { errorHandler } from './lib/errors';
 import { createGeoProvider, type GeoProvider } from './lib/geo';
-import { initKeyring } from './lib/keyring';
+import { initKeyring, KeyringManager } from './lib/keyring';
 import { createKmsProvider, type KmsProvider } from './lib/kms';
 import { createMailer, type Mailer } from './lib/mail';
 import { createStorage, type ObjectStorage } from './lib/storage';
@@ -70,12 +70,15 @@ export async function buildApp(options: BuildOptions) {
 
   // Load and verify the encryption keys before anything can read or write a document.
   // Any mismatch stops start-up here rather than failing later on individual documents.
+  const kms = options.kms !== undefined ? options.kms : createKmsProvider(config);
   try {
-    await initKeyring({ config, prisma, kms: options.kms !== undefined ? options.kms : createKmsProvider(config), log: app.log });
+    await initKeyring({ config, prisma, kms, log: app.log });
   } catch (err) {
     await app.close();
     throw err;
   }
+  // Picks up key rotations made while this instance is running (see KeyringManager).
+  const keys = new KeyringManager({ config, prisma, kms, log: app.log, refreshMs: config.env.KEY_REFRESH_SECONDS * 1000 });
 
   const deps: AppDeps = {
     config,
@@ -84,6 +87,7 @@ export async function buildApp(options: BuildOptions) {
     geo: options.geo ?? (await createGeoProvider(config)),
     mailer: options.mailer ?? createMailer(config, app.log),
     now: options.now ?? (() => new Date()),
+    keys,
   };
   app.decorate('deps', deps);
   app.setErrorHandler(errorHandler);

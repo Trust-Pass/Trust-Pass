@@ -106,6 +106,8 @@ describe('security headers', () => {
     const prod = await createTestContext({
       KEY_PROVIDER: 'env',
       MASTER_KEY: TEST_SECRETS.MASTER_KEY,
+      // A version no stored test key uses (stored keys and legacy keys share one numbering).
+      MASTER_KEY_VERSION: '100',
       NODE_ENV: 'production',
       APP_URL: 'https://trustpass.example',
       GEO_PROVIDER: 'mmdb',
@@ -114,6 +116,9 @@ describe('security headers', () => {
     const res = await prod.app.inject({ method: 'GET', url: '/api/health' });
     expect(res.headers['strict-transport-security']).toContain('max-age=31536000');
     await prod.app.close();
+    // The production instance marked the test database as production's; clear it so later
+    // instances can use the fake KMS again.
+    await resetDatabase(ctx.prisma);
   });
 });
 

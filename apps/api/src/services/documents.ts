@@ -16,6 +16,7 @@ import {
 } from '../lib/crypto';
 import { AppError } from '../lib/errors';
 import { newStorageKey } from '../lib/storage';
+import { UnknownKeyVersionError } from '../lib/keyset';
 import type { AppDeps } from '../types';
 import { logEvent } from './audit';
 
@@ -50,6 +51,8 @@ export interface StoreDocumentInput {
  */
 export async function storeEncryptedDocument(deps: AppDeps, input: StoreDocumentInput): Promise<Document> {
   const { prisma, storage, config } = deps;
+  // After a rotation, switch to the new key-encryption key before wrapping new data.
+  await deps.keys?.refreshIfStale();
   const documentId = input.documentId ?? randomUUID();
   const dek = generateDataKey();
   try {
@@ -120,7 +123,16 @@ export async function storeEncryptedDocument(deps: AppDeps, input: StoreDocument
 export async function loadDataKey(deps: AppDeps, documentId: string): Promise<Buffer> {
   const key = await deps.prisma.documentKey.findUnique({ where: { documentId } });
   if (!key) throw new Error(`No data key for document ${documentId}`);
-  return unwrapDataKey(deps.config, key, documentId);
+  try {
+    return unwrapDataKey(deps.config, key, documentId);
+  } catch (err) {
+    // Re-wrapped by a rotation after this instance started: load the new keys once, retry.
+    if (err instanceof UnknownKeyVersionError && deps.keys?.enabled) {
+      await deps.keys.reload();
+      return unwrapDataKey(deps.config, key, documentId);
+    }
+    throw err;
+  }
 }
 
 /** Decrypts a document's file. Callers must have authorised the request first. */
