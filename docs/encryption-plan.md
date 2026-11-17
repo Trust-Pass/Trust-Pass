@@ -162,8 +162,9 @@ Same rules as `docs/implementation-plan.md`: new Prisma migration for every sche
 - Production config: `MASTER_KEY` must decode to ≥32 random bytes (base64 or hex); document `openssl rand -base64 32`.
 - Boot canary: `system_settings.key_check` holds a value sealed at first start; on boot, unwrap it, and refuse to start with a clear log line if that fails.
 - **Done when:** unit tests for both providers (KMS with a fake); app refuses to boot with a wrong key; existing data still decrypts (no data migration needed for DEKs).
+- **Status (17 Nov): built and tested** on `claude/encryption-hardening` (commit `540aa9e`), fake KMS only. CI: 184/184 API tests, 16/16 e2e. Google Cloud KMS is implemented over its REST API (no new dependency) and tested against a mocked API only; it has never been called for real. Not deployed.
 
-**E3a. Complete rotation (P2, S).** Fixes A11.
+**E3a. Complete rotation (P2, S).** Fixes A11. **Done as part of E2** (`keys:rewrap --dry-run`, batches, link-token re-sealing, verification pass, `keys:rotate`, `keys:status`).
 - `keys:rewrap` also re-seals `tokenEncrypted`; adds `--dry-run`, batches of 100, and a final verification pass that unwraps every key. Admin > Health shows "Keys on old version: n".
 - **Done when:** integration test rotates v1 → v2, removes v1 from config, and every document, field and "Copy link" still works.
 
@@ -308,5 +309,5 @@ Sizes: S ≈ 1 hour, M ≈ half a day, L ≈ 1–2 days of Claude sessions. E3 n
 
 ## Checklist
 
-- [ ] E0 · [ ] E1 · [ ] E2 · [ ] E3a · [ ] E3 · [ ] E4 · [ ] E5 · [ ] E6 · [ ] E7 · [ ] E8
+- [x] E0 · [x] E1 · [x] E2 (code; not deployed) · [x] E3a · [ ] E3 · [ ] E4 · [ ] E5 · [ ] E6 · [ ] E7 · [ ] E8
 - [ ] E9a · [ ] E9b · [ ] E9c · [ ] E9d · [ ] E9e · [ ] E9f

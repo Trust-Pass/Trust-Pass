@@ -95,6 +95,25 @@ Run with `docs/security/e0-readonly-check-single.sql` through the Render connect
 
 Seen in the database settings (not part of the SQL check): the free database expires on 16 December 2026 (plan item D2), and its IP allow list is `0.0.0.0/0` (anyone on the internet can reach the login prompt).
 
+## E2: key management with a KMS (17 November 2026)
+
+Branch `claude/encryption-hardening`, commit `540aa9e`. Only the fake KMS was used: no Google Cloud account, no billing, no deploy, no production change.
+
+| Check | Result |
+| --- | --- |
+| GitHub CI: type check, API tests, build | 184 / 184 API tests pass (31 new since E1); build passes |
+| End-to-end (Playwright, iPhone 13 + desktop, now on the fake KMS) | 16 / 16 pass |
+| Dependency audit, gitleaks | Pass (E2 adds no dependency) |
+| All integration suites | Now run with `KEY_PROVIDER=fake-kms` and no `MASTER_KEY`, the same path as production with Cloud KMS |
+| Fake KMS (unit) | Round trip, context binding, tamper detection, different root key refused, key file created once with mode 0600 |
+| Google Cloud KMS provider (unit, mocked network) | Correct RS256 JWT, token caching and renewal, CRC32C on every request and response, retries on 429/5xx only, one re-sign-in on 401, corruption and unconfirmed checksums rejected, unsafe service-account files refused without echoing them |
+| First start | Creates a random KEK and link-token key, stored only KMS-encrypted; a second instance loads the same keys; two instances starting together create exactly one |
+| Refuses to start | KMS cannot decrypt the stored key; different KMS key or provider; key version in use but missing; wrong legacy `MASTER_KEY` |
+| Migration from `MASTER_KEY` | Old file, field, credential and link keep working with both keys configured, after a dry run (nothing changed), after the re-wrap (file ciphertext untouched), and after `MASTER_KEY` is removed |
+| Rotation | New KEK v2, v1 kept retired for reading, re-wrap moves everything to v2; a damaged row is reported, not skipped silently |
+| Database guards | Stored keys cannot be deleted, truncated or altered; a plaintext-length key is rejected |
+| Secrets | No KEK, link-token key, fake root key or `MASTER_KEY` in any table (as text or hex), API response or log line |
+
 ## Issues found and fixed during testing
 
 | Found by | Problem | Fix |
