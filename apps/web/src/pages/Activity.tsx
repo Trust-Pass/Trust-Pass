@@ -21,6 +21,11 @@ function describe(meta: Record<string, unknown>): string | null {
   if (typeof meta.algorithm === 'string') parts.push(`${meta.algorithm}, key v${String(meta.kekVersion ?? 1)}`);
   if (Array.isArray(meta.after)) parts.push(`Countries: ${(meta.after as string[]).join(', ') || 'any'}`);
   if (typeof meta.expiresAt === 'string') parts.push(`Expires ${formatDateTime(meta.expiresAt)}`);
+  if (typeof meta.source === 'string' && typeof meta.kind === 'string') {
+    const sources: Record<string, string> = { camera: 'Live camera', image: 'Image', paste: 'Pasted' };
+    const from = sources[meta.source] ?? meta.source;
+    parts.push(`${from} · ${meta.kind.replace(/_/g, ' ')}`);
+  }
   return parts.length ? parts.join(' · ') : null;
 }
 

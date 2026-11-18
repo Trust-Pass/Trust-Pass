@@ -69,3 +69,15 @@ test('an image without a QR code, or a broken image, gives a clear message', asy
   await expect(page.getByText('This image could not be read')).toBeVisible();
   await expect(page.getByTestId('qr-result')).toHaveCount(0);
 });
+
+test('without a usable camera the scanner explains why and keeps the other options', async ({ page }) => {
+  // This browser has no camera permission (and no fake camera): the auto-start must fail gracefully.
+  await register(page, { name: 'Qr NoCam', email: uniqueEmail('qrnocam') });
+  await openScanner(page);
+  await expect(page.getByTestId('camera-problem')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('button', { name: 'Try the camera again' })).toBeVisible();
+  await paste(page, 'https://www.google.com/');
+  await expect(page.getByTestId('qr-verdict-label')).toHaveText('Safe');
+  await expect(page.getByTestId('qr-safety')).toHaveAttribute('data-score', '100');
+});
+

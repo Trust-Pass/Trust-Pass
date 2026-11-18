@@ -4,6 +4,18 @@ Checks a QR code, or a pasted link, **before** it is opened, and explains in pla
 
 Page: **QR Scanner** (`/app/scan`), for signed-in users. API: `POST /api/qr/check`.
 
+## The experience (live camera first)
+
+1. Opening the page **starts the camera** (the browser asks for permission the first time).
+2. The user points the camera at a QR code.
+3. Frames are decoded continuously (about 6 per second); the first QR code found is read automatically. No upload or paste needed.
+4. The camera stops and the content is analysed at once; the result appears on the same page (scrolled into view on phones).
+5. The result shows the verdict (**Safe / Suspicious / Dangerous**), a **safety score** in percent (100 − risk), the **destination** URL (or the content for non-web codes) and every finding explained.
+6. Nothing is ever opened automatically. "Open link" (Safe), "Open anyway" with confirmation (Suspicious), never for Dangerous.
+7. **Scan another QR code** restarts the camera in one tap. The code just read is ignored for 2.5 seconds so it is not re-read instantly.
+
+If the camera is unavailable (permission refused, no camera, not https, in use by another app), the page says why and offers **Try the camera again**; **Image** and **Paste a link** remain as alternatives.
+
 ## How it works
 
 | Step | Where | Notes |
@@ -15,9 +27,11 @@ Page: **QR Scanner** (`/app/scan`), for signed-in users. API: `POST /api/qr/chec
 
 ## Verdicts
 
-- **Dangerous**: any high or critical finding, or three medium ones. "Open" is not offered.
-- **Be careful**: any medium finding, or two low ones. "Open anyway" asks for confirmation first.
-- **No warning signs found**: nothing suspicious. This is not a guarantee, and the page says so.
+Safety score = 100 − risk score. Risk adds up the findings (low 10, medium 25, high 55, critical 90; at most 100).
+
+- **Dangerous** (`danger`): any high or critical finding, or three medium ones. "Open" is not offered.
+- **Suspicious** (`caution`): any medium finding, or two low ones. "Open anyway" asks for confirmation first.
+- **Safe** (`safe`): no warning signs found. This is not a guarantee, and the page says so.
 
 ## What is checked
 
@@ -38,7 +52,9 @@ Page: **QR Scanner** (`/app/scan`), for signed-in users. API: `POST /api/qr/chec
 
 - `apps/api/test/unit/qr-shield.test.ts`: the analyzer on safe, caution and dangerous examples of every content type.
 - `apps/api/test/integration/qr.test.ts`: sign-in required, input limits, no content stored, TrustPass link status (active, expired, revoked, fake) without counting a view, camera permission header.
-- `e2e/tests/qr-scanner.spec.ts`: pasted phishing link and script, a clean link, a QR photo decoded in the browser, an image without a code, and **live camera scanning** using Chromium's fake camera fed with `e2e/fixtures/qr-http-shortlink.y4m`; the camera is checked to be released afterwards.
+- `e2e/tests/qr-camera.spec.ts`: the **complete camera-to-analysis flow** with Chromium's fake camera playing a QR video (`e2e/fixtures/qr-http-shortlink.y4m`): the camera starts with no click, the code is read and analysed, the result shows *Suspicious*, a 50% safety score, the destination and the explanations; nothing is opened, the camera is released; **Scan another QR code** restarts the camera and reads again. Also: "Open anyway" asks first and opens only after confirming.
+- `e2e/tests/qr-camera-danger.spec.ts`: a phishing QR code through the camera (`qr-phishing.y4m`) is *Dangerous*, 0% safety, explained, cannot be opened, and is logged in the Activity log without the address.
+- `e2e/tests/qr-scanner.spec.ts`: no usable camera (clear message, other options still work), pasted phishing link and script, a clean link, a QR photo decoded in the browser, an image without a code and a broken image.
 
 ## Limits
 
