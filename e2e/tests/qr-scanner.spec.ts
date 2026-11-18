@@ -59,12 +59,13 @@ test('a QR code in an uploaded image is decoded on the device and checked', asyn
   await page.getByRole('button', { name: 'Cancel' }).click();
 });
 
-test('an image without a QR code gives a clear message', async ({ page }) => {
+test('an image without a QR code, or a broken image, gives a clear message', async ({ page }) => {
   await register(page, { name: 'Qr None', email: uniqueEmail('qrnone') });
   await openScanner(page);
   await page.getByRole('tab', { name: 'Image' }).click();
-  // 1x1 white PNG
-  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=', 'base64');
-  await page.getByTestId('qr-image-input').setInputFiles({ name: 'blank.png', mimeType: 'image/png', buffer: png });
+  await page.getByTestId('qr-image-input').setInputFiles(fixture('no-qr.png'));
   await expect(page.getByText('No QR code was found in this image')).toBeVisible({ timeout: 15_000 });
+  await page.getByTestId('qr-image-input').setInputFiles({ name: 'broken.png', mimeType: 'image/png', buffer: Buffer.from('not really a png') });
+  await expect(page.getByText('This image could not be read')).toBeVisible();
+  await expect(page.getByTestId('qr-result')).toHaveCount(0);
 });
