@@ -38,6 +38,8 @@ test('a phishing QR code seen by the camera is Dangerous, explained, and cannot 
 
   // The dangerous result was recorded in the activity log, without the address.
   await page.goto('/app/activity');
-  await expect(page.getByText('Dangerous QR code or link detected').first()).toBeVisible();
+  const event = page.getByRole('listitem').filter({ hasText: 'Dangerous QR code or link detected' }).first();
+  await expect(event).toBeVisible();
+  await expect(event).toContainText('Live camera · web link');
   await expect(page.locator('body')).not.toContainText('paypa1-secure');
 });
