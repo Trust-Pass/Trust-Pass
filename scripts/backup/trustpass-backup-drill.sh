@@ -15,7 +15,9 @@
 #   6. Writes a report (no secrets) next to the archive.
 # The container is started with --rm and /work is RAM: when it ends, every unencrypted copy is gone.
 #
-# Passwords are only ever typed at hidden prompts. Nothing secret is written, logged or printed.
+# Passwords are only ever typed at hidden prompts (the database password at pg_dump's prompt, the
+# backup passphrase at this script's own prompt). 7-Zip never prompts: on Linux it would echo.
+# Nothing secret is written, logged or printed.
 # The production database is only read: pg_dump runs in a READ ONLY transaction and the session
 # is forced to default_transaction_read_only=on.
 set -euo pipefail
@@ -40,6 +42,24 @@ say()  { printf '\n\033[1m%s\033[0m\n' "$*"; }
 ok()   { printf '  \033[32mOK\033[0m  %s\n' "$*"; }
 fail() { printf '\n  \033[31mSTOPPED:\033[0m %s\n\n' "$*" >&2; exit 1; }
 
+# Read a secret at a hidden prompt. Keys typed ahead (for example the extra line break of a
+# paste) are discarded first, so they can never become the answer to the next prompt.
+read_secret() {
+  local _junk
+  while IFS= read -r -s -t 0.3 -n 4096 _junk 2>/dev/null; do :; done
+  IFS= read -r -s -p "$1" REPLY_SECRET || REPLY_SECRET=""
+  echo
+  REPLY_SECRET="${REPLY_SECRET%$'\r'}"
+}
+
+# 7-Zip on Linux reads the passphrase from standard input and does NOT hide it, so the script
+# never lets 7-Zip prompt: it hands over the passphrase through a pipe (printf is a shell
+# built-in, so the passphrase never appears in a process list or on screen).
+# Note: for "a" a bare -p means "ask for a password"; for "x"/"t" a bare -p means "the password
+# is EMPTY" (7-Zip 25/26 behaviour), so extraction must be run WITHOUT -p to make it read one.
+z7a() { printf '%s\n' "$PASS" | 7zz a -p -bso0 -bsp0 "$@"; }
+z7x() { printf '%s\n' "$PASS" | 7zz x -y -bso0 -bsp0 "$@"; }
+
 cleanup() {
   if [ -f "$WORK/pg/data/postmaster.pid" ]; then
     gosu postgres pg_ctl -D "$WORK/pg/data" -m fast -w stop >/dev/null 2>&1 || true
@@ -52,6 +72,7 @@ say "[0/6] Checks before starting"
 [ "$SELFTEST" = 1 ] || grep -qE "^[^ ]+ $WORK tmpfs " /proc/mounts \
   || fail "$WORK is not a RAM disk. Start the container with --tmpfs /work:rw,size=512m,mode=0711"
 ok "$WORK is RAM only"
+[ "$SELFTEST" = 1 ] || [ -z "$(ls -A "$WORK")" ] || fail "$WORK is not empty; start a new container"
 [ -d "$OUT" ] && [ -w "$OUT" ] || fail "$OUT is not mounted. Run the command from C:\\TrustPass-Backups"
 ok "backup folder mounted"
 command -v 7zz >/dev/null || fail "7-Zip (7zz) is not in this image. Rebuild trustpass-pgtools:18 from scripts/backup/Dockerfile (package 7zip-standalone)"
@@ -116,38 +137,74 @@ ok "dump in RAM: $(stat -c %s "$DUMP") bytes, $TABLES_IN_DUMP tables with data, 
 
 # ---------------------------------------------------------------- 2. encrypt in RAM
 say "[2/6] Encrypt with 7-Zip AES-256 (file names encrypted too)"
-echo "  Choose a NEW strong passphrase (at least 20 characters or 5 random words)."
-echo "  Save it in your password manager FIRST, in a different entry from MASTER_KEY."
-echo "  7-Zip will ask for it twice. Nothing is shown while typing."
+echo "  Choose a NEW backup passphrase and save it in your password manager FIRST"
+echo "  (a different entry from MASTER_KEY). Rules: at least 16 characters, English"
+echo "  letters, digits and symbols only, no space at the start or end."
+echo "  You will type it twice. Nothing is shown while typing."
+PASS=""
+for attempt in 1 2 3; do
+  read_secret "  Backup passphrase: ";        P1="$REPLY_SECRET"
+  read_secret "  Same passphrase again: ";    P2="$REPLY_SECRET"
+  if [ "$P1" != "$P2" ]; then echo "  The two entries are different. Try again ($attempt/3)."; continue; fi
+  if [ "${#P1}" -lt 16 ]; then echo "  Too short (${#P1} characters, need 16 or more). Try again ($attempt/3)."; continue; fi
+  if [ -n "$(printf '%s' "$P1" | LC_ALL=C tr -d '\040-\176')" ]; then
+    echo "  Contains non-English characters (keyboard layout?). Use English letters, digits, symbols. Try again ($attempt/3)."; continue
+  fi
+  if [ "$P1" != "${P1# }" ] || [ "$P1" != "${P1% }" ]; then echo "  Starts or ends with a space. Try again ($attempt/3)."; continue; fi
+  PASS="$P1"; break
+done
+unset P1 P2 REPLY_SECRET
+[ -n "$PASS" ] || fail "no valid passphrase after 3 attempts. Nothing was saved to your disk."
+ok "passphrase accepted (${#PASS} characters; never shown, logged or saved by this script)"
+
 WORK_ARCHIVE="$WORK/$NAME.7z"
-7zz a -t7z -mhe=on -mx=9 -p "$WORK_ARCHIVE" "$DUMP" \
-  || fail "7-Zip could not create the archive"
+z7a -t7z -mhe=on -mx=9 "$WORK_ARCHIVE" "$DUMP" || fail "7-Zip could not create the archive"
 
 # Prove it is encrypted: with a wrong password even the file list must be unreadable.
 if 7zz l -p'definitely-not-the-passphrase-0f3a' "$WORK_ARCHIVE" >/dev/null 2>&1; then
-  fail "the archive is NOT encrypted (was the passphrase empty?). Nothing was copied to your disk."
+  fail "the archive is NOT encrypted. Nothing was copied to your disk."
 fi
 if 7zz l -p'definitely-not-the-passphrase-0f3a' "$WORK_ARCHIVE" 2>&1 | grep -q "$NAME.dump"; then
   fail "file names are readable without the passphrase. Nothing was copied to your disk."
 fi
-ok "encrypted (wrong passphrase cannot even list it)"
+ok "encrypted (a wrong passphrase cannot even list it)"
 
-# ---------------------------------------------------------------- 3. only the encrypted file goes to disk
+# Integrity in RAM before anything is written to disk.
+mkdir -p "$WORK/check"
+z7x -o"$WORK/check" "$WORK_ARCHIVE" || fail "the new archive could not be decrypted in RAM. Nothing was copied to your disk."
+cmp -s "$DUMP" "$WORK/check/$NAME.dump" || fail "decrypted copy differs from the dump. Nothing was copied to your disk."
+rm -f "$WORK/check/$NAME.dump"
+ok "decrypts with the passphrase and is byte-identical to the dump"
+
+# ---------------------------------------------------------------- 3. check the saved passphrase
+say "[3/6] Check the passphrase you SAVED"
+echo "  Copy the passphrase FROM YOUR PASSWORD MANAGER and paste it here (not from memory)."
+echo "  This proves the saved copy is right before the backup is written to your disk."
+SAVED_OK=0
+for attempt in 1 2 3; do
+  read_secret "  Passphrase from password manager: "
+  if [ "$REPLY_SECRET" = "$PASS" ]; then SAVED_OK=1; break; fi
+  echo "  Does not match what you typed in step 2. Check the password manager entry ($attempt/3)."
+done
+unset REPLY_SECRET
+[ "$SAVED_OK" = 1 ] || fail "the saved passphrase does not match. Nothing was copied to your disk; fix the password manager entry and run again."
+ok "password manager entry matches"
+
+# ---------------------------------------------------------------- only the encrypted file goes to disk
 cp "$WORK_ARCHIVE" "$ARCHIVE"
 ( cd "$OUT" && sha256sum "$NAME.7z" > "$NAME.7z.sha256" )
 ok "saved $NAME.7z ($(stat -c %s "$ARCHIVE") bytes) and its SHA-256"
 
-# ---------------------------------------------------------------- 4. decrypt from disk into RAM, compare
-say "[3/6] Integrity check: decrypt the saved archive back into RAM"
-echo "  Type the 7-Zip passphrase once more."
-mkdir -p "$WORK/check"
-7zz x -p -o"$WORK/check" "$ARCHIVE" || fail "the archive could not be decrypted (wrong passphrase or damaged file)"
-cmp -s "$DUMP" "$WORK/check/$NAME.dump" || fail "the decrypted copy differs from the original dump"
+# ---------------------------------------------------------------- 4. decrypt the saved file into RAM, compare
+say "[4/6] Integrity check of the file on disk"
+z7x -o"$WORK/check" "$ARCHIVE" || fail "the saved archive could not be decrypted (damaged file?)"
+unset PASS
+cmp -s "$DUMP" "$WORK/check/$NAME.dump" || fail "the saved archive differs from the original dump"
 ( cd "$OUT" && sha256sum -c --quiet "$NAME.7z.sha256" ) || fail "SHA-256 of the saved archive does not match"
-ok "archive opens with the passphrase, CRC OK, byte-identical to the dump, SHA-256 OK"
+ok "saved archive decrypts, CRC OK, byte-identical to the dump, SHA-256 OK"
 
 # ---------------------------------------------------------------- 5. restore drill (RAM, no network)
-say "[4/6] Restore drill into a temporary PostgreSQL (RAM only, local socket, no network)"
+say "[5/6] Restore drill into a temporary PostgreSQL (RAM only, local socket, no network)"
 mkdir -p "$WORK/pg"
 chown postgres:postgres "$WORK/pg"
 gosu postgres mkdir -p "$WORK/pg/data" "$WORK/pg/sock"
@@ -160,7 +217,7 @@ pg_restore "${L[@]}" --dbname=restore_drill --no-owner --no-privileges --exit-on
   "$WORK/check/$NAME.dump" || fail "pg_restore failed (see above). Production was not touched."
 ok "restored with --exit-on-error: no errors"
 
-say "[5/6] Comparing the restored copy"
+say "    Comparing the restored copy"
 q() { psql "${L[@]}" -d restore_drill -XAtq -v ON_ERROR_STOP=1 -c "$1"; }
 REPORT="$WORK/report.txt"
 {
