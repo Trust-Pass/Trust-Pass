@@ -27,6 +27,13 @@ describe('QR Shield: safe content', () => {
     expect(ids(a)).toContain('official');
   });
 
+  it('a local or self-hosted official address is not flagged as a local device', () => {
+    const local = analyzeQrContent(`http://localhost:5173/s/${TOKEN}`, { appOrigin: 'http://localhost:5173' });
+    expect(local).toMatchObject({ kind: 'trustpass_link', verdict: 'safe', trustpassToken: TOKEN });
+    const other = analyzeQrContent('http://localhost:9999/', { appOrigin: 'http://localhost:5173' });
+    expect(other.findings.map((f) => f.id)).toContain('private_ip');
+  });
+
   it('treats an address without http(s) as a web link', () => {
     const a = check('example.com/menu');
     expect(a.kind).toBe('web_link');

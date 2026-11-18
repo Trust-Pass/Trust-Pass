@@ -305,7 +305,9 @@ function analyzeWebUrl(raw: string, url: WhatwgUrl, app: WhatwgUrl, findings: Qr
   if (url.username || url.password) {
     findings.push({ id: 'userinfo', severity: 'high', title: 'Disguised address (text before "@")', detail: `Everything before "@" is ignored by the browser. The real site is ${host}, not what the start of the link suggests.` });
   }
-  if (isIpv4(host) || host.startsWith('[')) {
+  if (isOfficial) {
+    // The official address may itself be an IP or localhost (local or self-hosted installs).
+  } else if (isIpv4(host) || host.startsWith('[')) {
     findings.push(
       isPrivateAddress(host)
         ? { id: 'private_ip', severity: 'high', title: 'Points to a device on a local network', detail: 'The link targets a private network address (a router, camera or another computer), which a public QR code should never do.' }
