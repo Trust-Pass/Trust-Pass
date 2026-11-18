@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { as, createLink, createTestContext, registerUser, resetDatabase, uploadDocument, type Session, type TestContext } from '../helpers';
+import { as, createLink, createTestContext, loginUser, registerUser, resetDatabase, uploadDocument, type Session, type TestContext } from '../helpers';
 
 let ctx: TestContext;
 beforeAll(async () => {
@@ -65,9 +65,12 @@ describe('POST /api/qr/check', () => {
     const row = await ctx.prisma.sharingLink.findUniqueOrThrow({ where: { id: link.id } });
     expect(row.viewCount).toBe(0);
     expect(await ctx.prisma.accessLog.count({ where: { linkId: link.id } })).toBe(0);
-    // Nothing about the document or its owner is revealed.
+    // Nothing about the document or its owner is revealed, and the token is not returned as a
+    // separate field (the response only echoes the text the device itself decoded).
     expect(res.body).not.toContain(owner.email);
-    expect(res.body).not.toContain(link.token);
+    expect(res.body).not.toContain(owner.userId);
+    expect(res.json().analysis).not.toHaveProperty('trustpassToken');
+    expect(Object.keys(res.json())).toEqual(['analysis', 'trustpassLink']);
   });
 
   it('flags expired and revoked TrustPass links', async () => {
@@ -76,11 +79,15 @@ describe('POST /api/qr/check', () => {
     const revoked = await sharedLink(s);
     await as(ctx, s, { method: 'POST', url: `/api/links/${revoked.id}/revoke` });
     ctx.clock.advance(61 * 60_000);
+    // The idle timeout signed the user out while the clock moved; sign in again.
+    const again = await loginUser(ctx, s.email);
 
-    const exp = (await checkQr(s, expiring.url)).json();
+    const expRes = await checkQr(again, expiring.url);
+    expect(expRes.statusCode).toBe(200);
+    const exp = expRes.json();
     expect(exp.trustpassLink.status).toBe('expired');
     expect(exp.analysis.verdict).toBe('caution');
-    const rev = (await checkQr(s, revoked.url)).json();
+    const rev = (await checkQr(again, revoked.url)).json();
     expect(rev.trustpassLink.status).toBe('revoked');
     expect(rev.analysis.verdict).toBe('caution');
   });
