@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { isCountryCode } from './countries';
 
 export * from './countries';
+export * from './qr-shield';
 
 // ---------------------------------------------------------------------------
 // Accounts
@@ -215,6 +216,14 @@ export const verifyPresentationSchema = z.object({
   presentation: z.string().trim().min(20).max(20000),
 });
 
+export const QR_SOURCES = ['camera', 'image', 'paste'] as const;
+export type QrSource = (typeof QR_SOURCES)[number];
+
+export const qrCheckSchema = z.object({
+  content: z.string().min(1, 'Nothing to check').max(4096, 'That is too long to be a QR code (4096 characters at most)'),
+  source: z.enum(QR_SOURCES),
+});
+
 export const DEMO_PROGRAMS = [
   'BSc Cybersecurity',
   'BSc Computer Science',
@@ -266,6 +275,7 @@ export const SECURITY_EVENT_LABELS: Record<string, string> = {
   repeated_denied_access: 'Several blocked attempts on one link',
   integrity_check_failed: 'Stored file failed its integrity check',
   invalid_link_attempt: 'Attempt with an invalid link',
+  qr_threat_detected: 'Dangerous QR code or link detected',
 };
 
 export const updateSettingsSchema = z.object({

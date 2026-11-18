@@ -11,6 +11,7 @@ import {
   Link2,
   LogOut,
   Menu,
+  QrCode,
   ScrollText,
   Settings,
   Shield,
@@ -39,6 +40,7 @@ function useNavItems(): NavItem[] {
     { to: '/app/links', label: 'Sharing links', icon: <Link2 className="size-5" /> },
     { to: '/app/analytics', label: 'Access analytics', icon: <BarChart3 className="size-5" /> },
     { to: '/app/verify', label: 'Verify a document', icon: <BadgeCheck className="size-5" /> },
+    { to: '/app/scan', label: 'QR Scanner', icon: <QrCode className="size-5" /> },
     { to: '/app/activity', label: 'Activity log', icon: <ScrollText className="size-5" /> },
     { to: '/app/credentials', label: 'Demo University', icon: <GraduationCap className="size-5" /> },
   ];

@@ -97,7 +97,10 @@ describe('security headers', () => {
     expect(res.headers['x-content-type-options']).toBe('nosniff');
     expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
     expect(res.headers['referrer-policy']).toBe('no-referrer');
-    expect(res.headers['permissions-policy']).toContain('camera=()');
+    // Camera only for our own pages (QR scanner); microphone and location never.
+    expect(res.headers['permissions-policy']).toContain('camera=(self)');
+    expect(res.headers['permissions-policy']).toContain('microphone=()');
+    expect(res.headers['permissions-policy']).toContain('geolocation=()');
     expect(res.headers['x-powered-by']).toBeUndefined();
   });
 
