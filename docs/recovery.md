@@ -63,7 +63,7 @@ You do not need PostgreSQL installed.
 4. decrypts the saved archive back into RAM and checks it is byte-identical;
 5. restores it into a throw-away PostgreSQL in RAM (no network, local socket only) with `--exit-on-error` and compares row counts.
 
-It refuses any host that is not a Render host name, so a pasted connection string (with its password) is never sent anywhere. Passwords are only typed at hidden prompts: the database password once, the 7-Zip passphrase three times (create, confirm, test).
+At the host prompt, press Enter to use trustpass-db's external host (`dpg-dbthlre7bikc73cmpuvg-a.frankfurt-postgres.render.com`), or paste another **external** Render host (`dpg-<id>-a.<region>-postgres.render.com`). The internal host (`dpg-<id>-a`, no domain) only works inside Render and is refused, as is anything that is not a bare host name, so a pasted connection string (with its password) is never sent anywhere. Passwords are only typed at hidden prompts: the database password once, the 7-Zip passphrase three times (create, confirm, test).
 
 One-time setup (local, does not touch Render), from the repository root:
 ```powershell

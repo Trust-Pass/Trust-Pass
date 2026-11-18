@@ -73,14 +73,25 @@ ARCHIVE="$OUT/$NAME.7z"
 if [ "$SELFTEST" = 1 ]; then
   DB_HOST="$TRUSTPASS_DRILL_SELFTEST_HOST"
 else
+  # External host of trustpass-db (Render id dpg-dbthlre7bikc73cmpuvg-a, region frankfurt).
+  # A host name is not a secret; TLS verify-full below proves the server really is this host.
+  DEFAULT_HOST="dpg-dbthlre7bikc73cmpuvg-a.frankfurt-postgres.render.com"
   echo
-  echo "  Paste ONLY the host name from Render > trustpass-db > Info"
-  echo "  (looks like dpg-xxxxxxxx-a.frankfurt-postgres.render.com). No password, no postgres:// URL."
-  read -r -p "  Host: " DB_HOST
+  echo "  Database host. Press Enter to use trustpass-db's external host:"
+  echo "    $DEFAULT_HOST"
+  echo "  or paste the EXTERNAL host name from Render > trustpass-db > Info > External Database URL"
+  echo "  (only the part between @ and :5432). No password, no postgres:// URL."
+  read -r -p "  Host [Enter = default]: " DB_HOST
   DB_HOST="${DB_HOST//[$'\r\t ']/}"
+  DB_HOST="${DB_HOST,,}"
+  [ -n "$DB_HOST" ] || DB_HOST="$DEFAULT_HOST"
+  if [[ "$DB_HOST" =~ ^dpg-[a-z0-9]+-a$ ]]; then
+    fail "that is the INTERNAL host name (only works inside Render). Use the External one, which ends in .frankfurt-postgres.render.com. Nothing was sent."
+  fi
   # Refuse anything that could contain a password or a full connection string.
-  [[ "$DB_HOST" =~ ^dpg-[a-z0-9]+-a(\.[a-z0-9-]+)?\.render\.com$ ]] \
-    || fail "that does not look like a Render host name (only dpg-...-a.<region>-postgres.render.com is accepted). Nothing was sent."
+  [[ "$DB_HOST" =~ ^dpg-[a-z0-9]+-a\.[a-z0-9]+-postgres\.render\.com$ ]] \
+    || fail "not a Render external host name (expected dpg-<id>-a.<region>-postgres.render.com, without postgres://, user, password, :5432 or /database). Nothing was sent."
+  [ "$DB_HOST" = "$DEFAULT_HOST" ] || echo "  Note: this is not trustpass-db's usual host; continuing because it is a valid Render host."
 fi
 ok "host accepted"
 
