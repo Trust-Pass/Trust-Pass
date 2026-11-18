@@ -67,7 +67,7 @@ It refuses any host that is not a Render host name, so a pasted connection strin
 
 One-time setup (local, does not touch Render), from the repository root:
 ```powershell
-Get-Content scripts/backup/Dockerfile -Raw | docker build -t trustpass-pgtools:18 -
+Get-Content scripts/backup/Dockerfile -Raw | docker build --no-cache -t trustpass-pgtools:18 -
 ```
 Each backup, from the folder that keeps backups (for example `C:\TrustPass-Backups`, outside OneDrive and outside this repository), with the script copied into it:
 ```powershell

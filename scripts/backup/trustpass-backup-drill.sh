@@ -54,7 +54,7 @@ say "[0/6] Checks before starting"
 ok "$WORK is RAM only"
 [ -d "$OUT" ] && [ -w "$OUT" ] || fail "$OUT is not mounted. Run the command from C:\\TrustPass-Backups"
 ok "backup folder mounted"
-command -v 7zz >/dev/null || fail "7-Zip (7zz) is not in this image. Rebuild trustpass-pgtools:18 with the 7zip package"
+command -v 7zz >/dev/null || fail "7-Zip (7zz) is not in this image. Rebuild trustpass-pgtools:18 from scripts/backup/Dockerfile (package 7zip-standalone)"
 command -v pg_dump >/dev/null && command -v pg_restore >/dev/null && command -v initdb >/dev/null \
   || fail "PostgreSQL tools missing"
 ok "$(pg_dump --version), $(7zz | sed -n '2p' | cut -c1-40)"
