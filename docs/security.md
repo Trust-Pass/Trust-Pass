@@ -52,6 +52,27 @@ KMS root key (Google Cloud KMS; never leaves the KMS, every use is logged by Goo
 - **Fail-closed start-up:** if a key that documents need is really lost, the whole app refuses to start (before E2 only those documents failed). Run the E0 read-only check before each deploy that changes keys.
 - Deleting a document deletes its wrapped key, claims and ciphertext (crypto-shredding). A backup taken before the deletion still holds both and stays readable while its keys exist. Backup, restore and the restore drill are described in [recovery.md](recovery.md).
 
+## What is encrypted at rest, and what is not
+
+Encrypted with the document's own key (AES-256-GCM, bound to its row): files, field values and
+labels, credentials (SD-JWT) and their disclosures, document titles, file SHA-256, recipient names
+of links. Encrypted with the link-token key: the copy of each share link (lookups use a SHA-256
+hash only). Document keys are wrapped by the key-encryption key (MASTER_KEY today, Google Cloud KMS
+after the switch).
+
+Stored in clear **on purpose**, because the server needs them before any document key is opened,
+or because they are not document content:
+
+| Data | Why it is in clear |
+|---|---|
+| Account email, full name, password hash (Argon2id) | Sign-in and showing who shared a document |
+| Organization names, issuer names | Public directory; shown before any document is opened |
+| Document category, kind, MIME type, size, dates | Lists, upload limits and the right viewer, without decrypting |
+| Issuer claim keys (e.g. `enrollment_status`) | Name the credential type, not the person; owner-typed fields use neutral keys (`f1`, `f2`) |
+| Link rules: expiry, revoked time, allowed countries, recipient organization, download on/off | Enforced before anything is decrypted |
+| Access logs: outcome, approximate country, browser family, keyed IP hash (never the IP) | Owner analytics and alerts |
+| Security events and notifications | Ids and counts only; names are filled in for the owner when read (E4) |
+
 ## Known limits
 
 See the README "Honest limitations" section. In addition: rate limits are in memory per server instance, and the app uses a single database role, so the audit-table triggers protect against application bugs and misuse rather than a database administrator.
