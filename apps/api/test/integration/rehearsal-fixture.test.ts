@@ -13,6 +13,7 @@ import {
   samplePdf,
   samplePng,
   TEST_SECRETS,
+  testPrisma,
   uploadDocument,
   type TestContext,
 } from '../helpers';
@@ -34,6 +35,9 @@ let ctx: TestContext;
 
 describe.skipIf(!enabled)('production-shaped fixture for the rehearsal script', () => {
   beforeAll(async () => {
+    const db = testPrisma();
+    await resetKeyring(db);
+    await db.$disconnect();
     ctx = await createTestContext({ KEY_PROVIDER: 'env', MASTER_KEY: TEST_SECRETS.MASTER_KEY, STORAGE_DRIVER: 'database' });
     await resetDatabase(ctx.prisma);
     await resetKeyring(ctx.prisma);

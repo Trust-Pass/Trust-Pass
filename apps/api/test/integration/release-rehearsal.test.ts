@@ -15,6 +15,7 @@ import {
   samplePdf,
   samplePng,
   TEST_SECRETS,
+  testPrisma,
   uploadDocument,
   type TestContext,
 } from '../helpers';
@@ -30,10 +31,14 @@ let ctx: TestContext;
 const secrets = { masterKey: TEST_SECRETS.MASTER_KEY, ipHashSecret: TEST_SECRETS.IP_HASH_SECRET, issuerSigningSeed: TEST_SECRETS.ISSUER_SIGNING_SEED };
 
 beforeAll(async () => {
+  // Earlier test files leave fake-KMS keys; a MASTER_KEY app (like production) refuses to start next to them.
+  const db = testPrisma();
+  await resetKeyring(db);
+  await db.$disconnect();
   ctx = await createTestContext({ KEY_PROVIDER: 'env', MASTER_KEY: TEST_SECRETS.MASTER_KEY, STORAGE_DRIVER: 'database' });
 });
 afterAll(async () => {
-  await ctx.app.close();
+  await ctx?.app.close();
 });
 beforeEach(async () => {
   ctx.clock.now = new Date();
