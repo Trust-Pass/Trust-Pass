@@ -8,7 +8,7 @@ import { issueCredential, newPhone, register, shareFields, uniqueEmail } from '.
 test('visual tour of the main screens', async ({ page, browser }, info) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  const shot = (name: string) => page.screenshot({ path: `test-results/tour/${info.project.name}-${name}.png`, fullPage: true });
+  const shot = (name: string) => page.screenshot({ path: `test-results/tour/${info.project.name}-${name}.jpg`, fullPage: true, type: 'jpeg', quality: 60 });
 
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
@@ -38,7 +38,7 @@ test('visual tour of the main screens', async ({ page, browser }, info) => {
   const viewer = await newPhone(browser);
   await viewer.goto(url);
   await expect(viewer.getByTestId('verification-result')).toBeVisible();
-  await viewer.screenshot({ path: `test-results/tour/${info.project.name}-10-recipient.png`, fullPage: true });
+  await viewer.screenshot({ path: `test-results/tour/${info.project.name}-10-recipient.jpg`, fullPage: true, type: 'jpeg', quality: 60 });
 
   if (info.project.name === 'mobile') {
     await page.getByRole('button', { name: 'Open menu' }).click();
