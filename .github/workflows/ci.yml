@@ -84,6 +84,97 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  # End-to-end test of scripts/rehearsal/trustpass-release-rehearsal.sh, run exactly as on the
+  # laptop (no network, RAM only, backup read-only) on an encrypted backup of a database shaped like
+  # production today. All values here are CI-only test values, not production secrets.
+  release-rehearsal:
+    runs-on: ubuntu-latest
+    needs: test
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: trustpass
+          POSTGRES_PASSWORD: trustpass_dev
+          POSTGRES_DB: trustpass_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U trustpass"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://trustpass:trustpass_dev@localhost:5432/trustpass_test
+      CI_BACKUP_PASSPHRASE: ci-only-backup-passphrase-not-a-secret
+      # The test values from apps/api/test/helpers.ts (TEST_SECRETS).
+      CI_MASTER_KEY: test-master-key-0123456789-abcdefghijklmnopqrstuvwxyz
+      CI_IP_HASH_SECRET: test-ip-hash-secret-0123456789-abcdefghijklmnop
+      CI_ISSUER_SIGNING_SEED: test-issuer-seed-0123456789-abcdefghijklmnopqrs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @trustpass/api db:generate
+      - name: Build a database shaped like production today (old schema, old-format rows)
+        run: REHEARSAL_FIXTURE=1 pnpm --filter @trustpass/api exec vitest run test/integration/rehearsal-fixture.test.ts
+      - name: Prove its schema is exactly production's (only the init migration)
+        run: |
+          mkdir -p /tmp/prod-migrations
+          cp -r apps/api/prisma/migrations/20261115211140_init apps/api/prisma/migrations/migration_lock.toml /tmp/prod-migrations/
+          PGPASSWORD=trustpass_dev psql -h localhost -U trustpass -d trustpass_test -c 'CREATE DATABASE trustpass_shadow'
+          cd apps/api && pnpm exec prisma migrate diff --from-url "$TEST_DATABASE_URL" --to-migrations /tmp/prod-migrations \
+            --shadow-database-url postgresql://trustpass:trustpass_dev@localhost:5432/trustpass_shadow --exit-code
+      - name: Back it up like production (pg_dump, then 7-Zip with a passphrase)
+        run: |
+          mkdir -p /tmp/rehearsal/dump /tmp/rehearsal/backup /tmp/rehearsal/out
+          docker run --rm --network host -v /tmp/rehearsal/dump:/d postgres:18 pg_dump -Fc --no-owner -d "$TEST_DATABASE_URL" -f /d/trustpass-ci.dump
+      - name: Build the rehearsal image from this commit
+        run: docker build -f scripts/rehearsal/Dockerfile --build-arg RELEASE="${GITHUB_SHA::7}" -t trustpass-rehearsal:release .
+      - name: Encrypt the backup
+        run: |
+          docker run --rm --entrypoint 7zz -v /tmp/rehearsal:/r trustpass-rehearsal:release \
+            a -t7z -mhe=on -p"$CI_BACKUP_PASSPHRASE" /r/backup/trustpass-ci-fixture.7z /r/dump/trustpass-ci.dump > /dev/null
+          sudo rm -rf /tmp/rehearsal/dump
+          cd /tmp/rehearsal/backup
+          sudo sh -c 'sha256sum trustpass-ci-fixture.7z > trustpass-ci-fixture.7z.sha256 && echo "CI fixture" > trustpass-ci-fixture-report.txt'
+      - name: Rehearse (no network, RAM only, backup read-only) and check the report
+        run: |
+          printf '%s\n%s\n%s\n%s\n' "$CI_BACKUP_PASSPHRASE" "$CI_MASTER_KEY" "$CI_IP_HASH_SECRET" "$CI_ISSUER_SIGNING_SEED" \
+            | docker run --rm -i --network none --tmpfs /work:rw,size=1g,mode=0711 -e TRUSTPASS_REHEARSAL_SELFTEST=1 \
+                -v /tmp/rehearsal/backup:/backup:ro -v /tmp/rehearsal/out:/out trustpass-rehearsal:release | tee /tmp/rehearsal/console.txt
+          report=$(sudo sh -c 'cat /tmp/rehearsal/out/*-rehearsal-*.txt')
+          echo "$report"
+          echo "$report" | grep -q 'RESULT: REHEARSAL PASSED'
+          echo "$report" | grep -q 'Existing data identical after the migrations: yes'
+          echo "$report" | grep -q '1 already applied, 4 applied now'
+          echo "$report" | grep -q '"endedRefused": 2'
+          echo "$report" | grep -q '"downloadsOk": 4'
+          # Nothing readable from the documents, and no secret, in the report or on screen.
+          ! { echo "$report"; cat /tmp/rehearsal/console.txt; } | grep -E "Fixture Passport|Fixture Photo|FixtureCorp|1029384756|Fixture Bank HR|$CI_MASTER_KEY|$CI_BACKUP_PASSPHRASE"
+      - name: A wrong MASTER_KEY is refused and changes nothing
+        run: |
+          sudo rm -f /tmp/rehearsal/out/*
+          set +e
+          printf '%s\n%s\n%s\n%s\n' "$CI_BACKUP_PASSPHRASE" "wrong-master-key-0123456789-abcdefghijklmnop" "$CI_IP_HASH_SECRET" "$CI_ISSUER_SIGNING_SEED" \
+            | docker run --rm -i --network none --tmpfs /work:rw,size=1g,mode=0711 -e TRUSTPASS_REHEARSAL_SELFTEST=1 \
+                -v /tmp/rehearsal/backup:/backup:ro -v /tmp/rehearsal/out:/out trustpass-rehearsal:release
+          code=$?
+          set -e
+          test "$code" -ne 0
+          sudo sh -c 'cat /tmp/rehearsal/out/*-rehearsal-*.txt' | grep -q '"startupChecks": "refused"'
+      - name: The rehearsal refuses to run with network access
+        run: |
+          set +e
+          out=$(echo | docker run --rm -i --tmpfs /work:rw,size=1g,mode=0711 -v /tmp/rehearsal/backup:/backup:ro -v /tmp/rehearsal/out:/out trustpass-rehearsal:release 2>&1)
+          code=$?
+          set -e
+          test "$code" -ne 0
+          echo "$out" | grep -q 'this container has network access'
+
   secrets-scan:
     runs-on: ubuntu-latest
     steps:

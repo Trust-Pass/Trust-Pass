@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: { server: 'src/server.ts', seed: 'src/scripts/seed.ts', 'rewrap-keys': 'src/scripts/rewrap-keys.ts', keys: 'src/scripts/keys.ts', backup: 'src/scripts/backup.ts' },
+  entry: { server: 'src/server.ts', seed: 'src/scripts/seed.ts', 'rewrap-keys': 'src/scripts/rewrap-keys.ts', keys: 'src/scripts/keys.ts', backup: 'src/scripts/backup.ts', rehearsal: 'src/scripts/rehearsal.ts' },
   format: ['esm'],
   platform: 'node',
   target: 'node22',
