@@ -64,7 +64,7 @@ export function LandingPage() {
         </header>
 
         <div className="page-pad mx-auto max-w-6xl pt-12 pb-20 sm:pt-20 sm:pb-28">
-          <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm text-teal-200 ring-1 ring-white/15">
+          <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm text-teal-300 ring-1 ring-white/15">
             <ShieldCheck className="size-4" /> Secure document sharing and verification
           </p>
           <h1 className="mt-5 max-w-3xl text-4xl leading-[1.1] font-extrabold tracking-tight sm:text-6xl">
@@ -105,7 +105,7 @@ export function LandingPage() {
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map(({ icon: Icon, title, body }) => (
             <div key={title} className="surface-card group rounded-2xl p-5 transition duration-200 hover:-translate-y-0.5 hover:border-blue-400/30">
-              <div className="inline-flex rounded-xl bg-gradient-to-br from-blue-500/25 to-teal-400/10 p-2.5 text-teal-300 ring-1 ring-inset ring-white/10 transition group-hover:text-teal-200">
+              <div className="inline-flex rounded-xl bg-gradient-to-br from-blue-500/25 to-teal-400/10 p-2.5 text-teal-300 ring-1 ring-inset ring-white/10 transition group-hover:text-teal-300">
                 <Icon className="size-5" />
               </div>
               <h3 className="mt-4 font-semibold text-ink">{title}</h3>

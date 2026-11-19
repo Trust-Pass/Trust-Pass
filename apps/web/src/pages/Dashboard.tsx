@@ -28,7 +28,7 @@ export function DashboardPage() {
       <div className="hero-grid relative flex animate-rise flex-col gap-4 overflow-hidden rounded-3xl border border-white/[0.08] px-5 py-6 shadow-lift sm:flex-row sm:items-end sm:justify-between sm:px-7 sm:py-8">
         <div className="pointer-events-none absolute -top-24 -right-16 size-64 rounded-full bg-blue-500/20 blur-3xl" aria-hidden />
         <div className="relative">
-          <p className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-0.5 text-xs font-medium text-teal-200 ring-1 ring-white/10">
+          <p className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-0.5 text-xs font-medium text-teal-300 ring-1 ring-white/10">
             <span className="size-1.5 rounded-full bg-teal-300 shadow-[0_0_8px_#5eead4]" aria-hidden /> Dashboard
           </p>
           <h1 className="text-gradient mt-2 text-2xl font-bold tracking-tight sm:text-[32px]">Hello, {firstName}</h1>
