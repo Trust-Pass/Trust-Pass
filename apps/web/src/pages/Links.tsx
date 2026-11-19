@@ -45,7 +45,7 @@ function LinkActivity({ id }: { id: string }) {
     <div className="space-y-3 border-t border-slate-100 px-4 py-4 sm:px-5">
       <p className="text-sm text-slate-600">
         <span className="font-medium text-ink">Shared:</span> {l.fields.map((f) => f.label).join(', ') || 'no fields'}
-        {l.includeFile && ' + watermarked file'}
+        {l.includeFile && (l.fileMode === 'redacted' ? ' + redacted copy' : ' + watermarked file')}
       </p>
       {l.includeFile && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-sm ring-1 ring-slate-200" data-testid="link-download">
@@ -159,7 +159,8 @@ export function LinksPage() {
                   <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] text-slate-600">
                     <span className="flex items-center gap-1">
                       <ShieldCheck className="size-3.5" /> {l.claimCount} field{l.claimCount === 1 ? '' : 's'}
-                      {l.includeFile && (l.allowDownload ? ' + file (download allowed)' : ' + file')}
+                      {l.includeFile && (l.fileMode === 'redacted' ? ' + redacted copy' : ' + file')}
+                      {l.includeFile && l.allowDownload && ' (download allowed)'}
                     </span>
                     <span className="flex items-center gap-1">
                       <Clock className="size-3.5" /> {l.status === 'active' ? `Expires ${relativeTime(l.expiresAt)}` : l.revokedAt ? `Revoked ${relativeTime(l.revokedAt)}` : `Expired ${relativeTime(l.expiresAt)}`}

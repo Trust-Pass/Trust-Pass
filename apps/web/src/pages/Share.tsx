@@ -1,10 +1,11 @@
-import { EXPIRY_LABELS } from '@trustpass/shared';
+import { EXPIRY_LABELS, type Redaction } from '@trustpass/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { ArrowLeft, Building2, CheckCircle2, Clock, ExternalLink, FileText, Globe2, ListChecks, Send, Share2, Users, Download } from 'lucide-react';
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { CountryPicker } from '../components/CountryPicker';
+import { RedactionEditor, type RedactionEditorHandle } from '../components/RedactionEditor';
 import { Alert, Badge, Button, ButtonLink, Card, CopyButton, Field, Input, PageHeader, Segmented, Spinner, Toggle } from '../components/ui';
 import { api, ApiError, errorMessage } from '../lib/api';
 import { flag, formatDateTime } from '../lib/format';
@@ -72,6 +73,9 @@ export function SharePage() {
   const [claimIds, setClaimIds] = useState<string[]>([]);
   const [includeFile, setIncludeFile] = useState(false);
   const [allowDownload, setAllowDownload] = useState(false);
+  const [fileMode, setFileMode] = useState<'original' | 'redacted'>('original');
+  const [redactions, setRedactions] = useState<Redaction[]>([]);
+  const editor = useRef<RedactionEditorHandle>(null);
   const [recipientType, setRecipientType] = useState<'anyone' | 'organization'>('anyone');
   const [recipientLabel, setRecipientLabel] = useState('');
   const [org, setOrg] = useState<{ id: string; name: string } | null>(null);
@@ -91,19 +95,32 @@ export function SharePage() {
     setError(null);
     setSubmitting(true);
     try {
-      const res = await api<{ url: string; link: { expiresAt: string } }>(`/api/documents/${doc.id}/links`, {
-        body: {
-          claimIds,
-          includeFile,
-          allowDownload: includeFile && allowDownload,
-          recipientType,
-          recipientOrgId: recipientType === 'organization' ? org?.id : undefined,
-          recipientLabel: recipientType === 'organization' ? (org?.name ?? '') : recipientLabel,
-          expiresIn,
-          expiresAt: expiresIn === 'custom' && customDate ? new Date(customDate).toISOString() : undefined,
-          allowedCountries: restrictCountries ? countries : [],
-        },
-      });
+      const redacted = includeFile && fileMode === 'redacted';
+      const settings = {
+        claimIds,
+        includeFile,
+        allowDownload: includeFile && allowDownload,
+        fileMode: includeFile ? fileMode : 'original',
+        redactions: redacted ? redactions : [],
+        recipientType,
+        recipientOrgId: recipientType === 'organization' ? org?.id : undefined,
+        recipientLabel: recipientType === 'organization' ? (org?.name ?? '') : recipientLabel,
+        expiresIn,
+        expiresAt: expiresIn === 'custom' && customDate ? new Date(customDate).toISOString() : undefined,
+        allowedCountries: restrictCountries ? countries : [],
+      };
+      let options: Parameters<typeof api>[1];
+      if (redacted) {
+        // The page renderings travel with the settings; the server burns the boxes in.
+        const form = new FormData();
+        form.append('link', JSON.stringify(settings));
+        const pages = (await editor.current?.exportPages()) ?? [];
+        pages.forEach((p, i) => form.append('page', p, `page-${i + 1}.png`));
+        options = { form };
+      } else {
+        options = { body: settings };
+      }
+      const res = await api<{ url: string; link: { expiresAt: string } }>(`/api/documents/${doc.id}/links`, options);
       setResult({ url: res.url, expiresAt: res.link.expiresAt });
       void queryClient.invalidateQueries({ queryKey: ['document', id] });
       void queryClient.invalidateQueries({ queryKey: ['links'] });
@@ -147,6 +164,7 @@ export function SharePage() {
             </div>
             <ul className="space-y-1.5 text-sm text-slate-600">
               <li>• {claimIds.length} field{claimIds.length === 1 ? '' : 's'}{includeFile ? ' and the watermarked file' : ' only, not the file'}</li>
+              {includeFile && <li>• {fileMode === 'redacted' ? `Redacted copy: ${redactions.length} area${redactions.length === 1 ? '' : 's'} hidden` : 'The original file, watermarked'}</li>}
               {includeFile && <li>• {allowDownload ? 'Recipient can download a watermarked PDF copy' : 'View only: downloads are off'}</li>}
               <li>• {restrictCountries && countries.length ? `Only from ${countries.map(flag).join(' ')}` : 'No country restriction'}</li>
               <li>• You can revoke it at any time from Sharing links</li>
@@ -224,10 +242,33 @@ export function SharePage() {
               </div>
             )}
           </div>
-          {includeFile && doc.claims.length > 0 && (
-            <Alert tone="warning" className="mt-3">
-              Sharing the file reveals every field on it, including those you did not tick.
-            </Alert>
+          {includeFile && (
+            <div className="mt-3 space-y-3" data-testid="file-mode">
+              <Segmented
+                label="Which file"
+                value={fileMode}
+                onChange={(v) => {
+                  setFileMode(v);
+                  if (v === 'original') setRedactions([]);
+                }}
+                options={[
+                  { value: 'original', label: 'Original file' },
+                  { value: 'redacted', label: 'Redacted copy' },
+                ]}
+              />
+              {fileMode === 'original' && doc.claims.length > 0 && (
+                <Alert tone="warning">Sharing the original file reveals everything printed on it, including fields you did not tick.</Alert>
+              )}
+              {fileMode === 'redacted' && (
+                <>
+                  <Alert tone="info">
+                    The recipient gets a new copy made only of page images, with your black boxes burned in. Nothing under a box, and no text,
+                    hidden layer or file information of the original, is in their copy. Your original stays encrypted and unchanged.
+                  </Alert>
+                  <RedactionEditor ref={editor} documentId={doc.id} mimeType={doc.mimeType} boxes={redactions} onChange={setRedactions} />
+                </>
+              )}
+            </div>
           )}
         </Step>
 
@@ -289,7 +330,7 @@ export function SharePage() {
           className="w-full"
           loading={submitting}
           icon={<Share2 className="size-5" />}
-          disabled={(claimIds.length === 0 && !includeFile) || (restrictCountries && countries.length === 0) || (recipientType === 'organization' && !org)}
+          disabled={(claimIds.length === 0 && !includeFile) || (includeFile && fileMode === 'redacted' && redactions.length === 0) || (restrictCountries && countries.length === 0) || (recipientType === 'organization' && !org)}
         >
           Create secure link
         </Button>

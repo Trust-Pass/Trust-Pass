@@ -108,7 +108,7 @@ export interface SharedView {
     expiresAt: string;
     viewOnly: boolean;
   };
-  document: { title: string; category: string; kind: 'file' | 'credential'; fileShared: boolean; downloadAllowed?: boolean; mimeType: string | null };
+  document: { title: string; category: string; kind: 'file' | 'credential'; fileShared: boolean; fileMode?: 'original' | 'redacted' | null; downloadAllowed?: boolean; mimeType: string | null };
   fields: Array<{ label: string; value: string; source: 'issuer' | 'self_declared' }>;
   verification: Verification;
   presentation: string | null;
@@ -124,6 +124,7 @@ export interface LinkSummary {
   recipientOrg: string | null;
   includeFile: boolean;
   allowDownload?: boolean;
+  fileMode?: 'original' | 'redacted' | null;
   claimCount: number;
   countries: string[];
   expiresAt: string;

@@ -129,7 +129,7 @@ export function SharedDocument({ view, fileUrl }: { view: SharedView; fileUrl: s
         <Card>
           <CardHeader
             title="Document"
-            subtitle={view.document.downloadAllowed ? 'Watermarked for you. You can download a watermarked copy.' : 'Watermarked for you. Downloads are disabled.'}
+            subtitle={`${view.document.fileMode === 'redacted' ? 'Redacted copy: the owner hid parts of this document. ' : ''}${view.document.downloadAllowed ? 'Watermarked for you. You can download a watermarked copy.' : 'Watermarked for you. Downloads are disabled.'}`}
             icon={<FileText className="size-5" />}
           />
           {view.document.downloadAllowed && (
