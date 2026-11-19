@@ -1,0 +1,29 @@
+name: deps-update (one-off)
+on:
+  push:
+    branches: ['claude/deps-update']
+permissions:
+  contents: write
+jobs:
+  update:
+    if: ${{ !contains(github.event.head_commit.message, '[deps-bot]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Upgrade the vulnerable development tools
+        run: |
+          pnpm --filter @trustpass/api add -D vitest@^4.1.12 tsup@latest
+          pnpm install
+          pnpm audit || true
+      - name: Commit the lockfile
+        run: |
+          git config user.name "deps-bot"
+          git config user.email "deps-bot@users.noreply.github.com"
+          git rm -q .github/workflows/deps-update.yml
+          git add -A
+          git commit -m "Dev tools: vitest 4.1.12+, tsup latest (tinypool, vitest, esbuild advisories) [deps-bot]"
+          git push origin HEAD:claude/deps-update
