@@ -18,6 +18,7 @@
     "keys:rewrap": "tsx src/scripts/keys.ts rewrap",
     "keys:rotate": "tsx src/scripts/keys.ts rotate",
     "keys:destroy-retired": "tsx src/scripts/keys.ts destroy-retired",
+    "keys:encrypt-metadata": "tsx src/scripts/keys.ts encrypt-metadata",
     "backup:manifest": "tsx src/scripts/backup.ts manifest",
     "backup:verify": "tsx src/scripts/backup.ts verify"
   },

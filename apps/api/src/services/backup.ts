@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto';
 import type { AppConfig } from '../config';
-import { claimAad, credentialAad, decrypt, fileAad, open, sha256Hex, unwrapDataKey } from '../lib/crypto';
+import { claimAad, claimLabelAad, credentialAad, decrypt, fileAad, open, sha256Hex, titleAad, unwrapDataKey } from '../lib/crypto';
+import { openSha256 } from './metadata';
 import type { Db } from '../lib/keyring';
 import type { ObjectStorage } from '../lib/storage';
 import { decryptToken } from '../modules/sharing';
@@ -150,7 +151,7 @@ export function checkSecrets(config: AppConfig, manifest: BackupManifest): strin
 export interface RestoreReport {
   ok: boolean;
   secretProblems: string[];
-  documents: { checked: number; failed: Array<{ id: string; stage: 'key' | 'storage' | 'decrypt' | 'hash' }> };
+  documents: { checked: number; failed: Array<{ id: string; stage: 'key' | 'storage' | 'decrypt' | 'hash' | 'metadata' }> };
   claims: { checked: number; failed: string[] };
   credentials: { checked: number; failed: string[] };
   linkCopies: { checked: number; unreadable: string[] };
@@ -220,7 +221,16 @@ export async function verifyRestore(deps: {
           report.documents.failed.push({ id: doc.id, stage: 'decrypt' });
           continue;
         }
-        const hashOk = sha256Hex(plaintext) === doc.plaintextSha256;
+        const expected = openSha256(dek, doc);
+        const hashOk = expected !== null && sha256Hex(plaintext) === expected;
+        // E3: sealed title and field labels must open with the same key.
+        if (doc.titleEncrypted) {
+          try {
+            open(dek, doc.titleEncrypted, titleAad(doc.id)).fill(0);
+          } catch {
+            report.documents.failed.push({ id: doc.id, stage: 'metadata' });
+          }
+        }
         plaintext.fill(0);
         if (!hashOk) report.documents.failed.push({ id: doc.id, stage: 'hash' });
 
@@ -228,6 +238,7 @@ export async function verifyRestore(deps: {
           report.claims.checked++;
           try {
             open(dek, claim.valueEncrypted, claimAad(doc.id, claim.claimKey, 'value')).fill(0);
+            if (claim.labelEncrypted) open(dek, claim.labelEncrypted, claimLabelAad(doc.id, claim.claimKey)).fill(0);
             if (claim.disclosureEncrypted) open(dek, claim.disclosureEncrypted, claimAad(doc.id, claim.claimKey, 'disclosure')).fill(0);
           } catch {
             report.claims.failed.push(claim.id);

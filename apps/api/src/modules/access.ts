@@ -9,6 +9,7 @@ import { userAgentFamily } from '../lib/user-agent';
 import { requireUser } from '../plugins/auth';
 import { logEvent, notify, recentlyNotified } from '../services/audit';
 import { decryptClaims, loadDataKey, readDocumentFile } from '../services/documents';
+import { documentTitles, openRecipientLabel, openTitle, TITLE_SELECT } from '../services/metadata';
 import { loadStoredCredential, presentAndVerify, recordVerification } from '../services/verification';
 import { memberOrgIds } from '../services/users';
 import type { AppDeps } from '../types';
@@ -115,7 +116,8 @@ async function raiseAlerts(
   logId: bigint,
 ) {
   const { prisma } = deps;
-  const title = link.document.title;
+  // Stored notifications never contain the title or recipient (E4). {document} and {recipient}
+  // are filled in for the owner when the notification is read (services/metadata.ts).
 
   if (outcome === 'granted') {
     if (!country) return;
@@ -127,7 +129,7 @@ async function raiseAlerts(
         userId: link.ownerId,
         type: 'alert_new_country',
         title: `First view from ${countryName(country)}`,
-        body: `Your link for "${title}" (${link.recipientLabel}) was opened from ${countryName(country)} for the first time. Location is approximate.`,
+        body: `Your link for "{document}" ({recipient}) was opened from ${countryName(country)} for the first time. Location is approximate.`,
         linkId: link.id,
         documentId: link.documentId,
         at: current,
@@ -143,7 +145,7 @@ async function raiseAlerts(
         userId: link.ownerId,
         type: 'alert_after_end',
         title: `Someone tried a ${outcome === 'denied_revoked' ? 'revoked' : 'expired'} link`,
-        body: `An attempt was made to open your link for "${title}" (${link.recipientLabel}) after it ${outcome === 'denied_revoked' ? 'was revoked' : 'expired'}. It was blocked.`,
+        body: `An attempt was made to open your link for "{document}" ({recipient}) after it ${outcome === 'denied_revoked' ? 'was revoked' : 'expired'}. It was blocked.`,
         linkId: link.id,
         documentId: link.documentId,
         at: current,
@@ -160,7 +162,7 @@ async function raiseAlerts(
       userId: link.ownerId,
       type: 'alert_denied_burst',
       title: 'Several blocked attempts on one link',
-      body: `${denied} attempts to open your link for "${title}" (${link.recipientLabel}) were blocked in the last 10 minutes. This may be worth a look.`,
+      body: `${denied} attempts to open your link for "{document}" ({recipient}) were blocked in the last 10 minutes. This may be worth a look.`,
       linkId: link.id,
       documentId: link.documentId,
     });
@@ -244,7 +246,7 @@ async function buildSharedView(deps: AppDeps, request: FastifyRequest, link: Gat
     return {
       link: {
         id: link.id,
-        recipientLabel: link.recipientLabel,
+        recipientLabel: openRecipientLabel(dek, link),
         recipientType: link.recipientType,
         recipientOrg: link.recipientOrg?.name ?? null,
         sharedBy: link.owner.fullName,
@@ -253,7 +255,7 @@ async function buildSharedView(deps: AppDeps, request: FastifyRequest, link: Gat
         viewOnly: true,
       },
       document: {
-        title: document.title,
+        title: openTitle(dek, document),
         category: document.category,
         kind: document.kind,
         fileShared: link.includeFile,
@@ -273,9 +275,17 @@ async function buildSharedView(deps: AppDeps, request: FastifyRequest, link: Gat
 
 async function sendWatermarkedFile(deps: AppDeps, reply: FastifyReply, link: GateLink) {
   if (!link.includeFile) throw new AppError(403, 'file_not_shared', 'The owner shared selected details only, not the file.');
-  const data = await readDocumentFile(deps, link.document);
+  const dek = await loadDataKey(deps, link.document.id);
+  let data = Buffer.alloc(0);
+  let recipient = '';
+  try {
+    data = await readDocumentFile(deps, link.document, dek);
+    recipient = link.recipientOrg?.name ?? openRecipientLabel(dek, link);
+  } finally {
+    dek.fill(0);
+  }
   const watermarked = await watermarkDocument(data, link.document.mimeType, {
-    recipient: link.recipientOrg?.name ?? link.recipientLabel,
+    recipient,
     viewedAt: deps.now(),
     linkRef: link.id.slice(0, 8),
   });
@@ -328,7 +338,7 @@ export async function accessRoutes(app: FastifyInstance) {
     const links = await prisma.sharingLink.findMany({
       where: { recipientOrgId: { in: orgIds }, document: { deletedAt: null } },
       include: {
-        document: { select: { title: true, kind: true, category: true } },
+        document: { select: { ...TITLE_SELECT, kind: true, category: true } },
         owner: { select: { fullName: true } },
         recipientOrg: { select: { id: true, name: true } },
         _count: { select: { permissions: true } },
@@ -337,10 +347,13 @@ export async function accessRoutes(app: FastifyInstance) {
       take: 100,
     });
     const current = deps.now();
+    // Titles only for links that still work: a revoked or expired share reveals nothing more.
+    const active = links.filter((l) => linkStatus(l, current) === 'active');
+    const titles = await documentTitles(deps, active.map((l) => l.document));
     return {
       items: links.map((l) => ({
         id: l.id,
-        document: l.document,
+        document: { title: titles.get(l.document.id) ?? 'Shared document (no longer available)', kind: l.document.kind, category: l.document.category },
         sharedBy: l.owner.fullName,
         organization: l.recipientOrg,
         fieldCount: l._count.permissions,

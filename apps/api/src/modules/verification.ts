@@ -110,7 +110,7 @@ export async function verificationRoutes(app: FastifyInstance) {
       const { user } = requireUser(request);
       const input = parse(requestCredentialSchema, request.body);
       const document = await issueEnrollmentCredential(deps, user, input);
-      return reply.status(201).send({ document: { id: document.id, title: document.title } });
+      return reply.status(201).send({ document: { id: document.id, title: `Enrollment Certificate - ${DEMO_ISSUER.name}` } });
     },
   );
 }

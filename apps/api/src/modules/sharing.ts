@@ -6,6 +6,8 @@ import { hashToken, linkTokenAad, open, randomToken, seal } from '../lib/crypto'
 import { AppError, badRequest, notFound, parse } from '../lib/errors';
 import { requireUser } from '../plugins/auth';
 import { logEvent, notify } from '../services/audit';
+import { loadDataKey } from '../services/documents';
+import { dataKeys, openClaimLabel, openRecipientLabel, openTitle, sealRecipientLabel, TITLE_SELECT } from '../services/metadata';
 import { getSettings } from '../services/settings';
 import type { AppDeps } from '../types';
 import { getOwnedDocument, parseId } from './documents';
@@ -47,10 +49,10 @@ async function getOwnedLink(deps: AppDeps, id: string, ownerId: string) {
   const link = await deps.prisma.sharingLink.findFirst({
     where: { id, ownerId },
     include: {
-      document: { select: { id: true, title: true, kind: true, deletedAt: true } },
+      document: { select: { ...TITLE_SELECT, kind: true } },
       countries: true,
       recipientOrg: { select: { id: true, name: true } },
-      permissions: { include: { claim: { select: { id: true, label: true, source: true } } } },
+      permissions: { include: { claim: { select: { id: true, claimKey: true, label: true, labelEncrypted: true, source: true } } } },
     },
   });
   if (!link) throw notFound('Link');
@@ -97,6 +99,10 @@ export async function sharingRoutes(app: FastifyInstance) {
       await deps.keys?.refreshIfStale();
       const token = randomToken(32);
       const linkId = randomUUID();
+      // The recipient label is sealed with the document's key (E3), like the title.
+      const dek = await loadDataKey(deps, document.id);
+      const recipientLabelEncrypted = sealRecipientLabel(dek, document.id, linkId, input.recipientLabel);
+      dek.fill(0);
       const link = await prisma.$transaction(async (tx) => {
         const created = await tx.sharingLink.create({
           data: {
@@ -108,7 +114,7 @@ export async function sharingRoutes(app: FastifyInstance) {
             tokenEncrypted: seal(config.linkTokenKeys.current.key, token, linkTokenAad(linkId)),
             recipientType: input.recipientType,
             recipientOrgId,
-            recipientLabel: input.recipientLabel,
+            recipientLabelEncrypted,
             includeFile: input.includeFile,
             expiresAt,
             createdAt: current,
@@ -124,8 +130,8 @@ export async function sharingRoutes(app: FastifyInstance) {
           eventType: 'link_created',
           documentId: document.id,
           linkId: created.id,
+          // No recipient name here: logs keep ids only (E4).
           metadata: {
-            recipient: input.recipientLabel,
             recipientType: input.recipientType,
             fields: claimIds.length,
             includeFile: input.includeFile,
@@ -144,14 +150,15 @@ export async function sharingRoutes(app: FastifyInstance) {
             userId: m.userId,
             type: 'link_received',
             title: 'A document was shared with your organization',
-            body: `${user.fullName} shared "${document.title}" with your organization. Open it from the organization dashboard.`,
+            // The title stays out of stored notifications (E4); the inbox shows it after its access checks.
+            body: `${user.fullName} shared a document with your organization. Open it from the organization dashboard.`,
             linkId: link.id,
           });
         }
       }
 
       return reply.status(201).send({
-        link: { id: link.id, expiresAt: link.expiresAt, recipientLabel: link.recipientLabel },
+        link: { id: link.id, expiresAt: link.expiresAt, recipientLabel: input.recipientLabel },
         url: shareUrl(deps, token),
       });
     },
@@ -170,7 +177,7 @@ export async function sharingRoutes(app: FastifyInstance) {
     const links = await prisma.sharingLink.findMany({
       where,
       include: {
-        document: { select: { id: true, title: true, kind: true } },
+        document: { select: { ...TITLE_SELECT, kind: true } },
         countries: true,
         recipientOrg: { select: { name: true } },
         _count: { select: { permissions: true } },
@@ -178,6 +185,11 @@ export async function sharingRoutes(app: FastifyInstance) {
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
+    const keys = await dataKeys(deps, links.map((l) => l.documentId));
+    const labels = new Map(
+      links.map((l) => [l.id, { title: openTitle(keys.get(l.documentId), l.document), recipient: openRecipientLabel(keys.get(l.documentId), l) }]),
+    );
+    keys.zero();
     const stats = await prisma.accessLog.groupBy({
       by: ['linkId', 'outcome'],
       where: { ownerId: user.id, linkId: { in: links.map((l) => l.id) }, OR: [{ resource: 'details' }, { outcome: { not: 'granted' } }] },
@@ -190,8 +202,8 @@ export async function sharingRoutes(app: FastifyInstance) {
         const denied = rows.filter((r) => r.outcome !== 'granted').reduce((n, r) => n + r._count._all, 0);
         return {
           id: l.id,
-          document: l.document,
-          recipientLabel: l.recipientLabel,
+          document: { id: l.document.id, title: labels.get(l.id)!.title, kind: l.document.kind },
+          recipientLabel: labels.get(l.id)!.recipient,
           recipientType: l.recipientType,
           recipientOrg: l.recipientOrg?.name ?? null,
           includeFile: l.includeFile,
@@ -216,15 +228,21 @@ export async function sharingRoutes(app: FastifyInstance) {
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 25,
     });
+    const keys = await dataKeys(deps, [link.documentId]);
+    const dek = keys.get(link.documentId);
+    const title = openTitle(dek, link.document);
+    const recipientLabel = openRecipientLabel(dek, link);
+    const fields = link.permissions.map((p) => ({ id: p.claim.id, label: openClaimLabel(dek, link.documentId, p.claim), source: p.claim.source }));
+    keys.zero();
     return {
       link: {
         id: link.id,
-        document: link.document,
-        recipientLabel: link.recipientLabel,
+        document: { id: link.document.id, title, kind: link.document.kind, deletedAt: link.document.deletedAt },
+        recipientLabel,
         recipientType: link.recipientType,
         recipientOrg: link.recipientOrg?.name ?? null,
         includeFile: link.includeFile,
-        fields: link.permissions.map((p) => ({ id: p.claim.id, label: p.claim.label, source: p.claim.source })),
+        fields,
         countries: link.countries.map((c) => c.countryCode),
         expiresAt: link.expiresAt,
         revokedAt: link.revokedAt,
@@ -284,7 +302,6 @@ export async function sharingRoutes(app: FastifyInstance) {
       eventType: 'link_revoked',
       documentId: link.documentId,
       linkId: link.id,
-      metadata: { recipient: link.recipientLabel },
     });
     return { ok: true, revokedAt };
   });

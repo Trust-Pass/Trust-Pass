@@ -9,6 +9,9 @@
  *   rotate [--dry-run] [--wait=<s>]        create a new KEK and link-token key, wait for running
  *                                          servers to pick them up, then rewrap
  *   destroy-retired [--dry-run] --confirm  delete retired keys nothing uses any more
+ *   encrypt-metadata [--dry-run]           E3/E4/E5 backfill: seal titles, labels, recipient names
+ *                                          and file hashes of older rows, erase the plain copies,
+ *                                          and remove names from notifications and security logs
  *
  * --dry-run and status run inside a READ ONLY database transaction: PostgreSQL itself
  * refuses any write. Options: --batch=<n> (default 100).
@@ -19,6 +22,7 @@ import { loadConfig, type AppConfig } from '../config';
 import { createManagedKeys, initKeyring, keyringStatus } from '../lib/keyring';
 import { createKmsProvider } from '../lib/kms';
 import { destroyRetiredKeys, rewrapAll, rewrapSucceeded, type RewrapReport } from '../services/key-rotation';
+import { countPlainMetadata, encryptLegacyMetadata, metadataMigrationSucceeded } from '../services/metadata-migration';
 
 export interface KeysCliDeps {
   env?: NodeJS.ProcessEnv;
@@ -27,7 +31,7 @@ export interface KeysCliDeps {
   sleep?: (ms: number) => Promise<void>;
 }
 
-const COMMANDS = ['status', 'rewrap', 'rotate', 'destroy-retired'];
+const COMMANDS = ['status', 'rewrap', 'rotate', 'destroy-retired', 'encrypt-metadata'];
 
 export async function runKeysCli(argv: string[], deps: KeysCliDeps = {}): Promise<number> {
   const out = deps.out ?? ((line: string) => console.log(line));
@@ -47,7 +51,7 @@ export async function runKeysCli(argv: string[], deps: KeysCliDeps = {}): Promis
     batchSize < 1 ||
     (waitSeconds !== null && (!Number.isInteger(waitSeconds) || waitSeconds < 0))
   ) {
-    out('Usage: keys <status|rewrap|rotate|destroy-retired> [--dry-run] [--confirm] [--batch=<n>] [--wait=<seconds>]');
+    out('Usage: keys <status|rewrap|rotate|destroy-retired|encrypt-metadata> [--dry-run] [--confirm] [--batch=<n>] [--wait=<seconds>]');
     return 2;
   }
 
@@ -75,6 +79,13 @@ export async function runKeysCli(argv: string[], deps: KeysCliDeps = {}): Promis
             out(JSON.stringify(await destroyRetiredKeys({ config, prisma: tx }, { dryRun: true }), null, 2));
             return 0;
           }
+          if (command === 'encrypt-metadata') {
+            const report = await encryptLegacyMetadata({ config, prisma: tx }, { dryRun: true, batchSize });
+            report.remaining = await countPlainMetadata(tx);
+            out(JSON.stringify(report, null, 2));
+            out('Dry run: nothing was changed. "remaining" is what a real run would encrypt or erase.');
+            return 0;
+          }
           if (command === 'rotate') {
             out('Dry run: a real rotate creates a new key-encryption key and link-token key, waits for running servers, then re-wraps.');
           }
@@ -96,6 +107,18 @@ export async function runKeysCli(argv: string[], deps: KeysCliDeps = {}): Promis
       const report = await destroyRetiredKeys({ config, prisma });
       out(JSON.stringify(report, null, 2));
       if (report.destroyed > 0) out('The destroyed keys can no longer decrypt anything. Their KMS key versions can now be disabled.');
+      return 0;
+    }
+
+    if (command === 'encrypt-metadata') {
+      await initKeyring({ config, prisma, kms, log, createIfMissing: false });
+      const report = await encryptLegacyMetadata({ config, prisma }, { batchSize, onProgress: out });
+      out(JSON.stringify(report, null, 2));
+      if (!metadataMigrationSucceeded(report)) {
+        out('Some metadata is still in clear (see "remaining" and "withoutKey"). Nothing was lost; fix the cause and run again.');
+        return 1;
+      }
+      out('Done: no title, field label, recipient name or file hash is stored in clear any more.');
       return 0;
     }
 

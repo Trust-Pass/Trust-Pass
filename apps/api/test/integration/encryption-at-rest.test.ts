@@ -146,15 +146,24 @@ describe.each(['local', 'database'] as const)('encryption at rest (STORAGE_DRIVE
     expect(stored.equals(file)).toBe(false);
   });
 
-  // Known gap (audit A4/A5): titles, field labels and recipient names are stored in clear and
-  // copied into logs and notifications. E3/E4 fix this; then change it.fails to it.
-  it.fails('stores titles, field labels and recipient names only as ciphertext (fixed by E3/E4)', async () => {
-    await seedEverything();
+  // E3/E4 (was a known gap, audit A4/A5): titles, field labels and recipient names are sealed with
+  // the document key and kept out of logs and notifications. The search covers every table,
+  // including security_events and notifications (opening the link from SA raised an alert).
+  it('stores titles, field labels and recipient names only as ciphertext, also in logs and notifications', async () => {
+    const { owner } = await seedEverything();
+    expect(await ctx.prisma.notification.count({ where: { userId: owner.userId } }), 'precondition: an alert was raised').toBeGreaterThan(0);
     const report = await findMarkers(ctx);
-    console.info(`[E1 canary, ${driver}] metadata found in clear:`, JSON.stringify({ title: report.title, label: report.label, recipient: report.recipient }));
     expect(report.title).toEqual([]);
     expect(report.label).toEqual([]);
     expect(report.recipient).toEqual([]);
+  });
+
+  it('after deletion no marker of any kind is left anywhere', async () => {
+    const { owner, documentId } = await seedEverything();
+    const del = await as(ctx, owner, { method: 'DELETE', url: `/api/documents/${documentId}` });
+    expect(del.statusCode).toBe(200);
+    const report = await findMarkers(ctx);
+    expect(report).toEqual({ file: [], title: [], label: [], value: [], hidden: [], recipient: [] });
   });
 
   it('decrypts the original byte for byte for the owner', async () => {

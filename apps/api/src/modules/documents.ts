@@ -7,13 +7,15 @@ import { validateUpload } from '../lib/upload-validation';
 import { requireUser } from '../plugins/auth';
 import { logEvent } from '../services/audit';
 import {
-  claimKeyFromLabel,
+  selfDeclaredClaimKey,
   decryptClaims,
   loadDataKey,
   readDocumentFile,
   storeEncryptedDocument,
 } from '../services/documents';
 import { loadStoredCredential, presentAndVerify } from '../services/verification';
+import { documentTitles, openSha256, openTitle, recipientLabels } from '../services/metadata';
+import { sha256Hex } from '../lib/crypto';
 import type { AppDeps } from '../types';
 
 export const uuidParam = z.object({ id: z.string().uuid() });
@@ -73,10 +75,11 @@ export async function documentRoutes(app: FastifyInstance) {
       orderBy: { createdAt: 'desc' },
     });
     const current = now();
+    const titles = await documentTitles(deps, documents);
     return {
       documents: documents.map((d) => ({
         id: d.id,
-        title: d.title,
+        title: titles.get(d.id)!,
         category: d.category,
         kind: d.kind,
         mimeType: d.mimeType,
@@ -132,7 +135,7 @@ export async function documentRoutes(app: FastifyInstance) {
         mimeType: validated.mimeType,
         data: validated.data,
         claims: metadata.claims.map((c) => ({
-          key: claimKeyFromLabel(c.label, taken),
+          key: selfDeclaredClaimKey(taken),
           label: c.label,
           value: c.value,
           source: 'self_declared' as const,
@@ -141,11 +144,11 @@ export async function documentRoutes(app: FastifyInstance) {
       return reply.status(201).send({
         document: {
           id: document.id,
-          title: document.title,
+          title: metadata.title,
           mimeType: document.mimeType,
           sizeBytes: document.sizeBytes,
           encryption: 'AES-256-GCM',
-          sha256: document.plaintextSha256,
+          sha256: sha256Hex(validated.data),
         },
       });
     },
@@ -169,17 +172,18 @@ export async function documentRoutes(app: FastifyInstance) {
         orderBy: { createdAt: 'desc' },
       });
       const current = now();
+      const recipients = await recipientLabels(deps, links);
       return {
         document: {
           id: document.id,
-          title: document.title,
+          title: openTitle(dek, document),
           category: document.category,
           kind: document.kind,
           mimeType: document.mimeType,
           sizeBytes: document.sizeBytes,
           createdAt: document.createdAt,
-          sha256: document.plaintextSha256,
-          encryption: { algorithm: 'AES-256-GCM', keyWrapping: 'AES-256-GCM master key', perDocumentKey: true },
+          sha256: openSha256(dek, document),
+          encryption: { algorithm: 'AES-256-GCM', keyWrapping: 'AES-256-GCM master key', perDocumentKey: true, encryptedMetadata: Boolean(document.titleEncrypted) },
           trust: quickTrust(document, current),
           credential: document.credential
             ? {
@@ -195,7 +199,7 @@ export async function documentRoutes(app: FastifyInstance) {
           claims: claims.map(({ disclosure: _d, ...c }) => c),
           links: links.map((l) => ({
             id: l.id,
-            recipientLabel: l.recipientLabel,
+            recipientLabel: recipients.get(l.id)!,
             recipientType: l.recipientType,
             recipientOrg: l.recipientOrg?.name ?? null,
             includeFile: l.includeFile,
@@ -247,13 +251,17 @@ export async function documentRoutes(app: FastifyInstance) {
       await tx.documentClaim.deleteMany({ where: { documentId: document.id } });
       await tx.credential.deleteMany({ where: { documentId: document.id } });
       await tx.documentKey.deleteMany({ where: { documentId: document.id } });
-      await tx.document.update({ where: { id: document.id }, data: { deletedAt: current, title: '[deleted document]' } });
+      // The sealed metadata is unreadable without the key; erase it too, with any legacy plain values.
+      await tx.sharingLink.updateMany({ where: { documentId: document.id }, data: { recipientLabel: null, recipientLabelEncrypted: null } });
+      await tx.document.update({
+        where: { id: document.id },
+        data: { deletedAt: current, title: null, titleEncrypted: null, plaintextSha256: null, sha256Encrypted: null },
+      });
       await logEvent(tx, {
         userId: user.id,
         actorUserId: user.id,
         eventType: 'document_deleted',
         documentId: document.id,
-        metadata: { title: document.title },
       });
     });
     await deps.storage.delete(document.storageKey).catch((err) => request.log.warn({ err }, 'storage delete failed'));

@@ -187,13 +187,16 @@ model Document {
   // bound into the AES-GCM additional authenticated data.
   id               String           @id @db.Uuid
   ownerId          String           @map("owner_id") @db.Uuid
-  title            String
+  // Plain columns are legacy (E3): new rows leave them empty and use the *Encrypted columns.
+  title            String?
+  titleEncrypted   Bytes?           @map("title_encrypted")
   category         DocumentCategory
   kind             DocumentKind
   mimeType         String           @map("mime_type")
   sizeBytes        Int              @map("size_bytes")
   storageKey       String           @unique @map("storage_key")
-  plaintextSha256  String           @map("plaintext_sha256")
+  plaintextSha256  String?          @map("plaintext_sha256")
+  sha256Encrypted  Bytes?           @map("sha256_encrypted")
   encIv            Bytes            @map("enc_iv")
   encTag           Bytes            @map("enc_tag")
   createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -228,7 +231,8 @@ model DocumentClaim {
   id                  String      @id @default(uuid()) @db.Uuid
   documentId          String      @map("document_id") @db.Uuid
   claimKey            String      @map("claim_key")
-  label               String
+  label               String?
+  labelEncrypted      Bytes?      @map("label_encrypted")
   // iv | tag | ciphertext, sealed with the document's data key
   valueEncrypted      Bytes       @map("value_encrypted")
   // SD-JWT disclosure for issuer claims, sealed the same way
@@ -285,7 +289,8 @@ model SharingLink {
   tokenEncrypted Bytes         @map("token_encrypted")
   recipientType  RecipientType @map("recipient_type")
   recipientOrgId String?       @map("recipient_org_id") @db.Uuid
-  recipientLabel String        @map("recipient_label")
+  recipientLabel          String?       @map("recipient_label")
+  recipientLabelEncrypted Bytes?        @map("recipient_label_encrypted")
   includeFile    Boolean       @map("include_file")
   expiresAt      DateTime      @map("expires_at") @db.Timestamptz(3)
   revokedAt      DateTime?     @map("revoked_at") @db.Timestamptz(3)

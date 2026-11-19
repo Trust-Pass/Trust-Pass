@@ -100,6 +100,23 @@ export function claimAad(documentId: string, claimKey: string, part: 'value' | '
   return `claim|${documentId}|${claimKey}|${part}`;
 }
 
+/** E3/E5 metadata, sealed with the document's data key. */
+export function titleAad(documentId: string): string {
+  return `title|${documentId}`;
+}
+
+export function sha256Aad(documentId: string): string {
+  return `sha256|${documentId}`;
+}
+
+export function claimLabelAad(documentId: string, claimKey: string): string {
+  return `claim|${documentId}|${claimKey}|label`;
+}
+
+export function recipientLabelAad(documentId: string, linkId: string): string {
+  return `recipient|${documentId}|${linkId}`;
+}
+
 export function credentialAad(documentId: string): string {
   return `credential|${documentId}`;
 }

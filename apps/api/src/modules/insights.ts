@@ -4,6 +4,7 @@ import { ACCESS_OUTCOMES } from '@trustpass/shared';
 import { z } from 'zod';
 import { notFound } from '../lib/errors';
 import { requireUser } from '../plugins/auth';
+import { fillPlaceholders, ownerLabels } from '../services/metadata';
 import { linkStatus } from './sharing';
 
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -26,7 +27,8 @@ function resolveRange(input: { from?: string; to?: string }, now: Date) {
 }
 
 export async function insightRoutes(app: FastifyInstance) {
-  const { prisma, now } = app.deps;
+  const deps = app.deps;
+  const { prisma, now } = deps;
 
   app.get('/api/analytics', async (request) => {
     const { user } = requireUser(request);
@@ -88,12 +90,12 @@ export async function insightRoutes(app: FastifyInstance) {
     }
 
     const docIds = Array.from(new Set(byDocument.map((d) => d.documentId)));
-    const docs = await prisma.document.findMany({ where: { id: { in: docIds }, ownerId: user.id }, select: { id: true, title: true } });
+    const labels = await ownerLabels(deps, user.id, [...docIds, ...alerts.map((a) => a.documentId)], alerts.map((a) => a.linkId));
     const perDoc = new Map<string, { documentId: string; title: string; granted: number; denied: number }>();
     for (const row of byDocument) {
       const entry = perDoc.get(row.documentId) ?? {
         documentId: row.documentId,
-        title: docs.find((d) => d.id === row.documentId)?.title ?? 'Document',
+        title: labels.title(row.documentId) ?? 'Document',
         granted: 0,
         denied: 0,
       };
@@ -140,7 +142,14 @@ export async function insightRoutes(app: FastifyInstance) {
           .filter(([k]) => k !== 'granted')
           .reduce((n, [, v]) => n + v, 0),
       })),
-      alerts: alerts.map((a) => ({ id: a.id, type: a.type, title: a.title, body: a.body, at: a.createdAt, linkId: a.linkId })),
+      alerts: alerts.map((a) => ({
+        id: a.id,
+        type: a.type,
+        title: a.title,
+        body: fillPlaceholders(a.body, { document: labels.title(a.documentId) ?? labels.linkTitle(a.linkId), recipient: labels.recipient(a.linkId) }),
+        at: a.createdAt,
+        linkId: a.linkId,
+      })),
     };
   });
 
@@ -164,10 +173,7 @@ export async function insightRoutes(app: FastifyInstance) {
       prisma.accessLog.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (query.page - 1) * pageSize, take: pageSize }),
       prisma.accessLog.count({ where }),
     ]);
-    const links = await prisma.sharingLink.findMany({
-      where: { id: { in: Array.from(new Set(rows.map((r) => r.linkId))) }, ownerId: user.id },
-      select: { id: true, recipientLabel: true, document: { select: { title: true } } },
-    });
+    const labels = await ownerLabels(deps, user.id, [], rows.map((r) => r.linkId));
     const orgIds = Array.from(new Set(rows.map((r) => r.accessorOrgId).filter((x): x is string => Boolean(x))));
     const orgs = await prisma.organization.findMany({ where: { id: { in: orgIds } }, select: { id: true, name: true } });
     return {
@@ -175,12 +181,11 @@ export async function insightRoutes(app: FastifyInstance) {
       pageSize,
       total,
       rows: rows.map((r) => {
-        const link = links.find((l) => l.id === r.linkId);
         return {
           id: r.id.toString(),
           at: r.createdAt,
-          document: link?.document.title ?? 'Document',
-          recipient: link?.recipientLabel ?? null,
+          document: labels.linkTitle(r.linkId) ?? 'Document',
+          recipient: labels.recipient(r.linkId),
           resource: r.resource,
           outcome: r.outcome,
           country: r.countryCode,
@@ -204,21 +209,25 @@ export async function insightRoutes(app: FastifyInstance) {
       prisma.securityEvent.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (query.page - 1) * pageSize, take: pageSize }),
       prisma.securityEvent.count({ where }),
     ]);
-    const docIds = Array.from(new Set(rows.map((r) => r.documentId).filter((x): x is string => Boolean(x))));
-    const docs = await prisma.document.findMany({ where: { id: { in: docIds }, ownerId: user.id }, select: { id: true, title: true } });
+    // Logs store ids only (E4): titles and recipients are decrypted here, for the owner.
+    const labels = await ownerLabels(deps, user.id, rows.map((r) => r.documentId), rows.map((r) => r.linkId));
     return {
       page: query.page,
       pageSize,
       total,
-      events: rows.map((r) => ({
-        id: r.id.toString(),
-        type: r.eventType,
-        severity: r.severity,
-        at: r.createdAt,
-        document: docs.find((d) => d.id === r.documentId)?.title ?? null,
-        byYou: r.actorUserId === user.id,
-        metadata: r.metadata,
-      })),
+      events: rows.map((r) => {
+        const recipient = labels.recipient(r.linkId);
+        const metadata = r.metadata && typeof r.metadata === 'object' && !Array.isArray(r.metadata) ? r.metadata : {};
+        return {
+          id: r.id.toString(),
+          type: r.eventType,
+          severity: r.severity,
+          at: r.createdAt,
+          document: labels.title(r.documentId),
+          byYou: r.actorUserId === user.id,
+          metadata: recipient ? { ...metadata, recipient } : metadata,
+        };
+      }),
     };
   });
 
@@ -228,13 +237,14 @@ export async function insightRoutes(app: FastifyInstance) {
       prisma.notification.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' }, take: 50 }),
       prisma.notification.count({ where: { userId: user.id, readAt: null } }),
     ]);
+    const labels = await ownerLabels(deps, user.id, items.map((n) => n.documentId), items.map((n) => n.linkId));
     return {
       unread,
       notifications: items.map((n) => ({
         id: n.id,
         type: n.type,
         title: n.title,
-        body: n.body,
+        body: fillPlaceholders(n.body, { document: labels.title(n.documentId) ?? labels.linkTitle(n.linkId), recipient: labels.recipient(n.linkId) }),
         read: Boolean(n.readAt),
         at: n.createdAt,
         linkId: n.linkId,
@@ -269,17 +279,13 @@ export async function insightRoutes(app: FastifyInstance) {
       prisma.accessLog.findMany({ where: { ownerId: user.id, resource: 'details' }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 5 }),
       prisma.securityEvent.findMany({ where: { userId: user.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 6 }),
     ]);
-    const links = await prisma.sharingLink.findMany({
-      where: { id: { in: recentAccess.map((r) => r.linkId) } },
-      select: { id: true, recipientLabel: true, document: { select: { title: true } } },
-    });
+    const labels = await ownerLabels(deps, user.id, [], recentAccess.map((r) => r.linkId));
     const granted = attempts.find((a) => a.outcome === 'granted')?._count._all ?? 0;
     const total = attempts.reduce((n, a) => n + a._count._all, 0);
     return {
       counts: { documents, verifiedCredentials: credentials, activeLinks, attempts7d: total, granted7d: granted, denied7d: total - granted },
       recentAccess: recentAccess.map((r) => {
-        const link = links.find((l) => l.id === r.linkId);
-        return { id: r.id.toString(), at: r.createdAt, outcome: r.outcome, country: r.countryCode, document: link?.document.title ?? 'Document', recipient: link?.recipientLabel ?? null };
+        return { id: r.id.toString(), at: r.createdAt, outcome: r.outcome, country: r.countryCode, document: labels.linkTitle(r.linkId) ?? 'Document', recipient: labels.recipient(r.linkId) };
       }),
       recentEvents: recentEvents.map((e) => ({ id: e.id.toString(), type: e.eventType, severity: e.severity, at: e.createdAt })),
     };
