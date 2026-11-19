@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { PDFDocument } from 'pdf-lib';
-import sharp from 'sharp';
+import sharp, { type Sharp } from 'sharp';
 import { REDACTION_MAX_EDGE, type Redaction } from '@trustpass/shared';
 import { decrypt, encrypt, toBytes } from '../lib/crypto';
 import { AppError } from '../lib/errors';
@@ -40,7 +40,7 @@ export function redactedPageAad(documentId: string, linkId: string, pageIndex: n
 const reject = (message: string) => new AppError(400, 'redaction_invalid', message);
 
 /** Normalises any accepted page image to a flat (no alpha), metadata-free raster within limits. */
-async function flatten(input: Buffer): Promise<sharp.Sharp> {
+async function flatten(input: Buffer): Promise<Sharp> {
   try {
     const image = sharp(input, { failOn: 'error', limitInputPixels: 40_000_000 }).rotate();
     const meta = await image.metadata();
@@ -55,7 +55,7 @@ async function flatten(input: Buffer): Promise<sharp.Sharp> {
 }
 
 /** Burns opaque black rectangles into one page. Boxes are rounded outwards to whole pixels. */
-export async function burnBoxes(page: sharp.Sharp, boxes: Redaction[]): Promise<RedactedPageImage> {
+export async function burnBoxes(page: Sharp, boxes: Redaction[]): Promise<RedactedPageImage> {
   const raw = await page.png().toBuffer();
   const meta = await sharp(raw).metadata();
   const width = meta.width!;
@@ -87,7 +87,7 @@ export async function buildRedactedPages(
 ): Promise<RedactedPageImage[]> {
   const original = await readDocumentFile(deps, document, dek);
   try {
-    let sources: sharp.Sharp[];
+    let sources: Sharp[];
     if (document.mimeType === 'application/pdf') {
       const pdf = await PDFDocument.load(original, { updateMetadata: false });
       const pages = pdf.getPages();
