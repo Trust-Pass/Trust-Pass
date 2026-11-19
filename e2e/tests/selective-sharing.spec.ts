@@ -33,7 +33,9 @@ test('the owner hides an area; the recipient copy has no trace of it, in text or
   await expect(surface.locator('img')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole('button', { name: 'Create secure link' })).toBeDisabled();
 
-  // Drag over the bottom 30% of the page (the red block is at 10-20% from the bottom).
+  // Drag over the bottom 30% of the page (the red block is at 10-20% from the bottom). The bottom of
+  // the page is scrolled into view first: pointer events only reach what is on screen.
+  await surface.evaluate((el) => el.scrollIntoView({ block: 'end' }));
   const box = (await surface.boundingBox())!;
   await page.mouse.move(box.x + box.width * 0.02, box.y + box.height * 0.7);
   await page.mouse.down();

@@ -34,6 +34,8 @@ export const RedactionEditor = forwardRef<RedactionEditorHandle, {
   const [pages, setPages] = useState<PageView[]>([]);
   const [state, setState] = useState<{ status: 'loading' | 'ready' | 'error'; message?: string }>({ status: 'loading' });
   const [draft, setDraft] = useState<(Redaction & { x0: number; y0: number }) | null>(null);
+  // The drag in progress lives in a ref, so a fast drag never reads a stale render.
+  const drag = useRef<(Redaction & { x0: number; y0: number }) | null>(null);
   const pagesRef = useRef<PageView[]>([]);
 
   useImperativeHandle(ref, () => ({
@@ -101,21 +103,26 @@ export const RedactionEditor = forwardRef<RedactionEditorHandle, {
     return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) };
   };
   const start = (page: number) => (e: ReactPointerEvent<HTMLDivElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
+    e.currentTarget.setPointerCapture?.(e.pointerId);
     const p = point(e);
-    setDraft({ page, x: p.x, y: p.y, w: 0, h: 0, x0: p.x, y0: p.y });
+    drag.current = { page, x: p.x, y: p.y, w: 0, h: 0, x0: p.x, y0: p.y };
+    setDraft(drag.current);
   };
   const move = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!draft) return;
+    const d = drag.current;
+    if (!d) return;
     const p = point(e);
-    setDraft({ ...draft, x: Math.min(p.x, draft.x0), y: Math.min(p.y, draft.y0), w: Math.abs(p.x - draft.x0), h: Math.abs(p.y - draft.y0) });
+    drag.current = { ...d, x: Math.min(p.x, d.x0), y: Math.min(p.y, d.y0), w: Math.abs(p.x - d.x0), h: Math.abs(p.y - d.y0) };
+    setDraft(drag.current);
   };
-  const end = () => {
-    if (draft && draft.w > 0.005 && draft.h > 0.005) {
-      const { page, x, y, w, h } = draft;
-      onChange([...boxes, { page, x, y, w: Math.min(w, 1 - x), h: Math.min(h, 1 - y) }]);
-    }
+  const end = (e: ReactPointerEvent<HTMLDivElement>) => {
+    move(e);
+    const d = drag.current;
+    drag.current = null;
     setDraft(null);
+    if (d && d.w > 0.005 && d.h > 0.005) {
+      onChange([...boxes, { page: d.page, x: d.x, y: d.y, w: Math.min(d.w, 1 - d.x), h: Math.min(d.h, 1 - d.y) }]);
+    }
   };
 
   if (state.status === 'loading') {
@@ -149,6 +156,10 @@ export const RedactionEditor = forwardRef<RedactionEditorHandle, {
             onPointerDown={start(i)}
             onPointerMove={move}
             onPointerUp={end}
+            onPointerCancel={() => {
+              drag.current = null;
+              setDraft(null);
+            }}
           >
             <img src={p.url} alt={`Page ${i + 1}`} className="block w-full" draggable={false} />
             {boxes.map((b, j) =>
