@@ -17,7 +17,8 @@ const KEY = process.env.GCP_TEST_KMS_KEY_NAME;
 const SA = process.env.GCP_TEST_SERVICE_ACCOUNT_JSON;
 const live = Boolean(KEY && SA);
 
-const kmsEnv = () => ({ KEY_PROVIDER: 'gcp-kms', GCP_KMS_KEY_NAME: KEY!, GCP_SERVICE_ACCOUNT_JSON: SA!, MASTER_KEY: undefined, FAKE_KMS_KEY_FILE: undefined });
+const kmsCliEnv = (): Record<string, string> => ({ KEY_PROVIDER: 'gcp-kms', GCP_KMS_KEY_NAME: KEY!, GCP_SERVICE_ACCOUNT_JSON: SA! });
+const kmsEnv = () => ({ ...kmsCliEnv(), MASTER_KEY: undefined, FAKE_KMS_KEY_FILE: undefined });
 
 describe.skipIf(!live)('Google Cloud KMS (live)', () => {
   beforeAll(async () => {
@@ -38,7 +39,7 @@ describe.skipIf(!live)('Google Cloud KMS (live)', () => {
     expect((await kms.decrypt(ct, 'kek|v1')).equals(secret)).toBe(true);
     await expect(kms.decrypt(ct, 'kek|v2')).rejects.toBeInstanceOf(KmsError);
     const bad = Buffer.from(ct);
-    bad[bad.length - 1] ^= 1;
+    bad.writeUInt8(bad.readUInt8(bad.length - 1) ^ 1, bad.length - 1);
     await expect(kms.decrypt(bad, 'kek|v1')).rejects.toThrow();
   });
 
@@ -70,7 +71,7 @@ describe.skipIf(!live)('Google Cloud KMS (live)', () => {
 
   it('rotation with the real KMS keeps every document readable by a fresh server', async () => {
     const lines: string[] = [];
-    const code = await runKeysCli(['rotate', '--wait=0'], { env: cliEnv(kmsEnv() as Record<string, string>), prisma: testPrisma(), out: (l) => lines.push(l), sleep: async () => {} });
+    const code = await runKeysCli(['rotate', '--wait=0'], { env: cliEnv(kmsCliEnv()), prisma: testPrisma(), out: (l) => lines.push(l), sleep: async () => {} });
     expect(code, lines.join('\n')).toBe(0);
     const ctx = await createTestContext({ ...kmsEnv(), STORAGE_DRIVER: 'database' });
     try {
@@ -100,7 +101,7 @@ describe.skipIf(!live)('Google Cloud KMS (live)', () => {
     // Production's switch: KMS on, MASTER_KEY still present for the old keys, then rewrap.
     const lines: string[] = [];
     const code = await runKeysCli(['rewrap'], {
-      env: cliEnv({ ...(kmsEnv() as Record<string, string>), MASTER_KEY: TEST_SECRETS.MASTER_KEY }),
+      env: cliEnv({ ...kmsCliEnv(), MASTER_KEY: TEST_SECRETS.MASTER_KEY }),
       prisma: testPrisma(),
       out: (l) => lines.push(l),
       sleep: async () => {},
