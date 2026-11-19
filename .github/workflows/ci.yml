@@ -204,3 +204,5 @@ jobs:
         with:
           node-version: 22
       - run: pnpm audit --prod --audit-level high
+      - name: Full report (all severities, development tools included; informational)
+        run: pnpm audit || true

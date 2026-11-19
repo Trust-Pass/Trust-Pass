@@ -15,7 +15,8 @@ This runbook says what to back up, how to take a safe backup, how to restore it,
 | The free database **expires on 16 December 2026**. | Take a backup, and practise a restore, before that date. |
 | `STORAGE_DRIVER=database`: encrypted files live in the database (`stored_objects`). | One database dump contains every encrypted file. |
 | Keys come from `MASTER_KEY` today (`KEY_PROVIDER=env`); a KMS is planned. | The dump alone is not enough to read documents, and must never be stored with the keys. |
-| Before this change no backup had been taken and no restore had ever been tested. | — |
+| Network access to the database is closed (19 Nov 2026): the PostgreSQL inbound IP rules are empty; the app connects through Render's private network. | For a backup from the laptop, add your current IP (`x.x.x.x/32`) under trustpass-db > Info > PostgreSQL Inbound IP Rules, Save, run the backup, then remove it and Save. Recovery checks and rehearsals use an existing backup offline and need no access. |
+| Proven on 18–19 Nov 2026: encrypted backup `trustpass-2026-11-18T1458Z.7z`, restore drill, recovery check with the saved keys (3/3 document keys, 3/3 files with SHA-256, 7/7 fields, 1/1 credential) and the **release rehearsal** (section 11). | The backup and the saved keys are enough to recover every document, also with the next release's code. |
 
 ---
 
@@ -194,3 +195,18 @@ Automated tests run on every push (`apps/api/test/integration/backup-restore.tes
 - check that the manifest contains no secret and no document content;
 - check that a wrong or missing `MASTER_KEY`, a wrong `ISSUER_SIGNING_SEED` or a different KMS key is refused, with the secret named and never printed;
 - check that a damaged or missing encrypted file is reported by document id.
+- the release rehearsal (section 11) runs end to end on every push (CI job `release-rehearsal`): a database in production's current schema is backed up, encrypted with 7-Zip and rehearsed with the script exactly as on the laptop.
+
+## 11. Release rehearsal (before every release)
+
+`scripts/rehearsal/` restores a COPY of the latest backup (no network, RAM only, backup folder
+read-only), applies the release's migrations, proves every existing value is unchanged, starts the
+release with the saved keys, runs the metadata backfill, and checks every document, field,
+credential, share link and a recipient view and download on every real document. Steps:
+`scripts/rehearsal/README.md`. Result on 19 Nov 2026 (release 6144d37, backup
+`trustpass-2026-11-18T1458Z.7z`): **REHEARSAL PASSED** — 1 + 4 migrations, existing data identical,
+3 documents / 3 files / 7 fields / 1 credential unchanged, 17 log rows and 6 notifications cleaned,
+8 links checked (6 ended and 2 expired correctly refused), stored files and keys unchanged. That run
+predates the recipient probe (real files viewed and downloaded through a new link); run it once more
+before the release.
+
