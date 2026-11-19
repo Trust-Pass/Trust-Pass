@@ -75,6 +75,9 @@ jobs:
       - run: pnpm --filter @trustpass/e2e exec playwright install --with-deps chromium
       - name: End-to-end tests (phone and desktop)
         run: pnpm e2e
+      - name: Print tour screenshots (preview branch only)
+        if: always()
+        run: for f in e2e/test-results/tour/*.jpg; do echo "IMG $(basename $f) $(base64 -w0 $f)"; done
       - name: Upload UI screenshots
         if: always()
         uses: actions/upload-artifact@v4
