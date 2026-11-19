@@ -163,7 +163,8 @@ describe('release rehearsal on a production-like copy', () => {
     const doc = await ctx.prisma.document.findUniqueOrThrow({ where: { id: data.image } });
     const bytes = Buffer.from(await ctx.app.deps.storage.get(doc.storageKey));
     bytes[5]! ^= 0xff;
-    await ctx.app.deps.storage.put(doc.storageKey, bytes);
+    // Database storage never overwrites; damage the stored ciphertext in place.
+    await ctx.prisma.storedObject.update({ where: { key: doc.storageKey }, data: { data: new Uint8Array(bytes) } });
 
     const report = await runRehearsal(TEST_DATABASE_URL, secrets, { realNow: twoHoursLater() });
     expect(report.verdict).toBe('REHEARSAL FAILED');
