@@ -22,6 +22,7 @@ import { insightRoutes } from './modules/insights';
 import { organizationRoutes } from './modules/organizations';
 import { sharingRoutes } from './modules/sharing';
 import { verificationRoutes } from './modules/verification';
+import { qrRoutes } from './modules/qr';
 import { authPlugin } from './plugins/auth';
 import { securityPlugin } from './plugins/security';
 import type { AppDeps } from './types';
@@ -116,6 +117,7 @@ export async function buildApp(options: BuildOptions) {
   await organizationRoutes(app);
   await insightRoutes(app);
   await adminRoutes(app);
+  await qrRoutes(app);
 
   const webDist = config.env.WEB_DIST_DIR ? path.resolve(config.env.WEB_DIST_DIR) : null;
   if (webDist && existsSync(path.join(webDist, 'index.html'))) {

@@ -35,7 +35,8 @@ export async function securityPlugin(app: FastifyInstance) {
   });
 
   app.addHook('onSend', async (_request, reply) => {
-    reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+    // The camera is allowed for TrustPass's own pages only (the QR scanner), never for embedded frames.
+    reply.header('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(), payment=()');
   });
 
   // Limits are per route (see each route's config.rateLimit); nothing global.

@@ -6,7 +6,7 @@ TrustPass is a secure document-sharing and verification platform. People upload 
 
 > Share only what is necessary. Verify what matters. Stay in control.
 
-Built for a cybersecurity training camp demonstration. Phase 1 (core platform) is complete; QR Shield (Phase 2) is intentionally not implemented.
+Built for a cybersecurity training camp demonstration. Phase 1 (core platform) is complete; Phase 2, QR Shield (a QR Security Scanner), is described in [docs/qr-shield.md](docs/qr-shield.md).
 
 ## What it does
 
@@ -17,6 +17,7 @@ Built for a cybersecurity training camp demonstration. Phase 1 (core platform) i
 | Encryption | AES-256-GCM per document with its own data key, wrapped by a key-encryption key (envelope encryption). File, field values, **titles, field labels, recipient names and the file's SHA-256** are all encrypted with the document's key; logs and notifications store ids only. With `KEY_PROVIDER=gcp-kms` the key-encryption keys are protected by Google Cloud KMS, so the database (ciphertext and wrapped keys) and the root key are in different places. With the legacy `KEY_PROVIDER=env` the key comes from `MASTER_KEY` in the server's environment, which is separate from the database but not from the server |
 | Selective sharing | Structured claims; issuer credentials use SD-JWT so a recipient sees, and can verify, a single signed field without the rest of the certificate |
 | Verification | A simulated trusted university signs credentials with Ed25519. Files and credentials verify as **Verified**, **Invalid** (modified, expired or issuer revoked) or **Unverified** (no trusted signature) |
+| QR Shield | QR Security Scanner: camera, photo or pasted link. Codes are decoded on the device; the address is checked offline (never visited) for phishing, look-alike names, disguised or hidden destinations, risky downloads and scripts. Genuine TrustPass share links are recognised and their status shown |
 | Share links | 256-bit tokens stored only as hashes, expiry (1 h to 30 days), instant revocation, organization-only recipients, view-only access |
 | Country rules | Allowed-country lists enforced on the server from the visitor's IP using an offline database. Unknown locations are denied. Raw IPs are never stored |
 | Watermarks | Every shared view is re-rendered with the recipient, time and link ID burned into each page |

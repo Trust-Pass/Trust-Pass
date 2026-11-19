@@ -13,6 +13,7 @@ import { DocumentsPage } from './pages/Documents';
 import { LandingPage } from './pages/Landing';
 import { LinksPage } from './pages/Links';
 import { NotFoundPage } from './pages/NotFound';
+import { QrScannerPage } from './pages/QrScanner';
 import { OrgInboxViewPage, OrganizationPage } from './pages/Organization';
 import { RecipientPage } from './pages/Recipient';
 import { SettingsPage } from './pages/Settings';
@@ -64,6 +65,7 @@ export function App() {
           <Route path="links" element={<LinksPage />} />
           <Route path="analytics" element={<Suspense fallback={<Spinner />}><AnalyticsPage /></Suspense>} />
           <Route path="verify" element={<VerifyPage />} />
+          <Route path="scan" element={<QrScannerPage />} />
           <Route path="activity" element={<ActivityPage />} />
           <Route path="credentials" element={<CredentialsPage />} />
           <Route path="org" element={<OrganizationPage />} />
