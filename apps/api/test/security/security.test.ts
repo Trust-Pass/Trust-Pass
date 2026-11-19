@@ -104,6 +104,16 @@ describe('security headers', () => {
     expect(res.headers['x-powered-by']).toBeUndefined();
   });
 
+  it('API answers with decrypted data are never cached', async () => {
+    const owner = await registerUser(ctx);
+    const id = (await uploadDocument(ctx, owner, { title: 'Cache probe' })).json().document.id as string;
+    for (const url of ['/api/documents', `/api/documents/${id}`, '/api/auth/me', '/api/notifications']) {
+      const res = await as(ctx, owner, { method: 'GET', url });
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['cache-control']).toBe('no-store, private');
+    }
+  });
+
   it('enables HSTS in production mode', async () => {
     // The fake KMS is refused in production, so this instance uses the legacy env key.
     const prod = await createTestContext({

@@ -34,9 +34,13 @@ export async function securityPlugin(app: FastifyInstance) {
     crossOriginEmbedderPolicy: false,
   });
 
-  app.addHook('onSend', async (_request, reply) => {
+  app.addHook('onSend', async (request, reply) => {
     // The camera is allowed for TrustPass's own pages only (the QR scanner), never for embedded frames.
     reply.header('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(), payment=()');
+    // API answers can carry decrypted titles and field values: never let a browser, proxy or CDN keep them.
+    if (request.url.startsWith('/api/') && !reply.hasHeader('cache-control')) {
+      reply.header('Cache-Control', 'no-store, private');
+    }
   });
 
   // Limits are per route (see each route's config.rateLimit); nothing global.
