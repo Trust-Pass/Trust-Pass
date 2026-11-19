@@ -333,7 +333,9 @@ function analyzeWebUrl(raw: string, url: WhatwgUrl, app: WhatwgUrl, findings: Qr
     let flagged = false;
     for (const brand of brandList) {
       if (brand.domains.some((d) => hostBelongsTo(host, d))) continue;
-      const hit = ownLabels.some((label) => {
+      // A real brand address put in front of another site: alrajhibank.com.sa.secure-login.example
+      const embedded = brand.domains.some((d) => host.startsWith(`${d}.`) || host.includes(`.${d}.`));
+      const hit = embedded || ownLabels.some((label) => {
         const plain = label.toLowerCase();
         const clean = deconfuse(plain);
         const parts = clean.split('-');
@@ -403,7 +405,10 @@ function analyzeWebUrl(raw: string, url: WhatwgUrl, app: WhatwgUrl, findings: Qr
     findings.push({ id: 'redirect', severity: 'medium', title: 'Forwards you to another site', detail: `The address carries a second address inside it, which leads to ${truncate(redirectTo, 60)}. This trick is used to pass through a trusted site on the way to a fake one.` });
   }
   const encoded = (raw.match(/%[0-9a-f]{2}/gi) ?? []).length;
-  if (/%25[0-9a-f]{2}/i.test(raw) || encoded > 15) {
+  if (/%25[0-9a-f]{2}/i.test(raw)) {
+    // Encoded twice ("%2568" is an encoded "%68"): only useful to slip past filters.
+    findings.push({ id: 'obfuscated', severity: 'medium', title: 'Address encoded twice', detail: 'Parts of the address are encoded twice, a trick used to slip past security filters.' });
+  } else if (encoded > 15) {
     findings.push({ id: 'obfuscated', severity: 'low', title: 'Heavily encoded address', detail: 'Many encoded characters can hide what the address really says.' });
   }
   if (raw.length > 1000) {

@@ -159,3 +159,45 @@ describe('QR Shield: other QR code types', () => {
     expect(check(`https://example.com/${'a'.repeat(10_000)}`).content.length).toBe(4096);
   });
 });
+
+describe('QR Shield: pre-design review (common phishing tricks)', () => {
+  it.each([
+    ['https://trustpass-gwnp.onrender.com@evil.example/s/abc', 'userinfo'],
+    ['https://trustpass-gwnp.onrender.com.evil.example/s/AbCdEfGhIjKlMnOpQrStUvWxYz0123', 'trustpass_lookalike'],
+    ['https://trustpass-gwnp-onrender.com/login', 'trustpass_lookalike'],
+    ['https://xn--pple-43d.com/', 'punycode'],
+    ['https://\u0430pple.com/', 'punycode'],
+    ['https://paypa1.com/signin', 'brand_lookalike'],
+    ['HTTPS://ALRAJHIBANK.COM.SA.secure-login.example/verify', 'brand_lookalike'],
+    ['https://login.microsoftonline.com.verify-account.top/', 'brand_lookalike'],
+    ['https://www.absher.sa.renew-id.example/', 'brand_lookalike'],
+    ['https://192.168.1.1/admin', 'private_ip'],
+    ['https://example.com/app.apk', 'download'],
+    ['file:///etc/passwd', 'script_scheme'],
+    ['javascript:alert(1)', 'script_scheme'],
+    ['intent://scan/#Intent;scheme=zxing;package=com.evil;end', 'android_intent'],
+  ])('%s is dangerous (%s) and can never be opened', (content, finding) => {
+    const a = check(content);
+    expect(a.verdict).toBe('danger');
+    expect(ids(a)).toContain(finding);
+    expect(a.canOpen).toBe(false);
+  });
+
+  it.each([
+    ['https://bit.ly/3xYz', 'shortener'],
+    ['https://example.com:8443/login', 'unusual_port'],
+    ['https://example.com/%2568ttp', 'obfuscated'],
+  ])('%s needs caution (%s)', (content, finding) => {
+    const a = check(content);
+    expect(a.verdict).toBe('caution');
+    expect(ids(a)).toContain(finding);
+  });
+
+  it.each(['https://alrajhibank.com.sa/en/personal', 'https://login.microsoftonline.com/', 'https://www.absher.sa/'])(
+    'the real brand address %s stays safe',
+    (content) => {
+      expect(check(content).verdict).toBe('safe');
+    },
+  );
+});
+
