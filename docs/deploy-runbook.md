@@ -16,7 +16,7 @@ approval at the step marked **APPROVAL**.
 
 Database migrations applied automatically on start (`prisma migrate deploy`):
 `20261117160000_key_encryption_keys`, `20261117190000_keyring_production_guard`,
-`20261119090000_encrypt_metadata`. All three only add tables/columns or make columns nullable; no
+`20261119090000_encrypt_metadata`, `20261119180000_recipient_download`. All four only add tables/columns or make columns nullable; no
 data is removed by a migration.
 
 ## Pre-flight (no production change)
@@ -50,8 +50,10 @@ data is removed by a migration.
 
 ## Rollback
 
-- Before step 5: redeploy the previous `main` commit in Render. The new columns are unused by the
-  old code and the old plain columns are still filled, so it keeps working.
+- Before step 5 **and before anyone uploads or shares after the deploy**: redeploy the previous `main`
+  commit in Render. Existing rows still have their plain columns, so the old code reads them. Documents
+  and links created by the new code have encrypted titles only, which the old code cannot read; after
+  the first new upload, fix forward instead (see `docs/release-checklist.md`).
 - After step 5: the old code cannot read sealed titles. Do not roll back the code; fix forward on
   a branch. If data itself is damaged, restore from the backup taken in pre-flight (documented in
   `docs/recovery.md`), which needs the same `MASTER_KEY`.
@@ -88,8 +90,6 @@ Cost: about $0.12 per month for two key versions plus $0.03 per 10,000 operation
 | Risk | Why it matters | Action |
 |---|---|---|
 | Free database expires 16 Dec 2026 | All data is lost when it expires | Upgrade to a paid plan or move the data before 16 Dec |
-| Database IP allow list is `0.0.0.0/0` | Anyone can attempt to connect (password still required) | Empty the allow list (app unaffected, see above) |
-| Real document recovery with the saved keys not run yet | Proves the backup + keys restore real documents | Run `trustpass-recovery-check.sh` (prepared on the laptop) |
 | Live KMS tests skipped | KMS code path tested with the fake KMS only | Run after the Google Cloud steps above |
 | Real-phone camera test | CI uses a simulated camera | Scan a QR code on Reham's phone after deploy |
 | Server-side encryption, not end-to-end | The server can decrypt while serving | See `docs/server-side-decryption.md` |
