@@ -240,12 +240,18 @@ export async function authRoutes(app: FastifyInstance) {
         throw new AppError(400, 'invalid_reset_token', 'This reset link is invalid or has expired. Request a new one.');
       }
       const passwordHash = await hashPassword(input.password);
-      await prisma.$transaction([
-        prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: now() } }),
-        prisma.user.update({ where: { id: record.userId }, data: { passwordHash, failedLogins: 0, lockedUntil: null } }),
+      const used = await prisma.$transaction(async (tx) => {
+        // Consume the token atomically: of two simultaneous requests with the same link, one wins.
+        const claimed = await tx.passwordResetToken.updateMany({ where: { id: record.id, usedAt: null }, data: { usedAt: now() } });
+        if (claimed.count === 0) return false;
+        // Every other reset link of this account stops working too.
+        await tx.passwordResetToken.updateMany({ where: { userId: record.userId, usedAt: null }, data: { usedAt: now() } });
+        await tx.user.update({ where: { id: record.userId }, data: { passwordHash, failedLogins: 0, lockedUntil: null } });
         // Every existing session ends: whoever knew the old password is signed out.
-        prisma.session.deleteMany({ where: { userId: record.userId } }),
-      ]);
+        await tx.session.deleteMany({ where: { userId: record.userId } });
+        return true;
+      });
+      if (!used) throw new AppError(400, 'invalid_reset_token', 'This reset link is invalid or has expired. Request a new one.');
       await logEvent(prisma, { userId: record.userId, eventType: 'password_reset_completed', severity: 'warning' });
       return { ok: true };
     },
@@ -272,6 +278,8 @@ export async function authRoutes(app: FastifyInstance) {
       await prisma.$transaction([
         prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(input.newPassword) } }),
         prisma.session.deleteMany({ where: { userId: user.id, id: { not: session.id } } }),
+        // A reset link requested earlier must not undo this change.
+        prisma.passwordResetToken.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: now() } }),
       ]);
       await logEvent(prisma, { userId: user.id, actorUserId: user.id, eventType: 'password_changed', severity: 'warning' });
       return { ok: true };
@@ -300,6 +308,7 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.delete<{ Params: { id: string } }>('/api/me/sessions/:id', async (request) => {
     const { user, session } = requireUser(request);
+    if (!/^[0-9a-f-]{36}$/i.test(request.params.id)) throw notFound('Session');
     if (request.params.id === session.id) throw new AppError(400, 'current_session', 'Use Sign out to end the current session');
     const result = await prisma.session.deleteMany({ where: { id: request.params.id, userId: user.id } });
     if (result.count === 0) throw notFound('Session');

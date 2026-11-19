@@ -69,6 +69,8 @@ export async function organizationRoutes(app: FastifyInstance) {
     const { orgId } = orgParams.parse(request.params);
     const { user, member } = await membership(request, orgId, ['owner', 'admin']);
     const input = parse(addMemberSchema, request.body);
+    // Second safeguard (the schema already allows only admin/member): never let an admin create an owner.
+    if ((input.role as string) === 'owner' && member.role !== 'owner') throw forbidden('Only an owner can add another owner');
     const target = await prisma.user.findUnique({ where: { email: input.email } });
     if (!target || target.status !== 'active') {
       throw new AppError(404, 'user_not_found', 'No active TrustPass account uses that email. Ask them to register first.');
@@ -76,7 +78,7 @@ export async function organizationRoutes(app: FastifyInstance) {
     const exists = await prisma.organizationMember.findUnique({ where: { orgId_userId: { orgId, userId: target.id } } });
     if (exists) throw new AppError(409, 'already_member', 'That person is already a member');
     await prisma.organizationMember.create({ data: { orgId, userId: target.id, role: input.role } });
-    await logEvent(prisma, { userId: user.id, actorUserId: user.id, eventType: 'org_member_added', metadata: { orgId, member: target.email, role: input.role } });
+    await logEvent(prisma, { userId: user.id, actorUserId: user.id, eventType: 'org_member_added', metadata: { orgId, member: target.id, role: input.role } });
     await notify(prisma, {
       userId: target.id,
       type: 'org_member_added',

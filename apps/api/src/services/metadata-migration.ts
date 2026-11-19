@@ -12,7 +12,8 @@ import { sealClaimLabel, sealRecipientLabel, sealSha256, sealTitle } from './met
  *    re-sealing the value under the new key;
  *  - erases plain metadata of deleted documents (their key is gone: nothing left to protect);
  *  - rewrites stored notifications to the {document}/{recipient} placeholder form;
- *  - removes titles and recipient names from security_events metadata. That table is
+ *  - removes titles, recipient names and (older org_member_added rows) member emails from
+ *    security_events metadata. That table is
  *    append-only, so each affected row is copied without them (same id, time and type) inside
  *    one transaction that explicitly allows the purge.
  * Idempotent: a second run finds nothing to do. --dry-run counts only, in a READ ONLY transaction.
@@ -38,6 +39,8 @@ export interface MetadataReport {
 }
 
 const LOG_KEYS = ['title', 'recipient', 'recipientLabel', 'label'];
+// Older org_member_added events stored the added member's email; newer ones store the user id.
+const EMAIL_MEMBER = `(event_type = 'org_member_added' AND metadata->>'member' LIKE '%@%')`;
 // PostgreSQL regex ("." also matches newlines). Rows already in placeholder form are excluded.
 const NOTIFICATION_TITLE = '(link for) ".*" \\(.*\\) (was opened|after it|were blocked)';
 const ALREADY = '%"{document}" ({recipient})%';
@@ -48,7 +51,7 @@ export async function countPlainMetadata(db: Db) {
     db.document.count({ where: { plaintextSha256: { not: null } } }),
     db.documentClaim.count({ where: { label: { not: null } } }),
     db.sharingLink.count({ where: { recipientLabel: { not: null } } }),
-    db.$queryRawUnsafe<Array<{ n: bigint }>>(`SELECT count(*)::bigint AS n FROM security_events WHERE metadata ?| $1::text[]`, LOG_KEYS),
+    db.$queryRawUnsafe<Array<{ n: bigint }>>(`SELECT count(*)::bigint AS n FROM security_events WHERE metadata ?| $1::text[] OR ${EMAIL_MEMBER}`, LOG_KEYS),
     db.$queryRawUnsafe<Array<{ n: bigint }>>(
       `SELECT count(*)::bigint AS n FROM notifications WHERE (body ~ $1 AND body NOT LIKE $2) OR (type = 'link_received' AND body ~ ' shared "')`,
       NOTIFICATION_TITLE,
@@ -270,9 +273,10 @@ export async function encryptLegacyMetadata(
     const purge = async (tx: Prisma.TransactionClient) => {
       await tx.$executeRawUnsafe(`SET LOCAL trustpass.allow_log_purge = 'on'`);
       return tx.$executeRawUnsafe(
-        `WITH moved AS (DELETE FROM security_events WHERE metadata ?| $1::text[] RETURNING *)
+        `WITH moved AS (DELETE FROM security_events WHERE metadata ?| $1::text[] OR ${EMAIL_MEMBER} RETURNING *)
          INSERT INTO security_events (id, user_id, actor_user_id, event_type, severity, document_id, link_id, metadata, created_at)
-         SELECT id, user_id, actor_user_id, event_type, severity, document_id, link_id, metadata - $1::text[], created_at FROM moved`,
+         SELECT id, user_id, actor_user_id, event_type, severity, document_id, link_id,
+                (metadata - $1::text[]) - (CASE WHEN ${EMAIL_MEMBER} THEN 'member' ELSE '' END), created_at FROM moved`,
         LOG_KEYS,
       );
     };
