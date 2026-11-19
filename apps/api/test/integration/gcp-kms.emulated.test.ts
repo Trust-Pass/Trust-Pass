@@ -2,7 +2,11 @@ import { createCipheriv, createDecipheriv, createVerify, generateKeyPairSync, ra
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { crc32c } from '../../src/lib/kms/crc32c';
 import { GcpKms, parseServiceAccount } from '../../src/lib/kms/gcp';
-import { createTestContext, resetDatabase, resetKeyring, testPrisma } from '../helpers';
+import { open, sha256Aad, titleAad } from '../../src/lib/crypto';
+import { loadDataKey } from '../../src/services/documents';
+import { runStartupMaintenance } from '../../src/services/maintenance';
+import { countPlainMetadata } from '../../src/services/metadata-migration';
+import { as, createLink, createTestContext, documentClaims, IPS, registerUser, resetDatabase, resetKeyring, samplePdf, testPrisma, TEST_SECRETS, uploadDocument } from '../helpers';
 import { defineKmsScenarios } from './gcp-kms-scenarios';
 
 /**
@@ -148,6 +152,59 @@ describe('Google Cloud KMS emulator: refusals reach the app the way Google sends
     await resetDatabase(testPrisma());
     await resetKeyring(testPrisma());
     vi.unstubAllGlobals();
+  });
+
+  it('production switch in one restart: MASTER_KEY data, old-format metadata -> STARTUP_MAINTENANCE=encrypt-metadata,rewrap -> works without MASTER_KEY', async () => {
+    await resetDatabase(testPrisma());
+    await resetKeyring(testPrisma());
+    // 1. Today's production: env keys, an old-format document and a share link.
+    const legacy = await createTestContext({ KEY_PROVIDER: 'env', MASTER_KEY: TEST_SECRETS.MASTER_KEY, STORAGE_DRIVER: 'database' });
+    const file = await samplePdf();
+    let owner: Awaited<ReturnType<typeof registerUser>>;
+    let id: string;
+    let token: string;
+    try {
+      owner = await registerUser(legacy);
+      id = (await uploadDocument(legacy, owner, { file, title: 'Switch test', claims: [{ label: 'Employer', value: 'Aramco' }] })).json().document.id;
+      const claims = await documentClaims(legacy, owner, id);
+      token = (await createLink(legacy, owner, id, { claimIds: [claims[0]!.id], includeFile: true })).token;
+      const dek = await loadDataKey(legacy.app.deps, id);
+      const doc = await legacy.prisma.document.findUniqueOrThrow({ where: { id } });
+      await legacy.prisma.document.update({
+        where: { id },
+        data: { title: open(dek, doc.titleEncrypted!, titleAad(id)).toString(), titleEncrypted: null, plaintextSha256: open(dek, doc.sha256Encrypted!, sha256Aad(id)).toString(), sha256Encrypted: null },
+      });
+      dek.fill(0);
+    } finally {
+      await legacy.app.close();
+    }
+    expect((await countPlainMetadata(testPrisma())).titles).toBe(1);
+
+    // 2. Render settings changed: KMS on, MASTER_KEY still set, both one-time tasks.
+    const kms = { KEY_PROVIDER: 'gcp-kms', GCP_KMS_KEY_NAME: KEY_NAME, GCP_SERVICE_ACCOUNT_JSON: Buffer.from(emulator.serviceAccountJson).toString('base64'), FAKE_KMS_KEY_FILE: undefined };
+    const switched = await createTestContext({ ...kms, MASTER_KEY: TEST_SECRETS.MASTER_KEY, STORAGE_DRIVER: 'database', STARTUP_MAINTENANCE: 'encrypt-metadata,rewrap' });
+    try {
+      const results = await runStartupMaintenance(switched.app.deps, ['encrypt-metadata', 'rewrap'], { info: () => undefined });
+      expect(results.map((r) => [r.task, r.ok])).toEqual([['encrypt-metadata', true], ['rewrap', true]]);
+      expect((await countPlainMetadata(switched.prisma)).titles).toBe(0);
+    } finally {
+      await switched.app.close();
+    }
+
+    // 3. MASTER_KEY removed: only the KMS-protected key opens everything.
+    const kmsOnly = await createTestContext({ ...kms, MASTER_KEY: undefined, STORAGE_DRIVER: 'database' });
+    try {
+      const detail = (await as(kmsOnly, owner!, { method: 'GET', url: `/api/documents/${id!}` })).json().document;
+      expect(detail.title).toBe('Switch test');
+      expect((await as(kmsOnly, owner!, { method: 'GET', url: `/api/documents/${id!}/file` })).rawPayload.equals(file)).toBe(true);
+      const view = await kmsOnly.app.inject({ method: 'GET', url: `/api/share/${token!}`, remoteAddress: IPS.SA });
+      expect(view.statusCode).toBe(200);
+      expect(view.json().fields).toEqual([{ label: 'Employer', value: 'Aramco', source: 'self_declared' }]);
+      const keys = await kmsOnly.prisma.documentKey.findMany();
+      expect(keys.every((k) => k.kekVersion !== 1)).toBe(true); // no document left on the MASTER_KEY version
+    } finally {
+      await kmsOnly.app.close();
+    }
   });
 
   it('really talked to the emulator: signed sign-in, encrypt and decrypt calls happened', () => {

@@ -10,16 +10,20 @@
 #   - optionally a $1 monthly budget alert
 #   - a JSON key for trustpass-ci only, written to ~/trustpass-ci-key.json (mode 600)
 #
-# It creates NO key for trustpass-app: that one is made later, on the day production moves to
-# KMS, so no production credential sits around unused. The script prints no secret.
+# With --production it also creates the JSON key for trustpass-app (the day production moves to
+# KMS), as one base64 line in ~/trustpass-app-key.b64 (mode 600), ready for Render. Without it no
+# production credential is made. The script prints no secret.
 # Safe to run twice: anything that already exists is kept.
 #
-#   bash setup-kms.sh <PROJECT_ID> [BILLING_ACCOUNT_ID]
+#   bash setup-kms.sh <PROJECT_ID> [BILLING_ACCOUNT_ID] [--production]
 set -euo pipefail
 umask 077
 
-PROJECT="${1:?usage: bash setup-kms.sh <PROJECT_ID> [BILLING_ACCOUNT_ID]}"
-BILLING="${2:-}"
+PRODUCTION=0
+ARGS=()
+for a in "$@"; do if [ "$a" = "--production" ]; then PRODUCTION=1; else ARGS+=("$a"); fi; done
+PROJECT="${ARGS[0]:?usage: bash setup-kms.sh <PROJECT_ID> [BILLING_ACCOUNT_ID] [--production]}"
+BILLING="${ARGS[1]:-}"
 LOCATION=europe-west3
 RING=trustpass
 PROD_KEY=trustpass-prod-kek
@@ -28,6 +32,7 @@ APP_SA="trustpass-app@${PROJECT}.iam.gserviceaccount.com"
 CI_SA="trustpass-ci@${PROJECT}.iam.gserviceaccount.com"
 ROLE=roles/cloudkms.cryptoKeyEncrypterDecrypter
 CI_KEY_FILE="$HOME/trustpass-ci-key.json"
+APP_KEY_FILE="$HOME/trustpass-app-key.b64"
 
 say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 ok() { printf '  \033[32mOK\033[0m  %s\n' "$*"; }
@@ -86,11 +91,34 @@ else
   ok "created $CI_KEY_FILE (test key only; never use it in production)"
 fi
 
+if [ "$PRODUCTION" = 1 ]; then
+  say "[6b] Production credential (trustpass-app, production key only)"
+  if [ -f "$APP_KEY_FILE" ]; then
+    ok "$APP_KEY_FILE already exists (not replaced)"
+  else
+    tmp="$(mktemp)"
+    gcloud iam service-accounts keys create "$tmp" --iam-account "$APP_SA" >/dev/null
+    base64 -w0 "$tmp" > "$APP_KEY_FILE"
+    shred -u "$tmp" 2>/dev/null || rm -f "$tmp"
+    chmod 600 "$APP_KEY_FILE"
+    ok "created $APP_KEY_FILE (one line, base64; production key only)"
+  fi
+fi
+
 TEST_NAME="projects/$PROJECT/locations/$LOCATION/keyRings/$RING/cryptoKeys/$TEST_KEY"
 PROD_NAME="projects/$PROJECT/locations/$LOCATION/keyRings/$RING/cryptoKeys/$PROD_KEY"
 say "Done. Values for GitHub (Settings > Secrets and variables > Actions > New repository secret):"
 echo "  GCP_TEST_KMS_KEY_NAME          = $TEST_NAME"
 echo "  GCP_TEST_SERVICE_ACCOUNT_JSON  = the whole content of $CI_KEY_FILE"
 echo
-echo "  Production key name (for later, not needed now): $PROD_NAME"
-echo "  After saving the GitHub secret, delete the local copy: shred -u $CI_KEY_FILE"
+if [ "$PRODUCTION" = 1 ]; then
+  say "Values for Render (trustpass > Environment):"
+  echo "  KEY_PROVIDER                   = gcp-kms"
+  echo "  GCP_KMS_KEY_NAME               = $PROD_NAME"
+  echo "  GCP_SERVICE_ACCOUNT_JSON       = the one line in $APP_KEY_FILE   (show it with: cat $APP_KEY_FILE)"
+  echo
+  echo "  After saving both, delete the local copies: shred -u $CI_KEY_FILE $APP_KEY_FILE"
+else
+  echo "  Production key name (for later, not needed now): $PROD_NAME"
+  echo "  After saving the GitHub secret, delete the local copy: shred -u $CI_KEY_FILE"
+fi
