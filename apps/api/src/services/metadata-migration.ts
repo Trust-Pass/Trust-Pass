@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import type { AppConfig } from '../config';
-import { claimAad, claimLabelAad, open, seal, unwrapDataKey } from '../lib/crypto';
+import { claimAad, claimLabelAad, open, recipientLabelAad, seal, sha256Aad, titleAad, unwrapDataKey } from '../lib/crypto';
 import { sealClaimLabel, sealRecipientLabel, sealSha256, sealTitle } from './metadata';
 
 /**
@@ -16,13 +16,19 @@ import { sealClaimLabel, sealRecipientLabel, sealSha256, sealTitle } from './met
  *    append-only, so each affected row is copied without them (same id, time and type) inside
  *    one transaction that explicitly allows the purge.
  * Idempotent: a second run finds nothing to do. --dry-run counts only, in a READ ONLY transaction.
+ *
+ * Read-back before erase: a plain value is cleared only after the encrypted value that replaces
+ * it (newly sealed, or already present from an earlier run) has been opened again with the
+ * document's key and found byte-for-byte equal. If any check of a document fails, nothing of that
+ * document is written: its plain values stay, it is listed in documents.verifyFailed, and the run
+ * reports failure. The same holds when the document key cannot be unwrapped.
  */
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
 export interface MetadataReport {
   dryRun: boolean;
-  documents: { sealed: number; deletedErased: number; withoutKey: string[] };
+  documents: { sealed: number; deletedErased: number; withoutKey: string[]; verifyFailed: string[] };
   fields: { sealed: number; renamed: number };
   links: { sealed: number; erased: number };
   notifications: { rewritten: number };
@@ -54,6 +60,32 @@ export async function countPlainMetadata(db: Db) {
 
 const isLabelDerivedKey = (key: string) => !/^f\d+$/.test(key);
 
+/** Thrown when an encrypted value does not open back to the plain value it replaces. */
+export class ReadBackError extends Error {
+  constructor(readonly what: string) {
+    super(`read-back failed: ${what}`);
+  }
+}
+
+/** AES-GCM refusals from node:crypto (wrong key, wrong AAD, damaged value). */
+function isCryptoError(err: unknown): boolean {
+  return err instanceof Error && /unable to authenticate data|Unsupported state|Sealed value is too short|Invalid authentication tag/i.test(err.message);
+}
+
+/** Opens `blob` with the document key and requires exactly `expected`. Never logs either value. */
+function readBack(dek: Buffer, blob: Uint8Array, aad: string, expected: Buffer | string, what: string): void {
+  let opened: Buffer;
+  try {
+    opened = open(dek, blob, aad);
+  } catch {
+    throw new ReadBackError(what);
+  }
+  const want = typeof expected === 'string' ? Buffer.from(expected, 'utf8') : expected;
+  const same = opened.length === want.length && opened.equals(want);
+  opened.fill(0);
+  if (!same) throw new ReadBackError(what);
+}
+
 export async function encryptLegacyMetadata(
   deps: { config: AppConfig; prisma: Db },
   options: { dryRun?: boolean; batchSize?: number; onProgress?: (line: string) => void } = {},
@@ -63,7 +95,7 @@ export async function encryptLegacyMetadata(
   const batchSize = options.batchSize ?? 100;
   const report: MetadataReport = {
     dryRun,
-    documents: { sealed: 0, deletedErased: 0, withoutKey: [] },
+    documents: { sealed: 0, deletedErased: 0, withoutKey: [], verifyFailed: [] },
     fields: { sealed: 0, renamed: 0 },
     links: { sealed: 0, erased: 0 },
     notifications: { rewritten: 0 },
@@ -110,15 +142,26 @@ export async function encryptLegacyMetadata(
         continue;
       }
 
-      const dek = unwrapDataKey(config, doc.key, doc.id);
+      let dek: Buffer;
+      try {
+        dek = unwrapDataKey(config, doc.key, doc.id);
+      } catch {
+        // Wrong or missing key: nothing can be sealed or checked, so nothing is erased.
+        report.documents.verifyFailed.push(doc.id);
+        continue;
+      }
       try {
         const data: Prisma.DocumentUpdateInput = {};
         if (doc.title !== null) {
-          if (!doc.titleEncrypted) data.titleEncrypted = sealTitle(dek, doc.id, doc.title);
+          const sealed = doc.titleEncrypted ?? sealTitle(dek, doc.id, doc.title);
+          readBack(dek, sealed, titleAad(doc.id), doc.title, 'title');
+          if (!doc.titleEncrypted) data.titleEncrypted = sealed;
           data.title = null;
         }
         if (doc.plaintextSha256 !== null) {
-          if (!doc.sha256Encrypted) data.sha256Encrypted = sealSha256(dek, doc.id, doc.plaintextSha256);
+          const sealed = doc.sha256Encrypted ?? sealSha256(dek, doc.id, doc.plaintextSha256);
+          readBack(dek, sealed, sha256Aad(doc.id), doc.plaintextSha256, 'sha256');
+          if (!doc.sha256Encrypted) data.sha256Encrypted = sealed;
           data.plaintextSha256 = null;
         }
         const docChanged = Object.keys(data).length > 0;
@@ -126,6 +169,8 @@ export async function encryptLegacyMetadata(
         // Fields: seal labels; give owner-typed fields neutral keys.
         const taken = new Set(doc.claims.map((c) => c.claimKey).filter((k) => !isLabelDerivedKey(k)));
         let next = 1;
+        let fieldsRenamed = 0;
+        let fieldsSealed = 0;
         const fieldUpdates: Array<{ id: string; data: Prisma.DocumentClaimUpdateInput }> = [];
         for (const claim of [...doc.claims].sort((a, b) => a.position - b.position)) {
           const rename = claim.source === 'self_declared' && isLabelDerivedKey(claim.claimKey);
@@ -137,37 +182,39 @@ export async function encryptLegacyMetadata(
             key = `f${next}`;
             taken.add(key);
             const value = open(dek, claim.valueEncrypted, claimAad(doc.id, claim.claimKey, 'value'));
+            const resealed = seal(dek, value, claimAad(doc.id, key, 'value'));
+            readBack(dek, resealed, claimAad(doc.id, key, 'value'), value, 'field value');
             update.claimKey = key;
-            update.valueEncrypted = seal(dek, value, claimAad(doc.id, key, 'value'));
+            update.valueEncrypted = resealed;
             value.fill(0);
             if (claim.disclosureEncrypted) {
               const disclosure = open(dek, claim.disclosureEncrypted, claimAad(doc.id, claim.claimKey, 'disclosure'));
-              update.disclosureEncrypted = seal(dek, disclosure, claimAad(doc.id, key, 'disclosure'));
+              const resealedDisclosure = seal(dek, disclosure, claimAad(doc.id, key, 'disclosure'));
+              readBack(dek, resealedDisclosure, claimAad(doc.id, key, 'disclosure'), disclosure, 'field disclosure');
+              update.disclosureEncrypted = resealedDisclosure;
               disclosure.fill(0);
             }
-            report.fields.renamed++;
+            fieldsRenamed++;
           }
           const label = claim.label ?? (claim.labelEncrypted ? open(dek, claim.labelEncrypted, claimLabelAad(doc.id, claim.claimKey)).toString('utf8') : null);
           if (label !== null) {
-            update.labelEncrypted = sealClaimLabel(dek, doc.id, key, label);
+            const sealed = sealClaimLabel(dek, doc.id, key, label);
+            readBack(dek, sealed, claimLabelAad(doc.id, key), label, 'field label');
+            update.labelEncrypted = sealed;
             update.label = null;
-            if (claim.label !== null) report.fields.sealed++;
+            if (claim.label !== null) fieldsSealed++;
           }
           fieldUpdates.push({ id: claim.id, data: update });
         }
 
         const linkUpdates = doc.links
           .filter((l) => l.recipientLabel !== null)
-          .map((l) => ({
-            id: l.id,
-            data: {
-              recipientLabelEncrypted: l.recipientLabelEncrypted ?? sealRecipientLabel(dek, doc.id, l.id, l.recipientLabel!),
-              recipientLabel: null,
-            },
-          }));
+          .map((l) => {
+            const sealed = l.recipientLabelEncrypted ?? sealRecipientLabel(dek, doc.id, l.id, l.recipientLabel!);
+            readBack(dek, sealed, recipientLabelAad(doc.id, l.id), l.recipientLabel!, 'recipient label');
+            return { id: l.id, data: { recipientLabelEncrypted: sealed, recipientLabel: null } };
+          });
 
-        if (docChanged) report.documents.sealed++;
-        report.links.sealed += linkUpdates.length;
         if (!dryRun && (docChanged || fieldUpdates.length || linkUpdates.length)) {
           const write = async (tx: Prisma.TransactionClient) => {
             if (docChanged) await tx.document.update({ where: { id: doc.id }, data });
@@ -177,6 +224,21 @@ export async function encryptLegacyMetadata(
           // One transaction per document, so a document is never half-converted.
           if ('$transaction' in prisma) await (prisma as PrismaClient).$transaction(write);
           else await write(prisma);
+        }
+        // Counted only once the document's writes (if any) have succeeded.
+        if (docChanged) report.documents.sealed++;
+        report.links.sealed += linkUpdates.length;
+        report.fields.renamed += fieldsRenamed;
+        report.fields.sealed += fieldsSealed;
+      } catch (err) {
+        // A failed read-back or an unreadable value: this document was not written (its
+        // transaction never ran or was rolled back), so every plain value is still there.
+        if (err instanceof ReadBackError) {
+          report.documents.verifyFailed.push(doc.id);
+        } else if (isCryptoError(err)) {
+          report.documents.verifyFailed.push(doc.id);
+        } else {
+          throw err;
         }
       } finally {
         dek.fill(0);
@@ -223,5 +285,5 @@ export async function encryptLegacyMetadata(
 
 export function metadataMigrationSucceeded(report: MetadataReport): boolean {
   const r = report.remaining;
-  return report.documents.withoutKey.length === 0 && r.titles + r.hashes + r.labels + r.recipients + r.logRows + r.notifications === 0;
+  return report.documents.withoutKey.length === 0 && report.documents.verifyFailed.length === 0 && r.titles + r.hashes + r.labels + r.recipients + r.logRows + r.notifications === 0;
 }

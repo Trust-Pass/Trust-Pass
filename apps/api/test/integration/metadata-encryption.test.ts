@@ -138,38 +138,39 @@ describe('new rows (E3/E4/E5)', () => {
   });
 });
 
+/** Turns a document written by the current code back into the pre-E3 format (plain metadata, label-derived keys). */
+async function makeLegacy(documentId: string, linkId: string, ownerId: string) {
+  const dek = await loadDataKey(ctx.app.deps, documentId);
+  const doc = await ctx.prisma.document.findUniqueOrThrow({ where: { id: documentId }, include: { claims: true } });
+  await ctx.prisma.document.update({
+    where: { id: documentId },
+    data: {
+      title: open(dek, doc.titleEncrypted!, titleAad(documentId)).toString(),
+      titleEncrypted: null,
+      plaintextSha256: open(dek, doc.sha256Encrypted!, sha256Aad(documentId)).toString(),
+      sha256Encrypted: null,
+    },
+  });
+  for (const c of doc.claims) {
+    const label = open(dek, c.labelEncrypted!, claimLabelAad(documentId, c.claimKey)).toString();
+    const value = open(dek, c.valueEncrypted, claimAad(documentId, c.claimKey, 'value'));
+    const legacyKey = label.toLowerCase().replace(/[^a-z0-9]+/g, '_'); // old slug format: "national_id"
+    await ctx.prisma.documentClaim.update({
+      where: { id: c.id },
+      data: { claimKey: legacyKey, label, labelEncrypted: null, valueEncrypted: seal(dek, value, claimAad(documentId, legacyKey, 'value')) },
+    });
+  }
+  await ctx.prisma.sharingLink.update({ where: { id: linkId }, data: { recipientLabel: RECIPIENT, recipientLabelEncrypted: null } });
+  await ctx.prisma.securityEvent.create({ data: { userId: ownerId, eventType: 'document_uploaded', documentId, metadata: { title: TITLE, mimeType: 'application/pdf' } } });
+  await ctx.prisma.securityEvent.create({ data: { userId: ownerId, eventType: 'link_revoked', documentId, linkId, metadata: { recipient: RECIPIENT } } });
+  await ctx.prisma.notification.create({
+    data: { userId: ownerId, type: 'alert_new_country', title: 'First view from Saudi Arabia', body: `Your link for "${TITLE}" (${RECIPIENT}) was opened from Saudi Arabia for the first time. Location is approximate.`, linkId, documentId },
+  });
+  dek.fill(0);
+}
+
 describe('backfill of rows written before E3 (keys encrypt-metadata)', () => {
   /** Turn a freshly uploaded document back into the pre-E3 storage format. */
-  async function makeLegacy(documentId: string, linkId: string, ownerId: string) {
-    const dek = await loadDataKey(ctx.app.deps, documentId);
-    const doc = await ctx.prisma.document.findUniqueOrThrow({ where: { id: documentId }, include: { claims: true } });
-    await ctx.prisma.document.update({
-      where: { id: documentId },
-      data: {
-        title: open(dek, doc.titleEncrypted!, titleAad(documentId)).toString(),
-        titleEncrypted: null,
-        plaintextSha256: open(dek, doc.sha256Encrypted!, sha256Aad(documentId)).toString(),
-        sha256Encrypted: null,
-      },
-    });
-    for (const c of doc.claims) {
-      const label = open(dek, c.labelEncrypted!, claimLabelAad(documentId, c.claimKey)).toString();
-      const value = open(dek, c.valueEncrypted, claimAad(documentId, c.claimKey, 'value'));
-      const legacyKey = label.toLowerCase().replace(/[^a-z0-9]+/g, '_'); // old slug format: "national_id"
-      await ctx.prisma.documentClaim.update({
-        where: { id: c.id },
-        data: { claimKey: legacyKey, label, labelEncrypted: null, valueEncrypted: seal(dek, value, claimAad(documentId, legacyKey, 'value')) },
-      });
-    }
-    await ctx.prisma.sharingLink.update({ where: { id: linkId }, data: { recipientLabel: RECIPIENT, recipientLabelEncrypted: null } });
-    await ctx.prisma.securityEvent.create({ data: { userId: ownerId, eventType: 'document_uploaded', documentId, metadata: { title: TITLE, mimeType: 'application/pdf' } } });
-    await ctx.prisma.securityEvent.create({ data: { userId: ownerId, eventType: 'link_revoked', documentId, linkId, metadata: { recipient: RECIPIENT } } });
-    await ctx.prisma.notification.create({
-      data: { userId: ownerId, type: 'alert_new_country', title: 'First view from Saudi Arabia', body: `Your link for "${TITLE}" (${RECIPIENT}) was opened from Saudi Arabia for the first time. Location is approximate.`, linkId, documentId },
-    });
-    dek.fill(0);
-  }
-
   it('dry run changes nothing; the real run encrypts everything, keeps every value readable, and is idempotent', async () => {
     const owner = await registerUser(ctx);
     const { documentId, link } = await seed(owner);
@@ -219,6 +220,145 @@ describe('backfill of rows written before E3 (keys encrypt-metadata)', () => {
     // Second run: nothing to do.
     const again = await encryptLegacyMetadata({ config: ctx.config, prisma: ctx.prisma });
     expect(again).toMatchObject({ documents: { sealed: 0, deletedErased: 0 }, fields: { sealed: 0, renamed: 0 }, links: { sealed: 0 }, notifications: { rewritten: 0 }, logs: { cleaned: 0 } });
+  });
+});
+
+describe('backfill read-back: no plain value is cleared unless its encrypted copy opens to the same value', () => {
+  /** Two documents in the old format; returns their ids. */
+  async function twoLegacy(owner: Session) {
+    const a = await seed(owner);
+    const b = await seed(owner);
+    await makeLegacy(a.documentId, a.link.id, owner.userId);
+    await makeLegacy(b.documentId, b.link.id, owner.userId);
+    return { a, b };
+  }
+
+  async function plainState(documentId: string) {
+    const doc = await ctx.prisma.document.findUniqueOrThrow({ where: { id: documentId }, include: { claims: { orderBy: { position: 'asc' } }, links: true } });
+    return {
+      title: doc.title,
+      titleEncrypted: doc.titleEncrypted ? Buffer.from(doc.titleEncrypted).toString('hex') : null,
+      sha: doc.plaintextSha256,
+      claims: doc.claims.map((c) => ({ key: c.claimKey, label: c.label, value: Buffer.from(c.valueEncrypted).toString('hex'), labelEncrypted: c.labelEncrypted ? 1 : 0 })),
+      links: doc.links.map((l) => ({ recipient: l.recipientLabel, enc: l.recipientLabelEncrypted ? Buffer.from(l.recipientLabelEncrypted).toString('hex') : null })),
+    };
+  }
+
+  async function expectConverted(documentId: string) {
+    const st = await plainState(documentId);
+    expect(st.title).toBeNull();
+    expect(st.sha).toBeNull();
+    expect(st.claims.every((c) => c.label === null && /^f\d+$/.test(c.key))).toBe(true);
+    expect(st.links.every((l) => l.recipient === null)).toBe(true);
+  }
+
+  it('an existing encrypted title that says something else: the document is left exactly as it was', async () => {
+    const owner = await registerUser(ctx);
+    const { a, b } = await twoLegacy(owner);
+    const dek = await loadDataKey(ctx.app.deps, a.documentId);
+    await ctx.prisma.document.update({ where: { id: a.documentId }, data: { titleEncrypted: seal(dek, 'A different title', titleAad(a.documentId)) } });
+    dek.fill(0);
+    const before = await plainState(a.documentId);
+
+    const run = await encryptLegacyMetadata({ config: ctx.config, prisma: ctx.prisma });
+    expect(run.documents.verifyFailed).toEqual([a.documentId]);
+    expect(metadataMigrationSucceeded(run)).toBe(false);
+    // Nothing of document A changed: not its title, not its fields, not its links.
+    expect(await plainState(a.documentId)).toEqual(before);
+    expect(before.title).toBe(TITLE);
+    // Document B was converted normally, and counted.
+    await expectConverted(b.documentId);
+    expect(run.documents.sealed).toBe(1);
+    expect(run.fields).toEqual({ sealed: 2, renamed: 2 });
+
+    // Once the cause is removed, a second run converts A and keeps its real title.
+    await ctx.prisma.document.update({ where: { id: a.documentId }, data: { titleEncrypted: null } });
+    const again = await encryptLegacyMetadata({ config: ctx.config, prisma: ctx.prisma });
+    expect(again.documents.verifyFailed).toEqual([]);
+    expect(metadataMigrationSucceeded(again)).toBe(true);
+    await expectConverted(a.documentId);
+    const detail = (await as(ctx, owner, { method: 'GET', url: `/api/documents/${a.documentId}` })).json().document;
+    expect(detail.title).toBe(TITLE);
+  });
+
+  it('an encrypted title copied from another document (wrong binding) is refused', async () => {
+    const owner = await registerUser(ctx);
+    const { a, b } = await twoLegacy(owner);
+    const dekB = await loadDataKey(ctx.app.deps, b.documentId);
+    // Same text, sealed for document B: it cannot open as document A's title.
+    await ctx.prisma.document.update({ where: { id: a.documentId }, data: { titleEncrypted: seal(dekB, TITLE, titleAad(b.documentId)) } });
+    dekB.fill(0);
+    const before = await plainState(a.documentId);
+    const run = await encryptLegacyMetadata({ config: ctx.config, prisma: ctx.prisma });
+    expect(run.documents.verifyFailed).toEqual([a.documentId]);
+    expect(await plainState(a.documentId)).toEqual(before);
+    await expectConverted(b.documentId);
+  });
+
+  it('a mismatching encrypted recipient name keeps the whole document in clear (all or nothing)', async () => {
+    const owner = await registerUser(ctx);
+    const { a, b } = await twoLegacy(owner);
+    const dek = await loadDataKey(ctx.app.deps, a.documentId);
+    await ctx.prisma.sharingLink.update({
+      where: { id: a.link.id },
+      data: { recipientLabelEncrypted: seal(dek, 'Someone else', recipientLabelAad(a.documentId, a.link.id)) },
+    });
+    dek.fill(0);
+    const before = await plainState(a.documentId);
+    const run = await encryptLegacyMetadata({ config: ctx.config, prisma: ctx.prisma });
+    expect(run.documents.verifyFailed).toEqual([a.documentId]);
+    const after = await plainState(a.documentId);
+    expect(after).toEqual(before);
+    expect(after.title).toBe(TITLE); // the title was fine, but it was not cleared either
+    expect(after.links[0]!.recipient).toBe(RECIPIENT);
+    await expectConverted(b.documentId);
+  });
+
+  it('a damaged field value is refused before its key is renamed', async () => {
+    const owner = await registerUser(ctx);
+    const { a, b } = await twoLegacy(owner);
+    const claim = (await ctx.prisma.documentClaim.findMany({ where: { documentId: a.documentId }, orderBy: { position: 'asc' } }))[0]!;
+    const damaged = Buffer.from(claim.valueEncrypted);
+    damaged[damaged.length - 1]! ^= 0xff;
+    await ctx.prisma.documentClaim.update({ where: { id: claim.id }, data: { valueEncrypted: new Uint8Array(damaged) } });
+    const before = await plainState(a.documentId);
+    const run = await encryptLegacyMetadata({ config: ctx.config, prisma: ctx.prisma });
+    expect(run.documents.verifyFailed).toEqual([a.documentId]);
+    expect(await plainState(a.documentId)).toEqual(before);
+    expect(before.claims[0]!.key).not.toMatch(/^f\d+$/);
+    await expectConverted(b.documentId);
+  });
+
+  it('a document key that cannot be unwrapped: nothing of that document is touched, the run goes on', async () => {
+    const owner = await registerUser(ctx);
+    const { a, b } = await twoLegacy(owner);
+    const key = await ctx.prisma.documentKey.findUniqueOrThrow({ where: { documentId: a.documentId } });
+    const bad = Buffer.from(key.wrappedDek);
+    bad[0]! ^= 0xff;
+    await ctx.prisma.documentKey.update({ where: { documentId: a.documentId }, data: { wrappedDek: new Uint8Array(bad) } });
+    const before = await plainState(a.documentId);
+    const run = await encryptLegacyMetadata({ config: ctx.config, prisma: ctx.prisma });
+    expect(run.documents.verifyFailed).toEqual([a.documentId]);
+    expect(metadataMigrationSucceeded(run)).toBe(false);
+    expect(await plainState(a.documentId)).toEqual(before);
+    await expectConverted(b.documentId);
+    expect(run.remaining.titles).toBe(1);
+  });
+
+  it('a dry run reports the same failure and writes nothing', async () => {
+    const owner = await registerUser(ctx);
+    const { a } = await twoLegacy(owner);
+    const dek = await loadDataKey(ctx.app.deps, a.documentId);
+    await ctx.prisma.document.update({ where: { id: a.documentId }, data: { titleEncrypted: seal(dek, 'Wrong', titleAad(a.documentId)) } });
+    dek.fill(0);
+    const plainBefore = await countPlainMetadata(ctx.prisma);
+    const dry = await ctx.prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');
+      return encryptLegacyMetadata({ config: ctx.config, prisma: tx }, { dryRun: true });
+    });
+    expect(dry.documents.verifyFailed).toEqual([a.documentId]);
+    expect(dry.documents.sealed).toBe(1);
+    expect(await countPlainMetadata(ctx.prisma)).toEqual(plainBefore);
   });
 });
 

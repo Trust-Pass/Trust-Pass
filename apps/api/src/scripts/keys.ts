@@ -115,7 +115,7 @@ export async function runKeysCli(argv: string[], deps: KeysCliDeps = {}): Promis
       const report = await encryptLegacyMetadata({ config, prisma }, { batchSize, onProgress: out });
       out(JSON.stringify(report, null, 2));
       if (!metadataMigrationSucceeded(report)) {
-        out('Some metadata is still in clear (see "remaining" and "withoutKey"). Nothing was lost; fix the cause and run again.');
+        out('Some metadata is still in clear (see "remaining", "withoutKey" and "verifyFailed"). Documents that failed the read-back check were left exactly as they were. Nothing was lost; fix the cause and run again.');
         return 1;
       }
       out('Done: no title, field label, recipient name or file hash is stored in clear any more.');

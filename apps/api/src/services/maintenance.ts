@@ -60,6 +60,7 @@ export async function runStartupMaintenance(deps: AppDeps, tasks: MaintenanceTas
             documentsSealed: r.documents.sealed,
             deletedErased: r.documents.deletedErased,
             documentsWithoutKey: r.documents.withoutKey.length,
+            documentsReadBackFailed: r.documents.verifyFailed.length,
             fieldsSealed: r.fields.sealed,
             fieldsRenamed: r.fields.renamed,
             linksSealed: r.links.sealed,
