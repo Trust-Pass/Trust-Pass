@@ -303,7 +303,7 @@ export function AppLayout() {
       </main>
 
       {/* Mobile and tablet sidebar (drawer from the left) */}
-      <div className={clsx('fixed inset-0 z-40 lg:hidden', !drawerOpen && 'pointer-events-none')} inert={!drawerOpen}>
+      <div className={clsx('fixed inset-0 z-40 lg:hidden', !drawerOpen && 'pointer-events-none')} inert={!drawerOpen} aria-hidden={!drawerOpen}>
         <button
           type="button"
           tabIndex={-1}
