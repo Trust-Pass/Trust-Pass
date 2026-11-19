@@ -17,7 +17,7 @@ import {
   Shield,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { api } from '../lib/api';
 import { useAuth, useMe } from '../lib/auth';
@@ -147,6 +147,19 @@ function NotificationsPanel({ open, onClose }: { open: boolean; onClose: () => v
 }
 
 const SIDEBAR_PREF_KEY = 'trustpass.sidebar';
+const DESKTOP_QUERY = '(min-width: 1024px)';
+
+function useIsDesktop() {
+  return useSyncExternalStore(
+    (onChange) => {
+      const mq = window.matchMedia(DESKTOP_QUERY);
+      mq.addEventListener('change', onChange);
+      return () => mq.removeEventListener('change', onChange);
+    },
+    () => window.matchMedia(DESKTOP_QUERY).matches,
+    () => false,
+  );
+}
 
 function readSidebarPref(): boolean {
   try {
@@ -240,7 +253,9 @@ export function AppLayout() {
     </>
   );
 
-  const menuExpanded = drawerOpen || dockedOpen;
+  // The docked sidebar only exists on desktop; on smaller screens only the drawer counts.
+  const isDesktop = useIsDesktop();
+  const menuExpanded = isDesktop ? dockedOpen : drawerOpen;
 
   return (
     <div className={clsx('min-h-dvh transition-[padding] duration-200', dockedOpen && 'lg:pl-72')}>
@@ -269,7 +284,7 @@ export function AppLayout() {
               onClick={toggleMenu}
               className="-ml-2 rounded-xl p-2.5 text-ink hover:bg-slate-100"
               aria-label={menuExpanded ? 'Close menu' : 'Open menu'}
-              aria-controls="app-sidebar app-drawer"
+              aria-controls={isDesktop ? 'app-sidebar' : 'app-drawer'}
               aria-expanded={menuExpanded}
             >
               <Menu className="size-5" />
