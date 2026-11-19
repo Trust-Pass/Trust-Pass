@@ -51,6 +51,11 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await ctx?.app.close();
+  // Leave the shared test database as the other (fake-KMS) suites expect it.
+  const db = testPrisma();
+  await resetDatabase(db);
+  await resetKeyring(db);
+  await db.$disconnect();
 });
 beforeEach(async () => {
   await resetDatabase(ctx.prisma);
