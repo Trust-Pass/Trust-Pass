@@ -15,8 +15,9 @@ import {
   ScrollText,
   Settings,
   Shield,
+  X,
 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { api } from '../lib/api';
 import { useAuth, useMe } from '../lib/auth';
@@ -143,20 +144,72 @@ function NotificationsPanel({ open, onClose }: { open: boolean; onClose: () => v
   );
 }
 
-const BOTTOM_ITEMS = [
-  { to: '/app', label: 'Home', icon: LayoutDashboard, end: true },
-  { to: '/app/documents', label: 'Documents', icon: FileText },
-  { to: '/app/links', label: 'Links', icon: Link2 },
-  { to: '/app/analytics', label: 'Analytics', icon: BarChart3 },
-];
+const SIDEBAR_PREF_KEY = 'trustpass.sidebar';
+
+function readSidebarPref(): boolean {
+  try {
+    return window.localStorage.getItem(SIDEBAR_PREF_KEY) !== 'closed';
+  } catch {
+    return true;
+  }
+}
+
+function writeSidebarPref(open: boolean) {
+  try {
+    window.localStorage.setItem(SIDEBAR_PREF_KEY, open ? 'open' : 'closed');
+  } catch {
+    // Storage can be unavailable (private mode); the choice then lasts for this visit only.
+  }
+}
 
 export function AppLayout() {
   const me = useMe();
   const { logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [menuOpen, setMenuOpen] = useState(false);
+  // Mobile and tablet: the sidebar is a drawer that the menu button opens.
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  // Desktop: the sidebar is docked; the menu button shows or hides it.
+  const [dockedOpen, setDockedOpen] = useState(readSidebarPref);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+
+  const toggleMenu = () => {
+    if (window.matchMedia('(min-width: 1024px)').matches) {
+      setDockedOpen((open) => {
+        writeSidebarPref(!open);
+        return !open;
+      });
+    } else {
+      setDrawerOpen((open) => !open);
+    }
+  };
+
+  // Close the drawer on navigation, on Escape and when the screen grows to desktop size.
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDrawerOpen(false);
+    };
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    const onResize = () => {
+      if (desktop.matches) setDrawerOpen(false);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    desktop.addEventListener('change', onResize);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKey);
+      desktop.removeEventListener('change', onResize);
+    };
+  }, [drawerOpen]);
 
   const signOut = async () => {
     await logout();
@@ -176,34 +229,62 @@ export function AppLayout() {
     </div>
   );
 
+  const sidebarBody = (onNavigate?: () => void) => (
+    <>
+      <div className="flex-1 overflow-y-auto">
+        <SideNav onNavigate={onNavigate} />
+      </div>
+      <div className="mt-4">{userBlock}</div>
+    </>
+  );
+
+  const menuExpanded = drawerOpen || dockedOpen;
+
   return (
-    <div className="min-h-dvh lg:pl-72">
-      {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 hidden w-72 flex-col bg-navy-900 px-4 py-5 lg:flex">
+    <div className={clsx('min-h-dvh transition-[padding] duration-200', dockedOpen && 'lg:pl-72')}>
+      {/* Desktop sidebar (docked). Hidden on smaller screens, where the drawer below is used. */}
+      <aside
+        id="app-sidebar"
+        className={clsx(
+          'fixed inset-y-0 left-0 z-20 hidden w-72 flex-col bg-navy-900 px-4 py-5 transition-transform duration-200 lg:flex',
+          !dockedOpen && 'lg:-translate-x-full',
+        )}
+        inert={!dockedOpen}
+        aria-label="Sidebar"
+      >
         <Link to="/app" className="mb-7 px-2">
           <Logo light />
         </Link>
-        <div className="flex-1 overflow-y-auto">
-          <SideNav />
-        </div>
-        {userBlock}
+        {sidebarBody()}
       </aside>
 
-      {/* Top bar */}
+      {/* Top bar: the only navigation bar, on every screen size. */}
       <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur">
         <div className="page-pad flex h-14 items-center justify-between gap-3">
-          <Link to="/app" className="lg:hidden">
-            <Logo />
-          </Link>
-          <p className="hidden text-sm text-slate-500 lg:block">
-            Signed in as <span className="font-medium text-navy-900">{me.user.email}</span>
-            {me.user.role === 'admin' && <span className="ml-2 rounded-full bg-navy-900 px-2 py-0.5 text-xs font-medium text-white">Admin</span>}
-          </p>
-          <div className="flex items-center gap-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleMenu}
+              className="-ml-2 rounded-xl p-2.5 text-navy-800 hover:bg-slate-100"
+              aria-label={menuExpanded ? 'Close menu' : 'Open menu'}
+              aria-controls="app-sidebar app-drawer"
+              aria-expanded={menuExpanded}
+            >
+              <Menu className="size-5" />
+            </button>
+            <Link to="/app" className={clsx(dockedOpen && 'lg:hidden')}>
+              <Logo />
+            </Link>
+          </div>
+          <div className="flex min-w-0 items-center gap-3">
+            <p className="hidden min-w-0 truncate text-sm text-slate-500 lg:block">
+              Signed in as <span className="font-medium text-navy-900">{me.user.email}</span>
+              {me.user.role === 'admin' && <span className="ml-2 rounded-full bg-navy-900 px-2 py-0.5 text-xs font-medium text-white">Admin</span>}
+            </p>
             <button
               type="button"
               onClick={() => setNotificationsOpen(true)}
-              className="relative rounded-xl p-2.5 text-navy-800 hover:bg-slate-100"
+              className="relative -mr-2 rounded-xl p-2.5 text-navy-800 hover:bg-slate-100"
               aria-label={`Notifications${me.unreadNotifications ? `, ${me.unreadNotifications} unread` : ''}`}
             >
               <Bell className="size-5" />
@@ -213,49 +294,44 @@ export function AppLayout() {
                 </span>
               )}
             </button>
-            <button type="button" onClick={() => setMenuOpen(true)} className="rounded-xl p-2.5 text-navy-800 hover:bg-slate-100 lg:hidden" aria-label="Open menu">
-              <Menu className="size-5" />
-            </button>
           </div>
         </div>
       </header>
 
-      <main key={location.pathname} className="page-pad mx-auto max-w-6xl pt-5 pb-28 sm:pt-7 lg:pb-12">
+      <main key={location.pathname} className="page-pad mx-auto max-w-6xl pt-5 pb-12 sm:pt-7">
         <Outlet />
       </main>
 
-      {/* Mobile bottom navigation */}
-      <nav className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur lg:hidden" aria-label="Quick">
-        <div className="grid grid-cols-5">
-          {BOTTOM_ITEMS.map(({ to, label, icon: Icon, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) => clsx('flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium', isActive ? 'text-teal-600' : 'text-slate-500')}
-            >
-              <Icon className="size-5" />
-              {label}
-            </NavLink>
-          ))}
-          <button type="button" onClick={() => setMenuOpen(true)} className="flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium text-slate-500">
-            <Menu className="size-5" />
-            More
-          </button>
-        </div>
-      </nav>
-
-      {/* Mobile menu sheet */}
-      {menuOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
-          <button type="button" className="absolute inset-0 bg-navy-950/50" onClick={() => setMenuOpen(false)} aria-label="Close menu" />
-          <div className="safe-bottom absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto rounded-t-3xl bg-navy-900 px-4 pt-3 pb-4">
-            <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-white/20" />
-            <SideNav onNavigate={() => setMenuOpen(false)} />
-            <div className="mt-4">{userBlock}</div>
+      {/* Mobile and tablet sidebar (drawer from the left) */}
+      <div className={clsx('fixed inset-0 z-40 lg:hidden', !drawerOpen && 'pointer-events-none')} inert={!drawerOpen}>
+        <button
+          type="button"
+          tabIndex={-1}
+          className={clsx('absolute inset-0 bg-navy-950/50 transition-opacity duration-200', drawerOpen ? 'opacity-100' : 'opacity-0')}
+          onClick={closeDrawer}
+          aria-label="Close menu"
+        />
+        <aside
+          id="app-drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Menu"
+          className={clsx(
+            'safe-bottom absolute inset-y-0 left-0 flex w-[min(18rem,85vw)] flex-col bg-navy-900 px-4 pt-3 pb-4 shadow-2xl transition-transform duration-200',
+            drawerOpen ? 'translate-x-0' : '-translate-x-full',
+          )}
+        >
+          <div className="mb-5 flex h-11 items-center justify-between">
+            <Link to="/app" onClick={closeDrawer} className="px-2">
+              <Logo light />
+            </Link>
+            <button type="button" onClick={closeDrawer} className="rounded-xl p-2.5 text-navy-200 hover:bg-white/10 hover:text-white" aria-label="Close menu">
+              <X className="size-5" />
+            </button>
           </div>
-        </div>
-      )}
+          {sidebarBody(closeDrawer)}
+        </aside>
+      </div>
 
       <NotificationsPanel open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
     </div>
