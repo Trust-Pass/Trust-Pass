@@ -18,7 +18,7 @@ import { AppError } from '../lib/errors';
 import { newStorageKey } from '../lib/storage';
 import { UnknownKeyVersionError } from '../lib/keyset';
 import type { AppDeps } from '../types';
-import { logEvent } from './audit';
+import { logEvent, notify } from './audit';
 import { openClaimLabel, openSha256, sealClaimLabel, sealSha256, sealTitle } from './metadata';
 
 export interface ClaimInput {
@@ -161,10 +161,38 @@ export async function readDocumentFile(deps: AppDeps, document: Document, dek?: 
       documentId: document.id,
       metadata: { stage: 'decrypt' },
     });
+    await alertIntegrityFailure(deps, document).catch(() => undefined); // never mask the real error
     void err; // the original error stays out of the client response
     throw new AppError(500, 'integrity_error', 'The stored file failed its integrity check and cannot be shown.');
   } finally {
     if (!dek) key.fill(0);
+  }
+}
+
+/**
+ * Tampering or storage damage must not go unnoticed: tell the owner and every admin, at most once
+ * an hour per document and recipient. Admins get the document reference only, never its title.
+ */
+export async function alertIntegrityFailure(deps: AppDeps, document: { id: string; ownerId: string }) {
+  const { prisma } = deps;
+  const since = new Date(deps.now().getTime() - 60 * 60 * 1000);
+  const admins = await prisma.user.findMany({ where: { role: 'admin', status: 'active' }, select: { id: true } });
+  const recipients = [document.ownerId, ...admins.map((a) => a.id).filter((id) => id !== document.ownerId)];
+  for (const userId of recipients) {
+    const recent = await prisma.notification.count({
+      where: { userId, type: 'integrity_alert', documentId: document.id, createdAt: { gte: since } },
+    });
+    if (recent > 0) continue;
+    const isOwner = userId === document.ownerId;
+    await notify(prisma, {
+      userId,
+      type: 'integrity_alert',
+      documentId: document.id,
+      title: 'A stored file failed its integrity check',
+      body: isOwner
+        ? 'Your file "{document}" could not be opened because its encrypted copy failed the integrity check. Nothing was shown to anyone. An administrator has been alerted.'
+        : `A stored file (document ${document.id.slice(0, 8)}) failed its integrity check and was not shown to anyone. Check Admin > Health and restore it from a backup if needed.`,
+    });
   }
 }
 

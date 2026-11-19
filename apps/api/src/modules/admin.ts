@@ -8,6 +8,7 @@ import { keyringStatus } from '../lib/keyring';
 import { checkStorage } from '../lib/storage';
 import { requireAdmin } from '../plugins/auth';
 import { logEvent } from '../services/audit';
+import { countPlainMetadata } from '../services/metadata-migration';
 import { runRetention } from '../services/retention';
 import { getSettings, saveSettings } from '../services/settings';
 import { parseId } from './documents';
@@ -266,6 +267,37 @@ export async function adminRoutes(app: FastifyInstance) {
       ok: mailer.transport !== 'none',
       detail: mailer.transport === 'none' ? 'No email provider configured: password-reset emails are not sent' : `${mailer.transport} transport`,
     });
+
+    // E3/E4/E5: anything still stored in clear (zero after `encrypt-metadata`).
+    const plain = await countPlainMetadata(prisma);
+    const plainTotal = Object.values(plain).reduce((a, b) => a + b, 0);
+    checks.push({
+      name: 'Metadata encryption',
+      ok: plainTotal === 0,
+      detail:
+        plainTotal === 0
+          ? 'Titles, field labels, recipient names and file hashes are encrypted; logs and notifications hold ids only'
+          : `Still in clear: ${plain.titles} title(s), ${plain.labels} field label(s), ${plain.recipients} recipient name(s), ${plain.hashes} file hash(es), ${plain.logRows} log row(s), ${plain.notifications} notification(s). Run the encrypt-metadata maintenance.`,
+    });
+
+    const weekAgo = new Date(now().getTime() - 7 * 24 * 60 * 60 * 1000);
+    const integrityFailures = await prisma.securityEvent.count({ where: { eventType: 'integrity_check_failed', createdAt: { gte: weekAgo } } });
+    checks.push({
+      name: 'File integrity',
+      ok: integrityFailures === 0,
+      detail: integrityFailures === 0 ? 'No integrity failures in the last 7 days' : `${integrityFailures} integrity failure(s) in the last 7 days: see the security log`,
+    });
+
+    const lastMaintenance = await prisma.systemSetting.findUnique({ where: { key: 'maintenance:last' } });
+    if (lastMaintenance) {
+      const value = lastMaintenance.value as { at?: string; results?: Array<{ task: string; ok: boolean }> };
+      const results = value.results ?? [];
+      checks.push({
+        name: 'Last start-up maintenance',
+        ok: results.every((r) => r.ok),
+        detail: `${value.at ?? 'unknown time'}: ${results.map((r) => `${r.task} ${r.ok ? 'OK' : 'FAILED'}`).join(', ') || 'nothing ran'}`,
+      });
+    }
 
     return {
       checks,

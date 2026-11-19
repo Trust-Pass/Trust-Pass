@@ -36,6 +36,13 @@ const envSchema = z.object({
   FAKE_KMS_ALLOW_DATABASE_HOST: z.string().optional(),
   // How often a running server checks whether a newer key-encryption key became active.
   KEY_REFRESH_SECONDS: z.coerce.number().int().min(0).max(3600).default(30),
+  // Opt-in one-time maintenance after start-up (services/maintenance.ts). Empty = nothing runs.
+  STARTUP_MAINTENANCE: z
+    .string()
+    .default('')
+    .refine((v) => v.split(',').map((s) => s.trim()).filter(Boolean).every((t) => t === 'encrypt-metadata' || t === 'rewrap'), {
+      message: 'allowed: encrypt-metadata, rewrap (comma-separated)',
+    }),
   IP_HASH_SECRET: z.string().min(32, 'IP_HASH_SECRET must be at least 32 characters'),
   ISSUER_SIGNING_SEED: z.string().min(32, 'ISSUER_SIGNING_SEED must be at least 32 characters'),
   STORAGE_DRIVER: z.enum(['local', 'database']).default('local'),
