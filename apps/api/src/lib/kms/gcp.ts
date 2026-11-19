@@ -103,6 +103,7 @@ export class GcpKms implements KmsProvider {
       additionalAuthenticatedData: aadBytes.toString('base64'),
       additionalAuthenticatedDataCrc32c: String(crc32c(aadBytes)),
     })) as {
+      name?: string;
       ciphertext?: string;
       ciphertextCrc32c?: string | number;
       verifiedPlaintextCrc32c?: boolean;
@@ -110,6 +111,10 @@ export class GcpKms implements KmsProvider {
     };
     if (!body.verifiedPlaintextCrc32c || !body.verifiedAdditionalAuthenticatedDataCrc32c) {
       throw new KmsError('Cloud KMS did not confirm the request checksum');
+    }
+    // Google names the key version it used; it must be a version of the configured key.
+    if (body.name !== undefined && !body.name.startsWith(`${this.keyName}/cryptoKeyVersions/`)) {
+      throw new KmsError('Cloud KMS encrypted with a different key than the configured one');
     }
     if (typeof body.ciphertext !== 'string') throw new KmsError('Cloud KMS returned no ciphertext');
     const ciphertext = Buffer.from(body.ciphertext, 'base64');
