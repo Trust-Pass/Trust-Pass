@@ -17,9 +17,10 @@ COPY e2e/package.json e2e/
 RUN pnpm install --frozen-lockfile --filter @trustpass/api...
 COPY apps/api ./apps/api
 COPY packages ./packages
-# A Windows checkout may have CRLF line endings. Migrations must be byte-identical to what
-# production applied (Prisma stores their checksums), so normalise them to LF like the repository.
-RUN find apps/api/prisma/migrations -name '*.sql' -exec sed -i 's/\r$//' {} + \
+# A Windows checkout may have CRLF line endings in every text file. Migrations must be
+# byte-identical to what production applied (Prisma stores their checksums), so everything under
+# prisma/ (schema, migrations, migration_lock.toml) is normalised to LF, like the repository.
+RUN find apps/api/prisma -type f -exec sed -i 's/\r$//' {} + \
  && pnpm --filter @trustpass/api exec prisma generate \
  && pnpm --filter @trustpass/api build \
  && test -f apps/api/dist/rehearsal.js
