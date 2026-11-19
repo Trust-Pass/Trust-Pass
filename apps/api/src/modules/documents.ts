@@ -243,6 +243,7 @@ export async function documentRoutes(app: FastifyInstance) {
     const { user } = requireUser(request);
     const document = await getOwnedDocument(deps, parseId(request, 'Document'), user.id);
     const current = now();
+    const redactedKeys = (await prisma.redactedPage.findMany({ where: { documentId: document.id }, select: { storageKey: true } })).map((r) => r.storageKey);
     // Crypto-shredding: once the wrapped key and ciphertext are gone, this database can
     // never decrypt the document again. A backup taken before the deletion still holds both,
     // and stays readable while its keys exist (see docs/recovery.md, "Deleted documents").
@@ -250,6 +251,7 @@ export async function documentRoutes(app: FastifyInstance) {
       await tx.sharingLink.updateMany({ where: { documentId: document.id, revokedAt: null }, data: { revokedAt: current } });
       await tx.documentClaim.deleteMany({ where: { documentId: document.id } });
       await tx.credential.deleteMany({ where: { documentId: document.id } });
+      await tx.redactedPage.deleteMany({ where: { documentId: document.id } });
       await tx.documentKey.deleteMany({ where: { documentId: document.id } });
       // The sealed metadata is unreadable without the key; erase it too, with any legacy plain values.
       await tx.sharingLink.updateMany({ where: { documentId: document.id }, data: { recipientLabel: null, recipientLabelEncrypted: null } });
@@ -265,6 +267,7 @@ export async function documentRoutes(app: FastifyInstance) {
       });
     });
     await deps.storage.delete(document.storageKey).catch((err) => request.log.warn({ err }, 'storage delete failed'));
+    for (const key of redactedKeys) await deps.storage.delete(key).catch((err) => request.log.warn({ err }, 'storage delete failed'));
     return { ok: true };
   });
 }

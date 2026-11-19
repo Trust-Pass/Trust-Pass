@@ -209,6 +209,7 @@ model Document {
   claims     DocumentClaim[]
   credential Credential?
   links      SharingLink[]
+  redactedPages RedactedPage[]
 
   @@index([ownerId, createdAt])
   @@map("documents")
@@ -295,6 +296,8 @@ model SharingLink {
   includeFile    Boolean       @map("include_file")
   /// Recipient may download a separate watermarked PDF (requires includeFile).
   allowDownload  Boolean       @default(false) @map("allow_download")
+  /// What file the recipient gets when includeFile: "original" (null = original) or "redacted".
+  fileMode       String?       @map("file_mode")
   expiresAt      DateTime      @map("expires_at") @db.Timestamptz(3)
   revokedAt      DateTime?     @map("revoked_at") @db.Timestamptz(3)
   lastAccessedAt DateTime?     @map("last_accessed_at") @db.Timestamptz(3)
@@ -306,11 +309,33 @@ model SharingLink {
   recipientOrg Organization?       @relation(fields: [recipientOrgId], references: [id])
   permissions  SharingPermission[]
   countries    AllowedCountry[]
+  redactedPages RedactedPage[]
 
   @@index([ownerId, createdAt])
   @@index([documentId])
   @@index([recipientOrgId])
   @@map("sharing_links")
+}
+
+/// A page of a link's redacted copy: image with black boxes burned in, AES-256-GCM with the document key.
+model RedactedPage {
+  id         String   @id @default(uuid()) @db.Uuid
+  linkId     String   @map("link_id") @db.Uuid
+  documentId String   @map("document_id") @db.Uuid
+  pageIndex  Int      @map("page_index")
+  storageKey String   @map("storage_key")
+  encIv      Bytes    @map("enc_iv")
+  encTag     Bytes    @map("enc_tag")
+  width      Int
+  height     Int
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  link     SharingLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  document Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([linkId, pageIndex])
+  @@index([documentId])
+  @@map("redacted_pages")
 }
 
 model SharingPermission {

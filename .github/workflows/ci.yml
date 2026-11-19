@@ -158,7 +158,7 @@ jobs:
           echo "$report"
           echo "$report" | grep -q 'RESULT: REHEARSAL PASSED'
           echo "$report" | grep -q 'Existing data identical after the migrations: yes'
-          echo "$report" | grep -q '1 already applied, 4 applied now'
+          echo "$report" | grep -q '1 already applied, 5 applied now'
           echo "$report" | grep -q '"endedRefused": 2'
           echo "$report" | grep -q '"downloadsOk": 4'
           echo "$report" | grep -q '"linksCreated": 3'

@@ -242,3 +242,26 @@ export async function buildRecipientCopy(
   for (const page of pdf.getPages()) watermarkPage(page, font, bold, info);
   return Buffer.from(await pdf.save());
 }
+
+/**
+ * Stamps a freshly built PDF (e.g. a redacted copy made only of page images) for its recipient and
+ * replaces its document info. View copies get the "Shared with" stamp; downloads (info.download)
+ * get the per-download copy reference, exactly like buildRecipientCopy.
+ */
+export async function stampRecipientPdf(pdf: PDFDocument, info: WatermarkInfo, label = 'redacted copy'): Promise<Buffer> {
+  const now = info.viewedAt;
+  const ref = info.download?.copyRef;
+  pdf.setTitle(ref ? `TrustPass ${label} ${ref} - for the named recipient only` : `TrustPass ${label} - authorized viewing only`);
+  pdf.setSubject(`${label} shared through TrustPass link ${info.linkRef}`);
+  pdf.setKeywords(['trustpass', `trustpass-link:${info.linkRef}`, ...(ref ? [`trustpass-copy:${ref}`] : [])]);
+  pdf.setProducer('TrustPass');
+  pdf.setCreator('TrustPass');
+  pdf.setAuthor('TrustPass');
+  pdf.setCreationDate(now);
+  pdf.setModificationDate(now);
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  for (const page of pdf.getPages()) watermarkPage(page, font, bold, info);
+  return Buffer.from(await pdf.save());
+}
+

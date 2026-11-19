@@ -150,12 +150,28 @@ export const allowedCountriesSchema = z
 export const RECIPIENT_TYPES = ['anyone', 'organization'] as const;
 export type RecipientType = (typeof RECIPIENT_TYPES)[number];
 
+export const FILE_MODES = ['original', 'redacted'] as const;
+export type FileMode = (typeof FILE_MODES)[number];
+export const MAX_REDACTIONS = 200;
+/** Page images of a redacted copy: at most this many pixels on the long side (about 200 dpi on A4). */
+export const REDACTION_MAX_EDGE = 2400;
+
+const unit = z.number().min(0).max(1);
+export const redactionSchema = z
+  .object({ page: z.number().int().min(0).max(49), x: unit, y: unit, w: unit, h: unit })
+  .refine((r) => r.w > 0 && r.h > 0 && r.x + r.w <= 1.000001 && r.y + r.h <= 1.000001, { message: 'An area lies outside the page' });
+export type Redaction = z.infer<typeof redactionSchema>;
+
 export const createLinkSchema = z
   .object({
     claimIds: z.array(z.string().uuid()).max(MAX_CLAIMS_PER_DOCUMENT).default([]),
     includeFile: z.boolean(),
     /** Recipient may download a separate watermarked PDF. Only with includeFile. */
     allowDownload: z.boolean().default(false),
+    /** With includeFile: the original file, or a redacted copy with the owner's boxes burned in. */
+    fileMode: z.enum(FILE_MODES).default('original'),
+    /** Areas to hide in the redacted copy, as fractions of each page (0 = left/top, 1 = right/bottom). */
+    redactions: z.array(redactionSchema).max(MAX_REDACTIONS).default([]),
     recipientType: z.enum(RECIPIENT_TYPES),
     recipientOrgId: z.string().uuid().optional(),
     recipientLabel: z.string().trim().min(1, 'Name the recipient').max(80),
@@ -164,6 +180,15 @@ export const createLinkSchema = z
     allowedCountries: allowedCountriesSchema.default([]),
   })
   .superRefine((value, ctx) => {
+    if (value.fileMode === 'redacted' && !value.includeFile) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['fileMode'], message: 'A redacted copy needs the file to be shared' });
+    }
+    if (value.fileMode === 'redacted' && value.redactions.length === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['redactions'], message: 'Mark at least one area to hide' });
+    }
+    if (value.fileMode === 'original' && value.redactions.length > 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['redactions'], message: 'Hidden areas only apply to a redacted copy' });
+    }
     if (value.allowDownload && !value.includeFile) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

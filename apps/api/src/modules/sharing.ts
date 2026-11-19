@@ -9,6 +9,7 @@ import { logEvent, notify } from '../services/audit';
 import { loadDataKey } from '../services/documents';
 import { dataKeys, openClaimLabel, openRecipientLabel, openTitle, sealRecipientLabel, TITLE_SELECT } from '../services/metadata';
 import { getSettings } from '../services/settings';
+import { buildRedactedPages, storeRedactedPages } from '../services/redaction';
 import type { AppDeps } from '../types';
 import { getOwnedDocument, parseId } from './documents';
 
@@ -69,7 +70,26 @@ export async function sharingRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { user } = requireUser(request);
       const document = await getOwnedDocument(deps, parseId(request, 'Document'), user.id);
-      const input = parse(createLinkSchema, request.body);
+      // JSON, or multipart when the owner's browser sends the rendered pages of a PDF for a
+      // redacted copy: one "link" field (the same JSON) and one "page" file per page, in order.
+      let body: unknown = request.body;
+      const pageImages: Buffer[] = [];
+      if (request.isMultipart()) {
+        for await (const part of request.parts({ limits: { fileSize: 12 * 1024 * 1024, files: 50, fields: 1, fieldSize: 65_536 } })) {
+          if (part.type === 'file') {
+            if (part.fieldname !== 'page') throw badRequest('Unexpected file');
+            pageImages.push(await part.toBuffer());
+          } else if (part.fieldname === 'link') {
+            try {
+              body = JSON.parse(String(part.value));
+            } catch {
+              throw badRequest('The link settings are not valid JSON');
+            }
+          }
+        }
+      }
+      const input = parse(createLinkSchema, body);
+      if (input.fileMode === 'original' && pageImages.length > 0) throw badRequest('Page images are only used for a redacted copy');
       const settings = await getSettings(prisma);
       const current = now();
 
@@ -101,8 +121,20 @@ export async function sharingRoutes(app: FastifyInstance) {
       const linkId = randomUUID();
       // The recipient label is sealed with the document's key (E3), like the title.
       const dek = await loadDataKey(deps, document.id);
-      const recipientLabelEncrypted = sealRecipientLabel(dek, document.id, linkId, input.recipientLabel);
-      dek.fill(0);
+      let recipientLabelEncrypted: Uint8Array<ArrayBuffer>;
+      let redacted: Awaited<ReturnType<typeof storeRedactedPages>> | null = null;
+      try {
+        recipientLabelEncrypted = sealRecipientLabel(dek, document.id, linkId, input.recipientLabel);
+        if (input.includeFile && input.fileMode === 'redacted') {
+          // The boxes are burned into fresh page images here; only those images are ever shared.
+          const pages = await buildRedactedPages(deps, document, dek, input.redactions, pageImages);
+          redacted = await storeRedactedPages(deps, document.id, linkId, dek, pages);
+          for (const p of pages) p.data.fill(0);
+        }
+      } finally {
+        dek.fill(0);
+        for (const b of pageImages) b.fill(0);
+      }
       const link = await prisma.$transaction(async (tx) => {
         const created = await tx.sharingLink.create({
           data: {
@@ -117,10 +149,12 @@ export async function sharingRoutes(app: FastifyInstance) {
             recipientLabelEncrypted,
             includeFile: input.includeFile,
             allowDownload: input.includeFile && input.allowDownload,
+            fileMode: input.includeFile ? input.fileMode : null,
             expiresAt,
             createdAt: current,
           },
         });
+        if (redacted) await tx.redactedPage.createMany({ data: redacted.rows });
         if (claimIds.length) await tx.sharingPermission.createMany({ data: claimIds.map((claimId) => ({ linkId: created.id, claimId })) });
         if (input.allowedCountries.length) {
           await tx.allowedCountry.createMany({ data: input.allowedCountries.map((countryCode) => ({ linkId: created.id, countryCode })) });
@@ -136,12 +170,18 @@ export async function sharingRoutes(app: FastifyInstance) {
             recipientType: input.recipientType,
             fields: claimIds.length,
             includeFile: input.includeFile,
+            fileMode: input.includeFile ? input.fileMode : null,
+            hiddenAreas: input.includeFile && input.fileMode === 'redacted' ? input.redactions.length : 0,
             allowDownload: input.includeFile && input.allowDownload,
             expiresAt: expiresAt.toISOString(),
             countries: input.allowedCountries,
           },
         });
         return created;
+      }).catch(async (err) => {
+        // Nothing half-made: the stored page ciphertexts go if the link could not be saved.
+        if (redacted) await Promise.all(redacted.written.map((k) => deps.storage.delete(k).catch(() => undefined)));
+        throw err;
       });
 
       if (recipientOrgId) {
@@ -160,7 +200,7 @@ export async function sharingRoutes(app: FastifyInstance) {
       }
 
       return reply.status(201).send({
-        link: { id: link.id, expiresAt: link.expiresAt, recipientLabel: input.recipientLabel, allowDownload: link.allowDownload },
+        link: { id: link.id, expiresAt: link.expiresAt, recipientLabel: input.recipientLabel, allowDownload: link.allowDownload, fileMode: link.includeFile ? (link.fileMode ?? 'original') : null },
         url: shareUrl(deps, token),
       });
     },
@@ -210,6 +250,7 @@ export async function sharingRoutes(app: FastifyInstance) {
           recipientOrg: l.recipientOrg?.name ?? null,
           includeFile: l.includeFile,
           allowDownload: l.includeFile && l.allowDownload,
+          fileMode: l.includeFile ? (l.fileMode ?? 'original') : null,
           claimCount: l._count.permissions,
           countries: l.countries.map((c) => c.countryCode),
           expiresAt: l.expiresAt,
@@ -246,6 +287,7 @@ export async function sharingRoutes(app: FastifyInstance) {
         recipientOrg: link.recipientOrg?.name ?? null,
         includeFile: link.includeFile,
         allowDownload: link.includeFile && link.allowDownload,
+        fileMode: link.includeFile ? (link.fileMode ?? 'original') : null,
         fields,
         countries: link.countries.map((c) => c.countryCode),
         expiresAt: link.expiresAt,

@@ -108,6 +108,8 @@ describe.skipIf(!enabled)('production-shaped fixture for the rehearsal script', 
     await ctx.app.close();
     closed = true;
     const db = ctx.prisma;
+    await db.$executeRawUnsafe(`DROP TABLE "redacted_pages"`);
+    await db.$executeRawUnsafe(`ALTER TABLE "sharing_links" DROP COLUMN "file_mode"`);
     await db.$executeRawUnsafe(`DROP TABLE "key_encryption_keys"`);
     await db.$executeRawUnsafe(`DROP FUNCTION trustpass_protect_keyring()`);
     await db.$executeRawUnsafe(`DROP FUNCTION trustpass_refuse_fake_kms_in_production()`);
@@ -123,7 +125,7 @@ describe.skipIf(!enabled)('production-shaped fixture for the rehearsal script', 
     await db.$executeRawUnsafe(`ALTER TABLE "access_logs" ALTER COLUMN "resource" TYPE "AccessResource" USING "resource"::text::"AccessResource"`);
     await db.$executeRawUnsafe(`DROP TYPE "AccessResource_release"`);
     const removed = await db.$executeRawUnsafe(`DELETE FROM "_prisma_migrations" WHERE "migration_name" > '20261115211140_init'`);
-    expect(removed).toBe(4);
+    expect(removed).toBe(5);
     const titles = await db.$queryRawUnsafe<Array<{ n: bigint }>>(`SELECT count(*)::bigint AS n FROM documents WHERE title IS NOT NULL`);
     expect(Number(titles[0]!.n)).toBe(4);
   });

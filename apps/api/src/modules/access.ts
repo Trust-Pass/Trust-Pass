@@ -5,7 +5,8 @@ import { z } from 'zod';
 import { randomBytes } from 'node:crypto';
 import { hashToken, hmacHex } from '../lib/crypto';
 import { AppError, notFound } from '../lib/errors';
-import { buildRecipientCopy, watermarkDocument } from '../lib/pdf';
+import { buildRecipientCopy, stampRecipientPdf, watermarkDocument } from '../lib/pdf';
+import { loadRedactedPages, pagesToPdf } from '../services/redaction';
 import { userAgentFamily } from '../lib/user-agent';
 import { requireUser } from '../plugins/auth';
 import { logEvent, notify, recentlyNotified } from '../services/audit';
@@ -261,6 +262,8 @@ async function buildSharedView(deps: AppDeps, request: FastifyRequest, link: Gat
         category: document.category,
         kind: document.kind,
         fileShared: link.includeFile,
+        /** "redacted": the owner hid parts of the file; the recipient never receives the original. */
+        fileMode: link.includeFile ? fileModeOf(link) : null,
         downloadAllowed: link.includeFile && link.allowDownload,
         mimeType: link.includeFile ? document.mimeType : null,
       },
@@ -276,8 +279,40 @@ async function buildSharedView(deps: AppDeps, request: FastifyRequest, link: Gat
   }
 }
 
+export function fileModeOf(link: { includeFile: boolean; fileMode: string | null }): 'original' | 'redacted' | null {
+  if (!link.includeFile) return null;
+  return link.fileMode === 'redacted' ? 'redacted' : 'original';
+}
+
+/** The redacted copy as a PDF, stamped for this view or download. Never touches the original file. */
+async function redactedPdf(deps: AppDeps, link: GateLink, info: Parameters<typeof stampRecipientPdf>[1]): Promise<Buffer> {
+  const dek = await loadDataKey(deps, link.document.id);
+  try {
+    const pages = await loadRedactedPages(deps, link, dek);
+    const pdf = await pagesToPdf(pages);
+    for (const p of pages) p.data.fill(0);
+    return await stampRecipientPdf(pdf, info);
+  } finally {
+    dek.fill(0);
+  }
+}
+
+async function recipientName(deps: AppDeps, link: GateLink): Promise<string> {
+  if (link.recipientOrg) return link.recipientOrg.name;
+  const dek = await loadDataKey(deps, link.document.id);
+  try {
+    return openRecipientLabel(dek, link);
+  } finally {
+    dek.fill(0);
+  }
+}
+
 async function sendWatermarkedFile(deps: AppDeps, reply: FastifyReply, link: GateLink) {
   if (!link.includeFile) throw new AppError(403, 'file_not_shared', 'The owner shared selected details only, not the file.');
+  if (fileModeOf(link) === 'redacted') {
+    const pdf = await redactedPdf(deps, link, { recipient: await recipientName(deps, link), viewedAt: deps.now(), linkRef: link.id.slice(0, 8) });
+    return reply.headers(fileResponseHeaders('application/pdf')).send(pdf);
+  }
   const dek = await loadDataKey(deps, link.document.id);
   let data: Buffer = Buffer.alloc(0);
   let recipient = '';
@@ -322,19 +357,10 @@ async function sendRecipientDownload(
 ) {
   assertDownloadAllowed(link);
   const { prisma } = deps;
-  const dek = await loadDataKey(deps, link.document.id);
-  let data: Buffer = Buffer.alloc(0);
-  let recipient = '';
-  try {
-    data = await readDocumentFile(deps, link.document, dek);
-    recipient = link.recipientOrg?.name ?? openRecipientLabel(dek, link);
-  } finally {
-    dek.fill(0);
-  }
   const current = deps.now();
   const copyRef = randomBytes(5).toString('hex').toUpperCase();
-  const copy = await buildRecipientCopy(data, link.document.mimeType, {
-    recipient,
+  const info = {
+    recipient: await recipientName(deps, link),
     viewedAt: current,
     linkRef: link.id.slice(0, 8),
     download: {
@@ -342,8 +368,22 @@ async function sendRecipientDownload(
       // Organization links: also stamp the member who downloaded it.
       downloadedBy: link.recipientType === 'organization' ? request.auth?.user.fullName : undefined,
     },
-  });
-  data.fill(0);
+  };
+  let copy: Buffer;
+  if (fileModeOf(link) === 'redacted') {
+    // Selective sharing: the download is built from the redacted pages only.
+    copy = await redactedPdf(deps, link, info);
+  } else {
+    const dek = await loadDataKey(deps, link.document.id);
+    let data: Buffer = Buffer.alloc(0);
+    try {
+      data = await readDocumentFile(deps, link.document, dek);
+    } finally {
+      dek.fill(0);
+    }
+    copy = await buildRecipientCopy(data, link.document.mimeType, info);
+    data.fill(0);
+  }
 
   await logEvent(prisma, {
     userId: link.ownerId,
@@ -352,7 +392,7 @@ async function sendRecipientDownload(
     documentId: link.documentId,
     linkId: link.id,
     // Ids and references only (E4): no title, no recipient name.
-    metadata: { copyRef, accessLogId: decision.logId.toString(), country: decision.country, sizeBytes: copy.length },
+    metadata: { copyRef, accessLogId: decision.logId.toString(), country: decision.country, sizeBytes: copy.length, fileMode: fileModeOf(link) },
     at: current,
   });
   const since = new Date(current.getTime() - DOWNLOAD_NOTICE_WINDOW_MS);
@@ -453,6 +493,7 @@ export async function accessRoutes(app: FastifyInstance) {
         fieldCount: l._count.permissions,
         includeFile: l.includeFile,
         allowDownload: l.includeFile && l.allowDownload,
+        fileMode: fileModeOf(l),
         expiresAt: l.expiresAt,
         createdAt: l.createdAt,
         status: linkStatus(l, current),

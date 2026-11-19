@@ -57,6 +57,7 @@ const TABLES = [
   'security_events',
   'verification_records',
   'notifications',
+  'redacted_pages',
   'sharing_permissions',
   'allowed_countries',
   'sharing_links',
