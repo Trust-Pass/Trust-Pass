@@ -89,7 +89,7 @@ Notes: the free web service sleeps after inactivity (first request takes about a
 
 ## Honest limitations
 
-- Encryption is server-side at rest, not end-to-end: the server must decrypt to watermark files and show chosen fields.
+- Encryption is server-side at rest, not end-to-end: the server must decrypt to watermark files and show chosen fields. What this does and does not protect against: [docs/server-side-decryption.md](docs/server-side-decryption.md).
 - In production the master key is an environment secret. A cloud KMS would be stronger and fits behind the same interface.
 - IP geolocation is approximate. VPNs, proxies and mobile carriers can change the detected country.
 - No website can block screenshots or cameras. Watermarks make leaks traceable, not impossible.

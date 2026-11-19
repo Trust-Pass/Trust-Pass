@@ -56,7 +56,18 @@ data is removed by a migration.
   a branch. If data itself is damaged, restore from the backup taken in pre-flight (documented in
   `docs/recovery.md`), which needs the same `MASTER_KEY`.
 
+## Database network access
+
+The app connects through Render's private network (internal host `dpg-…-a`, confirmed in the
+start-up logs), which the IP allow list does not affect. Only connections through the external
+URL (Reham's backups) use it.
+
+- Normal state: allow list **empty** (no external access).
+- For a backup: add "My IP" (`<your IP>/32`), run the backup, remove it again.
+
 ## Later: Google Cloud KMS (needs Google Cloud setup and billing)
+
+One script does steps 2–5 in Google Cloud Shell: `scripts/gcp/setup-kms.sh <PROJECT_ID> [BILLING_ACCOUNT_ID]`.
 
 Cost: about $0.12 per month for two key versions plus $0.03 per 10,000 operations.
 
@@ -77,8 +88,8 @@ Cost: about $0.12 per month for two key versions plus $0.03 per 10,000 operation
 | Risk | Why it matters | Action |
 |---|---|---|
 | Free database expires 16 Dec 2026 | All data is lost when it expires | Upgrade to a paid plan or move the data before 16 Dec |
-| Database IP allow list is `0.0.0.0/0` | Anyone can attempt to connect (password still required) | Restrict to Render's outbound IPs plus Reham's IP when needed |
+| Database IP allow list is `0.0.0.0/0` | Anyone can attempt to connect (password still required) | Empty the allow list (app unaffected, see above) |
 | Real document recovery with the saved keys not run yet | Proves the backup + keys restore real documents | Run `trustpass-recovery-check.sh` (prepared on the laptop) |
 | Live KMS tests skipped | KMS code path tested with the fake KMS only | Run after the Google Cloud steps above |
 | Real-phone camera test | CI uses a simulated camera | Scan a QR code on Reham's phone after deploy |
-| Server-side encryption, not end-to-end | The server can decrypt while serving | Documented limitation |
+| Server-side encryption, not end-to-end | The server can decrypt while serving | See `docs/server-side-decryption.md` |
