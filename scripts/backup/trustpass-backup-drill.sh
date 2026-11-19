@@ -263,6 +263,10 @@ if [ "$SELFTEST" != 1 ] && [ -f "$OUT/verify-secrets.mjs" ] && command -v node >
   echo "  copy, here in RAM. Nothing is shown, logged or saved; only OK / WRONG is reported."
   read -r -p "  Check MASTER_KEY and ISSUER_SIGNING_SEED now? [y/N] " answer
   if [[ "$answer" =~ ^[Yy] ]]; then
+    RP_SQL="'[]'::json"
+    if [ "$(psql "${L[@]}" -d restore_drill -XAtq -c "select to_regclass('public.redacted_pages') is not null")" = t ]; then
+      RP_SQL="COALESCE((SELECT json_agg(json_build_object('document_id', rp.document_id, 'link_id', rp.link_id, 'page_index', rp.page_index, 'enc_iv', encode(rp.enc_iv, 'hex'), 'enc_tag', encode(rp.enc_tag, 'hex'), 'data', encode(so.data, 'hex'))) FROM redacted_pages rp LEFT JOIN stored_objects so ON so.key = rp.storage_key), '[]'::json)"
+    fi
     psql "${L[@]}" -d restore_drill -XAtq -v ON_ERROR_STOP=1 -c "
       SELECT json_build_object(
         'documents', COALESCE((SELECT json_agg((to_jsonb(d) - 'title') || jsonb_build_object('file', encode(so.data, 'hex'), 'key', to_jsonb(k)))
@@ -273,6 +277,7 @@ if [ "$SELFTEST" != 1 ] && [ -f "$OUT/verify-secrets.mjs" ] && command -v node >
                                                                   'credential_encrypted', encode(credential_encrypted, 'hex'))) FROM credentials), '[]'::json),
         'links', COALESCE((SELECT json_agg(json_build_object('id', id, 'token_hash', token_hash, 'token_encrypted', encode(token_encrypted, 'hex')))
                            FROM sharing_links), '[]'::json),
+        'redactedPages', $RP_SQL,
         'issuers', COALESCE((SELECT json_agg(public_key_jwk) FROM issuers), '[]'::json),
         'kmsKeys', CASE WHEN to_regclass('key_encryption_keys') IS NULL THEN 0 ELSE 1 END)" > "$WORK/export.json"
     read_secret "  MASTER_KEY (paste from the password manager): "; MK="$REPLY_SECRET"

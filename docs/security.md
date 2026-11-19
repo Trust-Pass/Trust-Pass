@@ -56,7 +56,7 @@ KMS root key (Google Cloud KMS; never leaves the KMS, every use is logged by Goo
 
 Encrypted with the document's own key (AES-256-GCM, bound to its row): files, field values and
 labels, credentials (SD-JWT) and their disclosures, document titles, file SHA-256, recipient names
-of links. Encrypted with the link-token key: the copy of each share link (lookups use a SHA-256
+of links, and the page images of redacted copies (`docs/selective-sharing.md`). Encrypted with the link-token key: the copy of each share link (lookups use a SHA-256
 hash only). Document keys are wrapped by the key-encryption key (MASTER_KEY today, Google Cloud KMS
 after the switch).
 
@@ -69,7 +69,8 @@ or because they are not document content:
 | Organization names, issuer names | Public directory; shown before any document is opened |
 | Document category, kind, MIME type, size, dates | Lists, upload limits and the right viewer, without decrypting |
 | Issuer claim keys (e.g. `enrollment_status`) | Name the credential type, not the person; owner-typed fields use neutral keys (`f1`, `f2`) |
-| Link rules: expiry, revoked time, allowed countries, recipient organization, download on/off | Enforced before anything is decrypted |
+| Link rules: expiry, revoked time, allowed countries, recipient organization, download on/off, original or redacted copy | Enforced before anything is decrypted |
+| Size (pixels) and number of the pages of a redacted copy | Building the recipient's PDF |
 | Access logs: outcome, approximate country, browser family, keyed IP hash (never the IP) | Owner analytics and alerts |
 | Security events and notifications | Ids and counts only; names are filled in for the owner when read (E4) |
 

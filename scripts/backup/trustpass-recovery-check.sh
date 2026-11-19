@@ -109,6 +109,12 @@ rm -f "$DUMP"
 q() { psql "${L[@]}" -d recovery_check -XAtq -v ON_ERROR_STOP=1 -c "$1"; }
 ok "restored: $(q "select count(*) from pg_tables where schemaname='public'") tables, $(q "select count(*) from documents where deleted_at is null") active documents"
 
+# Redacted copies (Smart Selective Encryption) exist only in backups taken after that release.
+RP_SQL="'[]'::json"
+if [ "$(q "select to_regclass('public.redacted_pages') is not null")" = t ]; then
+  RP_SQL="COALESCE((SELECT json_agg(json_build_object('document_id', rp.document_id, 'link_id', rp.link_id, 'page_index', rp.page_index, 'enc_iv', encode(rp.enc_iv, 'hex'), 'enc_tag', encode(rp.enc_tag, 'hex'), 'data', encode(so.data, 'hex'))) FROM redacted_pages rp LEFT JOIN stored_objects so ON so.key = rp.storage_key), '[]'::json)"
+fi
+
 # Everything the checker needs, as JSON in RAM. Plain titles and labels (older rows) are left out:
 # the checker never needs them.
 q "SELECT json_build_object(
@@ -120,6 +126,7 @@ q "SELECT json_build_object(
                                                             'credential_encrypted', encode(credential_encrypted, 'hex'))) FROM credentials), '[]'::json),
   'links', COALESCE((SELECT json_agg(json_build_object('id', id, 'token_hash', token_hash, 'token_encrypted', encode(token_encrypted, 'hex')))
                      FROM sharing_links), '[]'::json),
+  'redactedPages', $RP_SQL,
   'issuers', COALESCE((SELECT json_agg(public_key_jwk) FROM issuers), '[]'::json),
   'kmsKeys', CASE WHEN to_regclass('key_encryption_keys') IS NULL THEN 0 ELSE 1 END)" > "$WORK/export.json"
 

@@ -18,6 +18,8 @@
  *  - every stored file decrypts (AAD "file|<id>|<owner>"), matches its SHA-256 (sealed or legacy
  *    plain) and starts like a PDF, PNG or JPEG; a credential's file also matches its public hash;
  *  - every field value, label (if sealed), disclosure, sealed title and signed credential opens;
+ *  - every page of every redacted copy (Smart Selective Encryption) opens with its document key
+ *    (AAD "redacted|<doc>|<link>|<page>") and is a PNG image;
  *  - every share-link copy opens and matches its stored hash: with the link-token key
  *    (info "link-token:v<n>", since E2) or, for links created before E2, with the
  *    key-encryption key itself (info "kek:v<n>"), exactly as the server reads them.
@@ -65,6 +67,8 @@ function fileType(b) {
 const claimsByDoc = new Map();
 for (const c of data.claims ?? []) claimsByDoc.set(c.document_id, [...(claimsByDoc.get(c.document_id) ?? []), c]);
 const credentialByDoc = new Map((data.credentials ?? []).map((c) => [c.document_id, c]));
+const redactedByDoc = new Map();
+for (const p of data.redactedPages ?? []) redactedByDoc.set(p.document_id, [...(redactedByDoc.get(p.document_id) ?? []), p]);
 
 const result = { masterKey: null, issuerSeed: null, ipHashSecret: 'not provable offline (only affects visitor statistics)' };
 let ok = true;
@@ -80,6 +84,8 @@ if (masterKey) {
     credentialsOpened: 0,
     titlesOpened: 0,
     deletedSkipped: 0,
+    redactedPages: 0,
+    redactedPagesOpened: 0,
     linkTokens: 0,
     linkTokensMatched: 0,
     linkTokensLegacy: 0,
@@ -172,6 +178,21 @@ if (masterKey) {
       if (opened !== claims.length) {
         r.failures.push(`${id}: ${claims.length - opened} field(s) do not decrypt`);
         docOk = false;
+      }
+
+      for (const p of redactedByDoc.get(doc.id) ?? []) {
+        r.redactedPages++;
+        try {
+          if (!p.data) throw new Error('missing');
+          const page = gcmOpen(dek, hex(p.enc_iv), hex(p.enc_tag), hex(p.data), `redacted|${doc.id}|${p.link_id}|${p.page_index}`);
+          const png = fileType(page) === 'PNG';
+          page.fill(0);
+          if (!png) throw new Error('not png');
+          r.redactedPagesOpened++;
+        } catch {
+          r.failures.push(`${id}: page ${p.page_index + 1} of a redacted copy (link ${String(p.link_id).slice(0, 8)}) does not decrypt`);
+          docOk = false;
+        }
       }
 
       const cred = credentialByDoc.get(doc.id);
