@@ -33,6 +33,7 @@ const secrets = { masterKey: TEST_SECRETS.MASTER_KEY, ipHashSecret: TEST_SECRETS
 beforeAll(async () => {
   // Earlier test files leave fake-KMS keys; a MASTER_KEY app (like production) refuses to start next to them.
   const db = testPrisma();
+  await resetDatabase(db);
   await resetKeyring(db);
   await db.$disconnect();
   ctx = await createTestContext({ KEY_PROVIDER: 'env', MASTER_KEY: TEST_SECRETS.MASTER_KEY, STORAGE_DRIVER: 'database' });

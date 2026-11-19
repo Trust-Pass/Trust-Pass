@@ -36,6 +36,7 @@ let ctx: TestContext;
 describe.skipIf(!enabled)('production-shaped fixture for the rehearsal script', () => {
   beforeAll(async () => {
     const db = testPrisma();
+    await resetDatabase(db);
     await resetKeyring(db);
     await db.$disconnect();
     ctx = await createTestContext({ KEY_PROVIDER: 'env', MASTER_KEY: TEST_SECRETS.MASTER_KEY, STORAGE_DRIVER: 'database' });
