@@ -3,7 +3,7 @@ import { useId } from 'react';
 
 export function ShieldMark({ className }: { className?: string }) {
   // Unique per instance: a gradient defined inside a hidden copy (e.g. the closed drawer) would not paint.
-  const gradientId = `tp-shield-${useId().replace(/:/g, '')}`;
+  const gradientId = `tp-shield-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   return (
     <svg viewBox="0 0 64 64" className={className} aria-hidden>
       <defs>
