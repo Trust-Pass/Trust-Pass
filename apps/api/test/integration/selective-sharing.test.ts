@@ -141,9 +141,11 @@ async function expectNothingHidden(pdfBytes: Buffer, original: Buffer) {
     expect(field ?? '').not.toMatch(/SECRET/);
   }
   // Nothing but page images and the watermark: no annotations, forms, attachments, outline, XMP.
-  for (const key of ['/Annots', '/AcroForm', '/EmbeddedFiles', '/Outlines', '/Metadata', '/JavaScript', '/OpenAction']) {
+  for (const key of ['/AcroForm', '/EmbeddedFiles', '/Outlines', '/Metadata', '/JavaScript', '/OpenAction', '/URI']) {
     expect(content).not.toContain(key);
   }
+  // pdf-lib gives every new page an empty /Annots array: it must stay empty.
+  for (const page of pdf.getPages()) expect(page.node.Annots()?.size() ?? 0).toBe(0);
   const fonts = [...content.matchAll(/\/BaseFont\s*\/([A-Za-z-]+)/g)].map((m) => m[1]).sort();
   expect(fonts).toEqual(['Helvetica', 'Helvetica-Bold']); // the watermark only
   // Pixels: not one red (hidden) pixel left; the visible part is still there.
