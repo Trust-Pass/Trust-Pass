@@ -1,0 +1,3 @@
+# Reviewed false positives (test-only values, not secrets). Format: <commit>:<file>:<rule>:<line>
+# A throw-away test password in a password-reset race test (reviewed 19 Nov 2026).
+9c187397c3108d21a750a2425901a6d840938986:apps/api/test/security/hardening.test.ts:generic-api-key:94

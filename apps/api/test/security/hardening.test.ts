@@ -91,7 +91,8 @@ describe('password reset links', () => {
   it('two simultaneous uses of the same link: exactly one succeeds', async () => {
     const user = await registerUser(ctx);
     const token = await requestReset(user.email);
-    const results = await Promise.all([confirm(token, 'First-Racer-Passw0rd-1'), confirm(token, 'Second-Racer-Passw0rd-2')]);
+    const [first, second] = [`${NEW_PASSWORD}-first`, `${NEW_PASSWORD}-second`];
+    const results = await Promise.all([confirm(token, first), confirm(token, second)]);
     expect(results.map((r) => r.statusCode).sort()).toEqual([200, 400]);
   });
 });
