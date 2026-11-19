@@ -276,7 +276,7 @@ async function buildSharedView(deps: AppDeps, request: FastifyRequest, link: Gat
 async function sendWatermarkedFile(deps: AppDeps, reply: FastifyReply, link: GateLink) {
   if (!link.includeFile) throw new AppError(403, 'file_not_shared', 'The owner shared selected details only, not the file.');
   const dek = await loadDataKey(deps, link.document.id);
-  let data = Buffer.alloc(0);
+  let data: Buffer = Buffer.alloc(0);
   let recipient = '';
   try {
     data = await readDocumentFile(deps, link.document, dek);

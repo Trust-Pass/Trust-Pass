@@ -252,10 +252,44 @@ ORPHAN_KEYS=$(q "select count(*) from documents d where d.kind='file' and d.dele
 } >> "$REPORT"
 cat "$REPORT" | sed 's/^/  /'
 
-[ "$NTABLES" = 20 ] || fail "expected 20 tables, restored $NTABLES"
+# 20 tables on main; later releases add tables (e.g. key_encryption_keys with E2).
+[ "$NTABLES" -ge 20 ] || fail "expected at least 20 tables, restored $NTABLES"
 
-say "[6/6] Result"
-echo "RESULT: RESTORE DRILL OK (structure and data; document decryption not tested here)" >> "$REPORT"
+# ---------------------------------------------------------------- 6. optional: prove the saved secrets
+SECRETS_RESULT="not checked"
+if [ "$SELFTEST" != 1 ] && [ -f "$OUT/verify-secrets.mjs" ] && command -v node >/dev/null; then
+  say "[6/7] Optional: prove that your saved secrets open this backup"
+  echo "  This uses the copies in your password manager to decrypt every document of the restored"
+  echo "  copy, here in RAM. Nothing is shown, logged or saved; only OK / WRONG is reported."
+  read -r -p "  Check MASTER_KEY and ISSUER_SIGNING_SEED now? [y/N] " answer
+  if [[ "$answer" =~ ^[Yy] ]]; then
+    psql "${L[@]}" -d restore_drill -XAtq -v ON_ERROR_STOP=1 -c "
+      SELECT json_build_object(
+        'documents', COALESCE((SELECT json_agg(to_jsonb(d) || jsonb_build_object('file', encode(so.data, 'hex'), 'key', to_jsonb(k)))
+                               FROM documents d LEFT JOIN document_keys k ON k.document_id = d.id
+                               LEFT JOIN stored_objects so ON so.key = d.storage_key), '[]'::json),
+        'links', COALESCE((SELECT json_agg(json_build_object('id', id, 'token_hash', token_hash, 'token_encrypted', encode(token_encrypted, 'hex')))
+                           FROM sharing_links), '[]'::json),
+        'issuers', COALESCE((SELECT json_agg(public_key_jwk) FROM issuers), '[]'::json),
+        'kmsKeys', CASE WHEN to_regclass('key_encryption_keys') IS NULL THEN 0 ELSE 1 END)" > "$WORK/export.json"
+    read_secret "  MASTER_KEY (paste from the password manager): "; MK="$REPLY_SECRET"
+    read_secret "  ISSUER_SIGNING_SEED (paste, or press Enter to skip): "; IS="$REPLY_SECRET"
+    unset REPLY_SECRET
+    set +e
+    printf '%s\n%s\n' "$MK" "$IS" | node "$OUT/verify-secrets.mjs" "$WORK/export.json" > "$WORK/secrets.json"
+    code=$?
+    set -e
+    unset MK IS
+    rm -f "$WORK/export.json"
+    sed 's/^/  /' "$WORK/secrets.json"
+    { echo; echo "Saved secrets check:"; cat "$WORK/secrets.json"; } >> "$REPORT"
+    if [ "$code" = 0 ]; then SECRETS_RESULT="OK"; ok "your saved secrets open this backup"; else SECRETS_RESULT="FAILED"; echo "  WARNING: a saved secret does not match (see above). Fix the password manager entry from Render > Environment."; fi
+  fi
+fi
+
+say "[7/7] Result"
+echo "Saved secrets: $SECRETS_RESULT" >> "$REPORT"
+echo "RESULT: RESTORE DRILL OK (structure and data$([ "$SECRETS_RESULT" = OK ] && echo '; every document decrypted with the saved MASTER_KEY'))" >> "$REPORT"
 cp "$REPORT" "$OUT/$NAME-report.txt"
 ok "RESTORE DRILL OK"
 ok "kept on your disk: $NAME.7z, $NAME.7z.sha256, $NAME-report.txt (all safe to keep; only the .7z holds data, encrypted)"
