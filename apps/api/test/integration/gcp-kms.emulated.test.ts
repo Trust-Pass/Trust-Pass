@@ -214,6 +214,9 @@ describe('Google Cloud KMS emulator: refusals reach the app the way Google sends
   });
 
   it('a service account without permission on the key: the app refuses to start', async () => {
+    // Empty keyring: the refusal must come from Google (403), not from the stored-key check.
+    await resetDatabase(testPrisma());
+    await resetKeyring(testPrisma());
     const otherKey = `projects/${PROJECT}/locations/europe-west3/keyRings/trustpass/cryptoKeys/someone-elses-key`;
     await expect(
       createTestContext({ KEY_PROVIDER: 'gcp-kms', GCP_KMS_KEY_NAME: otherKey, GCP_SERVICE_ACCOUNT_JSON: emulator.serviceAccountJson, MASTER_KEY: undefined, FAKE_KMS_KEY_FILE: undefined }),
