@@ -2,7 +2,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { claimAad, claimLabelAad, open, recipientLabelAad, seal, sha256Aad, sha256Hex, titleAad } from '../../src/lib/crypto';
 import { loadDataKey } from '../../src/services/documents';
 import { countPlainMetadata, encryptLegacyMetadata, metadataMigrationSucceeded } from '../../src/services/metadata-migration';
-import { as, createLink, createTestContext, documentClaims, IPS, registerUser, resetDatabase, samplePdf, uploadDocument, type Session, type TestContext } from '../helpers';
+import { runKeysCli } from '../../src/scripts/keys';
+import { as, cliEnv, createLink, createTestContext, documentClaims, IPS, registerUser, resetDatabase, samplePdf, testPrisma, uploadDocument, type Session, type TestContext } from '../helpers';
 
 /**
  * E3/E4/E5: titles, field labels, recipient names and file hashes are encrypted at rest, logs and
@@ -220,3 +221,40 @@ describe('backfill of rows written before E3 (keys encrypt-metadata)', () => {
     expect(again).toMatchObject({ documents: { sealed: 0, deletedErased: 0 }, fields: { sealed: 0, renamed: 0 }, links: { sealed: 0 }, notifications: { rewritten: 0 }, logs: { cleaned: 0 } });
   });
 });
+
+describe('key rotation and a fresh server (E2 + E3 together)', () => {
+  it('after rotate + rewrap, a newly started server reads every title, label, recipient, file and link', async () => {
+    const owner = await registerUser(ctx);
+    const { documentId, link, file } = await seed(owner);
+    const before = await ctx.prisma.documentKey.findUniqueOrThrow({ where: { documentId } });
+
+    const lines: string[] = [];
+    const code = await runKeysCli(['rotate', '--wait=0'], { env: cliEnv(), prisma: testPrisma(), out: (l) => lines.push(l), sleep: async () => {} });
+    expect(code, lines.join('\n')).toBe(0);
+    const after = await ctx.prisma.documentKey.findUniqueOrThrow({ where: { documentId } });
+    expect(after.kekVersion).toBeGreaterThan(before.kekVersion); // the data key was re-wrapped
+    expect(Buffer.from(after.wrappedDek).equals(Buffer.from(before.wrappedDek))).toBe(false);
+
+    // A server that starts now knows only the new keys as current.
+    const fresh = await createTestContext({ STORAGE_DRIVER: 'database' });
+    try {
+      const session = { ...owner };
+      const detail = (await as(fresh, session, { method: 'GET', url: `/api/documents/${documentId}` })).json().document;
+      expect(detail.title).toBe(TITLE);
+      expect(detail.claims.map((c: { label: string; value: string }) => [c.label, c.value])).toEqual([
+        ['Employer', 'Aramco'],
+        ['National ID', '1234567890'],
+      ]);
+      expect(detail.links[0].recipientLabel).toBe(RECIPIENT);
+      const fileRes = await as(fresh, session, { method: 'GET', url: `/api/documents/${documentId}/file` });
+      expect(fileRes.rawPayload.equals(file)).toBe(true);
+      const share = (await fresh.app.inject({ method: 'GET', url: `/api/share/${link.token}`, remoteAddress: IPS.SA })).json();
+      expect(share.document.title).toBe(TITLE);
+      const url = (await as(fresh, session, { method: 'GET', url: `/api/links/${link.id}/url` })).json().url;
+      expect(url).toBe(link.url);
+    } finally {
+      await fresh.app.close();
+    }
+  });
+});
+

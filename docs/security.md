@@ -6,7 +6,8 @@ This page maps the security requirements to the code that implements them and th
 
 | Threat | Control | Where | Tested in |
 | --- | --- | --- | --- |
-| Database leak exposes documents | AES-256-GCM per document; data keys wrapped by a master key kept outside the database; claim values and credentials encrypted with the document key | `services/documents.ts`, `lib/crypto.ts` | `documents.test.ts`, `crypto.test.ts` |
+| Database leak exposes documents | AES-256-GCM per document; data keys wrapped by a key-encryption key kept outside the database (Google Cloud KMS, or `MASTER_KEY` in the environment); file, claim values, credentials, titles, field labels, recipient names and file SHA-256 encrypted with the document key | `services/documents.ts`, `services/metadata.ts`, `lib/crypto.ts` | `encryption-at-rest.test.ts`, `metadata-encryption.test.ts`, `crypto-kat.test.ts` |
+| Logs reveal what was shared with whom | `security_events` and notifications store ids only; titles and recipient names are decrypted for the owner when read; notifications use `{document}`/`{recipient}` placeholders | `modules/insights.ts`, `services/metadata.ts` | `metadata-encryption.test.ts` |
 | Database leak exposes working links | Share tokens (256-bit) stored as SHA-256 hashes; an encrypted copy lets the owner copy the link again | `modules/sharing.ts` | `sharing.test.ts` |
 | Ciphertext swapped between records | Additional authenticated data binds ciphertext to document and owner ids | `lib/crypto.ts` | `crypto.test.ts` |
 | Stored file tampered with | GCM tag check plus SHA-256 comparison; failure logs a high-severity event and returns a generic error | `services/documents.ts` | `documents.test.ts` |
@@ -33,7 +34,8 @@ KMS root key (Google Cloud KMS; never leaves the KMS, every use is logged by Goo
   └─ encrypts → key-encryption keys (KEKs) and link-token keys: random 32 bytes,
        stored only as KMS ciphertext in key_encryption_keys
        └─ KEK wraps → one random data key per document (document_keys)
-            └─ data key encrypts → file, field values, credential (AES-256-GCM)
+            └─ data key encrypts → file, field values, credential, title, field labels,
+                                   recipient labels, file SHA-256 (AES-256-GCM, AAD per row)
 ```
 
 - `KEY_PROVIDER` chooses where KEKs come from: `gcp-kms` (production target), `fake-kms` (a local stand-in with a random root key in a file; development and tests only, refused in production) or `env` (legacy: derived from `MASTER_KEY` with HKDF-SHA256).
@@ -45,7 +47,7 @@ KMS root key (Google Cloud KMS; never leaves the KMS, every use is logged by Goo
 - **Retired keys:** a retired key the KMS can no longer decrypt is skipped with a warning when no document uses it; start-up stops only if documents still need it. `keys destroy-retired --confirm` deletes retired keys once no document or link copy uses them and they were retired at least 10 minutes ago (re-checked under a lock); after that their KMS key versions can be disabled. To retire a Google KMS key version: `keys rotate`, `keys rewrap`, `keys destroy-retired --confirm`, then disable the version in Google Cloud.
 - **Dry runs and `status` run inside a READ ONLY transaction**, so PostgreSQL itself rejects any write. A re-wrap only reports success when every data key and every link copy opens and is on the current keys.
 - **The fake KMS can never write to production's database:** it only accepts a local database host (or one host named in `FAKE_KMS_ALLOW_DATABASE_HOST`), production marks its database at start-up (`system_settings.environment = "production"`), the app and every key command refuse the fake KMS on a marked database before writing, and the database itself rejects fake-KMS keys and protects the marker.
-- **Commands** (none print key material). Production image: `node apps/api/dist/keys.js <status|rewrap|rotate|destroy-retired> [--dry-run]`; development: `pnpm keys:<command>`.
+- **Commands** (none print key material). Production image: `node apps/api/dist/keys.js <status|rewrap|rotate|destroy-retired|encrypt-metadata> [--dry-run]`; development: `pnpm keys:<command>`. `encrypt-metadata` is the one-time backfill for rows written before E3 (see the E3 rollout in [recovery.md](recovery.md)).
 - **The database protects stored keys against mistakes:** rows in `key_encryption_keys` cannot be deleted, truncated or altered (only `status` can change, and only from active to retired) unless a transaction explicitly sets `trustpass.allow_key_destroy`. **Limit:** this guards against application errors, not against someone with the app's own database login, which owns the tables and can disable triggers or drop the table (the same single-role limit as the audit tables). The real protection is the KMS: without it, stored keys cannot be decrypted, and nobody can create keys the app would accept. The length check only rejects a raw 32-byte key stored by mistake, not every possible plaintext form.
 - **Fail-closed start-up:** if a key that documents need is really lost, the whole app refuses to start (before E2 only those documents failed). Run the E0 read-only check before each deploy that changes keys.
 - Deleting a document deletes its wrapped key, claims and ciphertext (crypto-shredding). A backup taken before the deletion still holds both and stays readable while its keys exist. Backup, restore and the restore drill are described in [recovery.md](recovery.md).

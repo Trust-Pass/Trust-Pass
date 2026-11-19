@@ -26,6 +26,10 @@ jobs:
           --health-retries 10
     env:
       TEST_DATABASE_URL: postgresql://trustpass:trustpass_dev@localhost:5432/trustpass_test
+      # Optional: live Google Cloud KMS tests (test key and test service account only; never
+      # production's). Empty when the secrets are not set, and the live suite is skipped.
+      GCP_TEST_KMS_KEY_NAME: ${{ secrets.GCP_TEST_KMS_KEY_NAME }}
+      GCP_TEST_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_TEST_SERVICE_ACCOUNT_JSON }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
