@@ -315,19 +315,131 @@ export async function checkShareLinks(
 }
 
 async function sessionCookie(deps: AppDeps, userId: string): Promise<string> {
+  return (await createSession(deps, userId)).token;
+}
+
+/** A session in the throw-away copy, valid at any rehearsal clock time. */
+async function createSession(deps: AppDeps, userId: string): Promise<{ token: string; csrf: string }> {
   const token = randomBytes(32).toString('base64url');
-  const now = new Date(0); // valid at any rehearsal clock time
+  const csrf = randomBytes(16).toString('hex');
+  const now = new Date(0);
   await deps.prisma.session.create({
     data: {
       userId,
       tokenHash: hashToken(token),
-      csrfToken: randomBytes(16).toString('hex'),
+      csrfToken: csrf,
       createdAt: now,
       lastSeenAt: new Date('2999-01-01T00:00:00Z'),
       expiresAt: new Date('2999-01-01T00:00:00Z'),
     },
   });
-  return token;
+  return { token, csrf };
+}
+
+export interface ProbeReport {
+  /** Active documents whose owner account is active. */
+  documents: number;
+  linksCreated: number;
+  viewsOk: number;
+  filesOk: number;
+  downloadsOk: number;
+  skipped: Failure[];
+  failures: Failure[];
+}
+
+/**
+ * Real files through the recipient path, on the throw-away copy only. Existing links may all have
+ * ended, so for every active document the rehearsal signs in as its owner (a session created in the
+ * copy), creates a new link through the real API (every field, the file, downloads allowed, 1 hour)
+ * and opens it as an anonymous recipient: the view must show every field (or a verified credential),
+ * the file must come back as a watermarked PDF, and one downloaded copy must parse with the original's
+ * page count and the recipient stamp. This exercises link creation, the access gate, decryption,
+ * watermarking and the download builder on the real documents.
+ */
+export async function probeDocuments(deps: AppDeps, app: FastifyInstance, clock: { now: Date }, geo: RehearsalGeo, realNow: Date): Promise<ProbeReport> {
+  const { prisma } = deps;
+  const report: ProbeReport = { documents: 0, linksCreated: 0, viewsOk: 0, filesOk: 0, downloadsOk: 0, skipped: [], failures: [] };
+  clock.now = realNow;
+  geo.country = 'SA';
+  const documents = await prisma.document.findMany({
+    where: { deletedAt: null },
+    include: { claims: { select: { id: true } }, owner: { select: { id: true, status: true } } },
+    orderBy: { id: 'asc' },
+  });
+  let n = 0;
+  for (const doc of documents) {
+    const r = ref(doc.id);
+    if (doc.owner.status !== 'active') {
+      report.skipped.push({ ref: r, stage: 'owner account not active' });
+      continue;
+    }
+    report.documents++;
+    n++;
+    const session = await createSession(deps, doc.owner.id);
+    const create = await app.inject({
+      method: 'POST',
+      url: `/api/documents/${doc.id}/links`,
+      cookies: { [deps.config.cookieName]: session.token },
+      headers: { 'x-csrf-token': session.csrf },
+      remoteAddress: `198.18.${Math.floor(n / 250) % 250}.${(n % 250) + 1}`,
+      payload: {
+        claimIds: doc.claims.map((c) => c.id),
+        includeFile: true,
+        allowDownload: true,
+        recipientType: 'anyone',
+        recipientLabel: 'Rehearsal check',
+        expiresIn: '1h',
+        allowedCountries: [],
+      },
+    });
+    if (create.statusCode !== 201) {
+      report.failures.push({ ref: r, stage: `creating a link answered ${create.statusCode}` });
+      continue;
+    }
+    report.linksCreated++;
+    const token = String((create.json() as { url: string }).url).split('/s/')[1] ?? '';
+    const address = `198.19.${Math.floor(n / 250) % 250}.${(n % 250) + 1}`;
+    const get = (path: string) => app.inject({ method: 'GET', url: `/api/share/${token}${path}`, remoteAddress: address });
+
+    const view = await get('');
+    if (view.statusCode !== 200) {
+      report.failures.push({ ref: r, stage: `probe view answered ${view.statusCode}` });
+      continue;
+    }
+    const body = view.json() as { document: { title: string; downloadAllowed?: boolean }; fields: unknown[]; verification: { result: string } };
+    const dek = await loadDataKey(deps, doc.id);
+    const titleOk = body.document.title === openTitle(dek, doc);
+    dek.fill(0);
+    const fieldsOk = doc.kind === 'credential' ? body.verification.result === 'verified' : body.fields.length === doc.claims.length;
+    if (!titleOk || !fieldsOk || body.document.downloadAllowed !== true) {
+      report.failures.push({ ref: r, stage: !titleOk ? 'probe view title differs' : !fieldsOk ? 'probe view fields differ' : 'probe download not offered' });
+      continue;
+    }
+    report.viewsOk++;
+
+    const file = await get('/file');
+    if (file.statusCode !== 200 || file.rawPayload.subarray(0, 5).toString('latin1') !== '%PDF-') {
+      report.failures.push({ ref: r, stage: `probe file answered ${file.statusCode}` });
+      continue;
+    }
+    report.filesOk++;
+
+    const dl = await get('/download');
+    if (dl.statusCode !== 200) {
+      report.failures.push({ ref: r, stage: `probe download answered ${dl.statusCode}` });
+      continue;
+    }
+    try {
+      const pdf = await PDFDocument.load(dl.rawPayload);
+      const expectedPages = doc.mimeType === 'application/pdf' ? await pageCountOf(deps, doc) : 1;
+      const stamped = pdfText(dl.rawPayload).includes(hexOf('CONFIDENTIAL - Downloaded for: Rehearsal check'));
+      if (pdf.getPageCount() === expectedPages && stamped) report.downloadsOk++;
+      else report.failures.push({ ref: r, stage: 'probe download is not the expected watermarked PDF' });
+    } catch {
+      report.failures.push({ ref: r, stage: 'probe download does not parse' });
+    }
+  }
+  return report;
 }
 
 async function pageCountOf(deps: AppDeps, document: Parameters<typeof readDocumentFile>[1]): Promise<number> {

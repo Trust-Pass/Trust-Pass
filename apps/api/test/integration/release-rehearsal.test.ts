@@ -147,10 +147,13 @@ describe('release rehearsal on a production-like copy', () => {
       skipped: [],
     });
 
+    // Every real document, through a new link, as a recipient: view, file, watermarked download.
+    expect(report.recipientProbe).toMatchObject({ documents: 3, linksCreated: 3, viewsOk: 3, filesOk: 3, downloadsOk: 3, failures: [], skipped: [] });
+
     // The rehearsal really converted this copy (it is a throw-away restore in real use).
     expect(await ctx.prisma.document.count({ where: { title: { not: null } } })).toBe(0);
-    // ... and downloads are back OFF on every link.
-    expect(await ctx.prisma.sharingLink.count({ where: { allowDownload: true } })).toBe(0);
+    // ... downloads are back OFF on every link that existed before (only the 3 probe links allow them).
+    expect(await ctx.prisma.sharingLink.count({ where: { allowDownload: true } })).toBe(3);
     // The report carries no names, values or tokens.
     const text = JSON.stringify(report);
     for (const secret of ['Passport scan', 'ID photo', 'Aramco', '1234567890', 'Riyadh Bank HR', data.links.fieldsAndFile.token, TEST_SECRETS.MASTER_KEY]) {

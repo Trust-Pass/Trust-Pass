@@ -161,6 +161,8 @@ jobs:
           echo "$report" | grep -q '1 already applied, 4 applied now'
           echo "$report" | grep -q '"endedRefused": 2'
           echo "$report" | grep -q '"downloadsOk": 4'
+          echo "$report" | grep -q '"linksCreated": 3'
+          echo "$report" | grep -c '"downloadsOk": 3' | grep -q 1
           # Nothing readable from the documents, and no secret, in the report or on screen.
           ! { echo "$report"; cat /tmp/rehearsal/console.txt; } | grep -E "Fixture Passport|Fixture Photo|FixtureCorp|1029384756|Fixture Bank HR|$CI_MASTER_KEY|$CI_BACKUP_PASSPHRASE"
       - name: A wrong MASTER_KEY is refused and changes nothing

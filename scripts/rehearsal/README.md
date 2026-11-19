@@ -57,6 +57,7 @@ format (job `release-rehearsal`).
 | `dryRun.readBackFailures: 0`, `backfill.ok: true`, `plainMetadataAfter` all 0, `secondRunChanges: 0` | The backfill passes its read-back checks, leaves nothing in clear, and is safe to run twice |
 | `links.failures: []`, `endedRefused`, `expiredRefusedToday`, `viewsOk`, `filesOk`, `downloadsOk` | Every link copy opens; revoked/expired links stay refused; every link opens with the right title and fields; shared files and a watermarked download work |
 | `downloadsOffByDefault: true` | No existing link gets downloads after the release |
+| `recipientProbe`: `linksCreated`, `viewsOk`, `filesOk`, `downloadsOk` = active documents, `failures: []` | On the copy only, a new link is created for every real document as its owner; a recipient opens it, sees every field, gets the watermarked file and downloads a watermarked copy with the right page count |
 | `ciphertextUnchanged: true` | No stored file or document key was changed |
 
 If it fails, nothing happened to production; send me the report (it contains no secrets).

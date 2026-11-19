@@ -8,6 +8,7 @@ import {
   checkShareLinks,
   ciphertextFingerprint,
   compareSnapshots,
+  probeDocuments,
   RehearsalGeo,
   snapshotDocuments,
   type Failure,
@@ -45,6 +46,8 @@ export interface RehearsalReport {
   unchangedDocuments: number;
   changedDocuments: Failure[];
   links: Awaited<ReturnType<typeof checkShareLinks>> | null;
+  /** New link per active document, opened as a recipient: real files viewed and downloaded. */
+  recipientProbe: Awaited<ReturnType<typeof probeDocuments>> | null;
   ciphertextUnchanged: boolean;
   verdict: 'REHEARSAL PASSED' | 'REHEARSAL FAILED';
   reasons: string[];
@@ -132,6 +135,7 @@ export async function runRehearsal(
 
     // 5. Share links, file views and recipient downloads through the real routes.
     const links = await checkShareLinks(app2.deps, app2, clock, geo, realNow);
+    const probe = await probeDocuments(app2.deps, app2, clock, geo, realNow);
     const fpEnd = await ciphertextFingerprint(app2.deps);
     await app2.close();
 
@@ -145,6 +149,8 @@ export async function runRehearsal(
     if (comparison.changed.length) reasons.push(`${comparison.changed.length} document(s) read differently after the backfill`);
     if (links.failures.length) reasons.push(`${links.failures.length} share-link check(s) failed`);
     if (!links.downloadsOffByDefault) reasons.push('an existing link has downloads switched on');
+    if (probe.failures.length) reasons.push(`${probe.failures.length} recipient check(s) on real documents failed`);
+    if (probe.documents > 0 && probe.downloadsOk !== probe.documents) reasons.push('not every active document could be viewed and downloaded by a recipient');
     if (!ciphertextUnchanged) reasons.push('stored files or document keys changed');
 
     return {
@@ -166,6 +172,7 @@ export async function runRehearsal(
       unchangedDocuments: comparison.same,
       changedDocuments: comparison.changed,
       links,
+      recipientProbe: probe,
       ciphertextUnchanged,
       verdict: reasons.length === 0 ? 'REHEARSAL PASSED' : 'REHEARSAL FAILED',
       reasons,
@@ -191,6 +198,7 @@ function failedEarly(versions: number[], reasons: string[], reason: string): Reh
     unchangedDocuments: 0,
     changedDocuments: [],
     links: null,
+    recipientProbe: null,
     ciphertextUnchanged: true,
     verdict: 'REHEARSAL FAILED',
     reasons,
