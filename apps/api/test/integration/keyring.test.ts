@@ -163,7 +163,7 @@ describe('migrating from the legacy MASTER_KEY to KMS-protected keys', () => {
     const legacy = await start(LEGACY);
     const owner = await registerUser(legacy);
     const docId = (await uploadDocument(legacy, owner)).json().document.id as string;
-    const link = await createLink(legacy, owner, docId, { recipientLabel: 'HR' });
+    const link = await createLink(legacy, owner, docId, { includeFile: true, recipientLabel: 'HR' });
     const linkId = await linkIdFor(link.token);
     // Re-create the pre-E2 row: token sealed with the key-encryption key derived from MASTER_KEY ("kek:v1").
     const { linkTokenAad, seal: sealWith, open: openWith } = await import('../../src/lib/crypto');
