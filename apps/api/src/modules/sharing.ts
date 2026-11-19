@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
-import { createLinkSchema, EXPIRY_PRESETS, updateCountriesSchema } from '@trustpass/shared';
+import { createLinkSchema, EXPIRY_PRESETS, updateCountriesSchema, updateDownloadSchema } from '@trustpass/shared';
 import { z } from 'zod';
 import { hashToken, linkTokenAad, open, randomToken, seal } from '../lib/crypto';
 import { AppError, badRequest, notFound, parse } from '../lib/errors';
@@ -116,6 +116,7 @@ export async function sharingRoutes(app: FastifyInstance) {
             recipientOrgId,
             recipientLabelEncrypted,
             includeFile: input.includeFile,
+            allowDownload: input.includeFile && input.allowDownload,
             expiresAt,
             createdAt: current,
           },
@@ -135,6 +136,7 @@ export async function sharingRoutes(app: FastifyInstance) {
             recipientType: input.recipientType,
             fields: claimIds.length,
             includeFile: input.includeFile,
+            allowDownload: input.includeFile && input.allowDownload,
             expiresAt: expiresAt.toISOString(),
             countries: input.allowedCountries,
           },
@@ -158,7 +160,7 @@ export async function sharingRoutes(app: FastifyInstance) {
       }
 
       return reply.status(201).send({
-        link: { id: link.id, expiresAt: link.expiresAt, recipientLabel: input.recipientLabel },
+        link: { id: link.id, expiresAt: link.expiresAt, recipientLabel: input.recipientLabel, allowDownload: link.allowDownload },
         url: shareUrl(deps, token),
       });
     },
@@ -207,6 +209,7 @@ export async function sharingRoutes(app: FastifyInstance) {
           recipientType: l.recipientType,
           recipientOrg: l.recipientOrg?.name ?? null,
           includeFile: l.includeFile,
+          allowDownload: l.includeFile && l.allowDownload,
           claimCount: l._count.permissions,
           countries: l.countries.map((c) => c.countryCode),
           expiresAt: l.expiresAt,
@@ -242,6 +245,7 @@ export async function sharingRoutes(app: FastifyInstance) {
         recipientType: link.recipientType,
         recipientOrg: link.recipientOrg?.name ?? null,
         includeFile: link.includeFile,
+        allowDownload: link.includeFile && link.allowDownload,
         fields,
         countries: link.countries.map((c) => c.countryCode),
         expiresAt: link.expiresAt,
@@ -288,6 +292,27 @@ export async function sharingRoutes(app: FastifyInstance) {
       });
     });
     return { ok: true, countries: input.allowedCountries };
+  });
+
+  app.put('/api/links/:id/download', async (request) => {
+    const { user } = requireUser(request);
+    const link = await getOwnedLink(deps, parseId(request, 'Link'), user.id);
+    if (linkStatus(link, now()) !== 'active') throw new AppError(409, 'link_inactive', 'Only active links can be changed');
+    const input = parse(updateDownloadSchema, request.body);
+    if (input.allowDownload && !link.includeFile) throw badRequest('Downloads need the file to be shared on this link');
+    if (input.allowDownload === link.allowDownload) return { ok: true, allowDownload: link.allowDownload };
+    await prisma.$transaction(async (tx) => {
+      await tx.sharingLink.update({ where: { id: link.id }, data: { allowDownload: input.allowDownload } });
+      await logEvent(tx, {
+        userId: user.id,
+        actorUserId: user.id,
+        eventType: 'link_download_updated',
+        documentId: link.documentId,
+        linkId: link.id,
+        metadata: { before: link.allowDownload, after: input.allowDownload },
+      });
+    });
+    return { ok: true, allowDownload: input.allowDownload };
   });
 
   app.post('/api/links/:id/revoke', async (request) => {

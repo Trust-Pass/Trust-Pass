@@ -1,7 +1,7 @@
 import { EXPIRY_LABELS } from '@trustpass/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { ArrowLeft, Building2, CheckCircle2, Clock, ExternalLink, FileText, Globe2, ListChecks, Send, Share2, Users } from 'lucide-react';
+import { ArrowLeft, Building2, CheckCircle2, Clock, ExternalLink, FileText, Globe2, ListChecks, Send, Share2, Users, Download } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { CountryPicker } from '../components/CountryPicker';
@@ -71,6 +71,7 @@ export function SharePage() {
 
   const [claimIds, setClaimIds] = useState<string[]>([]);
   const [includeFile, setIncludeFile] = useState(false);
+  const [allowDownload, setAllowDownload] = useState(false);
   const [recipientType, setRecipientType] = useState<'anyone' | 'organization'>('anyone');
   const [recipientLabel, setRecipientLabel] = useState('');
   const [org, setOrg] = useState<{ id: string; name: string } | null>(null);
@@ -94,6 +95,7 @@ export function SharePage() {
         body: {
           claimIds,
           includeFile,
+          allowDownload: includeFile && allowDownload,
           recipientType,
           recipientOrgId: recipientType === 'organization' ? org?.id : undefined,
           recipientLabel: recipientType === 'organization' ? (org?.name ?? '') : recipientLabel,
@@ -145,6 +147,7 @@ export function SharePage() {
             </div>
             <ul className="space-y-1.5 text-sm text-slate-600">
               <li>• {claimIds.length} field{claimIds.length === 1 ? '' : 's'}{includeFile ? ' and the watermarked file' : ' only, not the file'}</li>
+              {includeFile && <li>• {allowDownload ? 'Recipient can download a watermarked PDF copy' : 'View only: downloads are off'}</li>}
               <li>• {restrictCountries && countries.length ? `Only from ${countries.map(flag).join(' ')}` : 'No country restriction'}</li>
               <li>• You can revoke it at any time from Sharing links</li>
             </ul>
@@ -206,6 +209,20 @@ export function SharePage() {
               }
               description="The file shows everything printed on it. Leave this off to share only the fields above."
             />
+            {includeFile && (
+              <div className="mt-3 border-t border-slate-200 pt-3" data-testid="allow-download">
+                <Toggle
+                  checked={allowDownload}
+                  onChange={setAllowDownload}
+                  label={
+                    <span className="flex items-center gap-1.5">
+                      <Download className="size-4" /> Allow download of a watermarked PDF
+                    </span>
+                  }
+                  description="The recipient gets a separate copy with their name, the time and a unique reference on every page. Your original stays encrypted and unchanged. Expiry, revocation and country rules are checked before every download."
+                />
+              </div>
+            )}
           </div>
           {includeFile && doc.claims.length > 0 && (
             <Alert tone="warning" className="mt-3">

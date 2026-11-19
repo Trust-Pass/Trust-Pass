@@ -2,9 +2,10 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { AccessOutcome, AccessResource, AllowedCountry, Document, DocumentClaim, SharingLink, SharingPermission } from '@prisma/client';
 import { countryName } from '@trustpass/shared';
 import { z } from 'zod';
+import { randomBytes } from 'node:crypto';
 import { hashToken, hmacHex } from '../lib/crypto';
 import { AppError, notFound } from '../lib/errors';
-import { watermarkDocument } from '../lib/pdf';
+import { buildRecipientCopy, watermarkDocument } from '../lib/pdf';
 import { userAgentFamily } from '../lib/user-agent';
 import { requireUser } from '../plugins/auth';
 import { logEvent, notify, recentlyNotified } from '../services/audit';
@@ -36,6 +37,7 @@ interface GateDecision {
   outcome: AccessOutcome;
   country: string | null;
   accessorOrgId: string | null;
+  logId: bigint;
 }
 
 const BURST_WINDOW_MS = 10 * 60_000;
@@ -103,7 +105,7 @@ export async function evaluateAccess(
   }
 
   await raiseAlerts(deps, link, outcome, country, current, logRow.id).catch((err) => request.log.warn({ err }, 'alert evaluation failed'));
-  return { outcome, country, accessorOrgId };
+  return { outcome, country, accessorOrgId, logId: logRow.id };
 }
 
 /** Alerts say "worth a look"; they never call an attempt an attack. */
@@ -259,6 +261,7 @@ async function buildSharedView(deps: AppDeps, request: FastifyRequest, link: Gat
         category: document.category,
         kind: document.kind,
         fileShared: link.includeFile,
+        downloadAllowed: link.includeFile && link.allowDownload,
         mimeType: link.includeFile ? document.mimeType : null,
       },
       fields,
@@ -292,6 +295,88 @@ async function sendWatermarkedFile(deps: AppDeps, reply: FastifyReply, link: Gat
   return reply.headers(fileResponseHeaders('application/pdf')).send(watermarked);
 }
 
+const DOWNLOAD_NOTICE_WINDOW_MS = 60 * 60_000;
+
+/** Checked before the gate too, so a refused download is never logged as a granted one. */
+function assertDownloadAllowed(link: GateLink) {
+  if (!link.includeFile) throw new AppError(403, 'file_not_shared', 'The owner shared selected details only, not the file.');
+  if (!link.allowDownload) throw new AppError(403, 'download_not_allowed', 'The owner allowed viewing only. Downloads are not allowed for this link.');
+}
+
+/**
+ * Recipient download. Runs only after evaluateAccess granted THIS request (expiry, revocation,
+ * recipient organization and allowed countries are re-checked on every download).
+ *  - the owner must have shared the file AND allowed downloads on this link
+ *  - the stored original is decrypted in memory only; storage, ciphertext, IV, tag and wrapped
+ *    key are read, never written
+ *  - a separate PDF is generated for this download, stamped on every page with the recipient,
+ *    the time, a unique copy reference and the link reference
+ *  - the copy reference is logged so a leaked file can be traced to this exact download
+ */
+async function sendRecipientDownload(
+  deps: AppDeps,
+  request: FastifyRequest,
+  reply: FastifyReply,
+  link: GateLink,
+  decision: GateDecision,
+) {
+  assertDownloadAllowed(link);
+  const { prisma } = deps;
+  const dek = await loadDataKey(deps, link.document.id);
+  let data: Buffer = Buffer.alloc(0);
+  let recipient = '';
+  try {
+    data = await readDocumentFile(deps, link.document, dek);
+    recipient = link.recipientOrg?.name ?? openRecipientLabel(dek, link);
+  } finally {
+    dek.fill(0);
+  }
+  const current = deps.now();
+  const copyRef = randomBytes(5).toString('hex').toUpperCase();
+  const copy = await buildRecipientCopy(data, link.document.mimeType, {
+    recipient,
+    viewedAt: current,
+    linkRef: link.id.slice(0, 8),
+    download: {
+      copyRef,
+      // Organization links: also stamp the member who downloaded it.
+      downloadedBy: link.recipientType === 'organization' ? request.auth?.user.fullName : undefined,
+    },
+  });
+  data.fill(0);
+
+  await logEvent(prisma, {
+    userId: link.ownerId,
+    actorUserId: request.auth?.user.id ?? null,
+    eventType: 'recipient_downloaded',
+    documentId: link.documentId,
+    linkId: link.id,
+    // Ids and references only (E4): no title, no recipient name.
+    metadata: { copyRef, accessLogId: decision.logId.toString(), country: decision.country, sizeBytes: copy.length },
+    at: current,
+  });
+  const since = new Date(current.getTime() - DOWNLOAD_NOTICE_WINDOW_MS);
+  if (!(await recentlyNotified(prisma, link.ownerId, 'link_downloaded', link.id, since))) {
+    await notify(prisma, {
+      userId: link.ownerId,
+      type: 'link_downloaded',
+      title: 'A recipient downloaded your document',
+      body: `"{document}" was downloaded through your link for {recipient} as a watermarked copy (reference ${copyRef}).`,
+      linkId: link.id,
+      documentId: link.documentId,
+      at: current,
+    });
+  }
+
+  return reply
+    .headers({
+      ...fileResponseHeaders('application/pdf'),
+      'Content-Disposition': `attachment; filename="trustpass-copy-${copyRef}.pdf"`,
+      'X-TrustPass-Copy': copyRef,
+    })
+    .send(copy);
+}
+
 const tokenParam = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{20,100}$/) });
 
 export async function accessRoutes(app: FastifyInstance) {
@@ -315,6 +400,7 @@ export async function accessRoutes(app: FastifyInstance) {
   }
 
   const shareLimit = { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } };
+  const downloadLimit = { config: { rateLimit: { max: 20, timeWindow: '10 minutes' } } };
 
   app.get('/api/share/:token', shareLimit, async (request) => {
     const link = await findByToken(request);
@@ -328,6 +414,14 @@ export async function accessRoutes(app: FastifyInstance) {
     const decision = await evaluateAccess(deps, request, link, 'file');
     if (decision.outcome !== 'granted') throw denialError(link, decision, Boolean(request.auth));
     return sendWatermarkedFile(deps, reply, link);
+  });
+
+  app.get('/api/share/:token/download', downloadLimit, async (request, reply) => {
+    const link = await findByToken(request);
+    assertDownloadAllowed(link);
+    const decision = await evaluateAccess(deps, request, link, 'download');
+    if (decision.outcome !== 'granted') throw denialError(link, decision, Boolean(request.auth));
+    return sendRecipientDownload(deps, request, reply, link, decision);
   });
 
   // ---- Organization inbox: links addressed to the user's organizations ------
@@ -358,6 +452,7 @@ export async function accessRoutes(app: FastifyInstance) {
         organization: l.recipientOrg,
         fieldCount: l._count.permissions,
         includeFile: l.includeFile,
+        allowDownload: l.includeFile && l.allowDownload,
         expiresAt: l.expiresAt,
         createdAt: l.createdAt,
         status: linkStatus(l, current),
@@ -391,5 +486,14 @@ export async function accessRoutes(app: FastifyInstance) {
     if (decision.outcome === 'denied_recipient') throw notFound('Shared document');
     if (decision.outcome !== 'granted') throw denialError(link, decision, true);
     return sendWatermarkedFile(deps, reply, link);
+  });
+
+  app.get('/api/inbox/:id/download', downloadLimit, async (request, reply) => {
+    const link = await findInboxLink(request);
+    const decision = await evaluateAccess(deps, request, link, 'download');
+    if (decision.outcome === 'denied_recipient') throw notFound('Shared document');
+    assertDownloadAllowed(link);
+    if (decision.outcome !== 'granted') throw denialError(link, decision, true);
+    return sendRecipientDownload(deps, request, reply, link, decision);
   });
 }

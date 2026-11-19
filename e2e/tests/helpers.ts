@@ -42,11 +42,12 @@ export async function issueCredential(page: Page, nameOnCertificate = 'Reham Alk
 export async function shareFields(
   page: Page,
   documentId: string,
-  opts: { fields?: string[]; recipient?: string; organization?: string; countries?: { add?: string[]; remove?: string[] }; includeFile?: boolean },
+  opts: { fields?: string[]; recipient?: string; organization?: string; countries?: { add?: string[]; remove?: string[] }; includeFile?: boolean; allowDownload?: boolean },
 ) {
   await page.goto(`/app/documents/${documentId}/share`);
   for (const field of opts.fields ?? []) await page.getByText(field, { exact: true }).click();
   if (opts.includeFile) await page.getByText('Include the file').click();
+  if (opts.allowDownload) await page.getByText('Allow download of a watermarked PDF').click();
   if (opts.organization) {
     await page.getByRole('radio', { name: 'A TrustPass organization' }).click();
     await page.getByLabel('Search organizations').fill(opts.organization);

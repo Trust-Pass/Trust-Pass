@@ -13,6 +13,7 @@ The core features need the plaintext on the server, at the moment of a request:
 | Owner views a file or its fields | file, field values, title | `modules/documents.ts` |
 | Recipient opens a link | only the fields the owner chose; the file only if included | `modules/access.ts` |
 | Watermarked view-only PDF | the file, to stamp the recipient's name and time on every page | `lib/pdf.ts` |
+| Recipient download (if the owner allows it) | the file, to build a separate watermarked copy per download | `modules/access.ts`, `docs/recipient-download.md` |
 | Selective disclosure (SD-JWT) | the signed credential, to send only the chosen claims | `modules/access.ts` |
 | Server-checked rules | expiry, country and recipient are enforced before anything is decrypted | `modules/access.ts` |
 | Verification page | the credential, to check the issuer's Ed25519 signature | `modules/verification.ts` |

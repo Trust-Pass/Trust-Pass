@@ -1,4 +1,5 @@
 import { Clock, Download, Eye, FileText, Info, MapPin, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
 import { country, formatDateTime, relativeTime } from '../lib/format';
 import type { SharedView } from '../lib/types';
 import { LazyPdfViewer } from './LazyPdfViewer';
@@ -7,6 +8,37 @@ import { VerificationPanel } from './VerificationPanel';
 
 /** What a recipient sees: only the disclosed fields, the verification result and, if shared, the watermarked file. */
 export function SharedDocument({ view, fileUrl }: { view: SharedView; fileUrl: string }) {
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [lastCopy, setLastCopy] = useState<string | null>(null);
+
+  // Every download is a new request: the server re-checks expiry, revocation and country first,
+  // then generates a separate watermarked copy for this recipient.
+  const downloadCopy = async () => {
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      const res = await fetch(fileUrl.replace(/\/file$/, '/download'), { credentials: 'include', cache: 'no-store' });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+        throw new Error(body?.error?.message ?? 'The download is not available.');
+      }
+      const ref = res.headers.get('X-TrustPass-Copy') ?? 'copy';
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `trustpass-copy-${ref}.pdf`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setLastCopy(ref);
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : 'The download is not available.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const downloadPresentation = () => {
     if (!view.presentation) return;
     const blob = new Blob([view.presentation], { type: 'text/plain' });
@@ -95,7 +127,29 @@ export function SharedDocument({ view, fileUrl }: { view: SharedView; fileUrl: s
 
       {view.document.fileShared && (
         <Card>
-          <CardHeader title="Document" subtitle="Watermarked for you. Downloads are disabled." icon={<FileText className="size-5" />} />
+          <CardHeader
+            title="Document"
+            subtitle={view.document.downloadAllowed ? 'Watermarked for you. You can download a watermarked copy.' : 'Watermarked for you. Downloads are disabled.'}
+            icon={<FileText className="size-5" />}
+          />
+          {view.document.downloadAllowed && (
+            <div className="space-y-2 border-b border-slate-100 px-4 py-3 sm:px-6" data-testid="download-panel">
+              <button
+                type="button"
+                onClick={downloadCopy}
+                disabled={downloading}
+                data-testid="download-copy"
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+              >
+                <Download className="size-4" /> {downloading ? 'Preparing your copy…' : 'Download watermarked PDF'}
+              </button>
+              <p className="text-[13px] text-slate-500">
+                Your name, the time and a unique copy reference are printed on every page. The download is logged for the owner.
+              </p>
+              {lastCopy && <p className="text-[13px] text-teal-400" data-testid="download-done">Downloaded copy {lastCopy}.</p>}
+              {downloadError && <p className="text-[13px] text-red-500" role="alert" data-testid="download-error">{downloadError}</p>}
+            </div>
+          )}
           <div className="bg-slate-100/70 p-3 sm:p-5">
             <LazyPdfViewer src={fileUrl} label={view.document.title} />
           </div>

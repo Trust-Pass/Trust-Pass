@@ -154,6 +154,8 @@ export const createLinkSchema = z
   .object({
     claimIds: z.array(z.string().uuid()).max(MAX_CLAIMS_PER_DOCUMENT).default([]),
     includeFile: z.boolean(),
+    /** Recipient may download a separate watermarked PDF. Only with includeFile. */
+    allowDownload: z.boolean().default(false),
     recipientType: z.enum(RECIPIENT_TYPES),
     recipientOrgId: z.string().uuid().optional(),
     recipientLabel: z.string().trim().min(1, 'Name the recipient').max(80),
@@ -162,6 +164,13 @@ export const createLinkSchema = z
     allowedCountries: allowedCountriesSchema.default([]),
   })
   .superRefine((value, ctx) => {
+    if (value.allowDownload && !value.includeFile) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['allowDownload'],
+        message: 'Downloads need the file to be shared',
+      });
+    }
     if (!value.includeFile && value.claimIds.length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -187,6 +196,8 @@ export const createLinkSchema = z
 export type CreateLinkInput = z.infer<typeof createLinkSchema>;
 
 export const updateCountriesSchema = z.object({ allowedCountries: allowedCountriesSchema });
+
+export const updateDownloadSchema = z.object({ allowDownload: z.boolean() });
 
 // ---------------------------------------------------------------------------
 // Access, verification and events
@@ -263,6 +274,8 @@ export const SECURITY_EVENT_LABELS: Record<string, string> = {
   link_created: 'Sharing link created',
   link_revoked: 'Sharing link revoked',
   link_countries_updated: 'Country rules updated',
+  link_download_updated: 'Download permission changed',
+  recipient_downloaded: 'Recipient downloaded a watermarked copy',
   verification_completed: 'Verification completed',
   org_member_added: 'Organization member added',
   org_member_removed: 'Organization member removed',

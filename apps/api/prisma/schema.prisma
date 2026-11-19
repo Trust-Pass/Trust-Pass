@@ -92,6 +92,7 @@ enum AccessOutcome {
 enum AccessResource {
   details
   file
+  download
 }
 
 enum Severity {
@@ -292,6 +293,8 @@ model SharingLink {
   recipientLabel          String?       @map("recipient_label")
   recipientLabelEncrypted Bytes?        @map("recipient_label_encrypted")
   includeFile    Boolean       @map("include_file")
+  /// Recipient may download a separate watermarked PDF (requires includeFile).
+  allowDownload  Boolean       @default(false) @map("allow_download")
   expiresAt      DateTime      @map("expires_at") @db.Timestamptz(3)
   revokedAt      DateTime?     @map("revoked_at") @db.Timestamptz(3)
   lastAccessedAt DateTime?     @map("last_accessed_at") @db.Timestamptz(3)

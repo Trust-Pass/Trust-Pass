@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Ban, ChevronDown, Clock, Globe2, Link2, Pencil, ShieldCheck } from 'lucide-react';
+import { Ban, ChevronDown, Clock, Download, Globe2, Link2, Pencil, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { CountryPicker } from '../components/CountryPicker';
@@ -30,7 +30,15 @@ interface LinkDetail {
 }
 
 function LinkActivity({ id }: { id: string }) {
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ['link', id], queryFn: () => api<LinkDetail>(`/api/links/${id}`) });
+  const setDownload = useMutation({
+    mutationFn: (allowDownload: boolean) => api(`/api/links/${id}/download`, { method: 'PUT', body: { allowDownload } }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['link', id] });
+      void queryClient.invalidateQueries({ queryKey: ['links'] });
+    },
+  });
   if (isLoading || !data) return <Spinner />;
   const l = data.link;
   return (
@@ -39,6 +47,19 @@ function LinkActivity({ id }: { id: string }) {
         <span className="font-medium text-ink">Shared:</span> {l.fields.map((f) => f.label).join(', ') || 'no fields'}
         {l.includeFile && ' + watermarked file'}
       </p>
+      {l.includeFile && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-sm ring-1 ring-slate-200" data-testid="link-download">
+          <span className="flex items-center gap-1.5 text-ink">
+            <Download className="size-4" /> {l.allowDownload ? 'Recipient can download a watermarked PDF' : 'View only: downloads are off'}
+          </span>
+          {l.status === 'active' && (
+            <Button variant="secondary" size="sm" loading={setDownload.isPending} onClick={() => setDownload.mutate(!l.allowDownload)}>
+              {l.allowDownload ? 'Turn off downloads' : 'Allow downloads'}
+            </Button>
+          )}
+          {setDownload.error && <p className="w-full text-[13px] text-red-500">{errorMessage(setDownload.error)}</p>}
+        </div>
+      )}
       {l.recentAccess.length === 0 ? (
         <p className="text-sm text-slate-500">No access attempts yet.</p>
       ) : (
@@ -48,7 +69,7 @@ function LinkActivity({ id }: { id: string }) {
               <span className="min-w-0">
                 <span className="block text-ink">{country(a.country)}</span>
                 <span className="block truncate text-xs text-slate-500">
-                  {a.client} · {a.resource === 'file' ? 'file' : 'details'} · {formatDateTime(a.at)}
+                  {a.client} · {a.resource === 'download' ? 'download' : a.resource === 'file' ? 'file' : 'details'} · {formatDateTime(a.at)}
                 </span>
               </span>
               <OutcomeBadge outcome={a.outcome} />
@@ -138,7 +159,7 @@ export function LinksPage() {
                   <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] text-slate-600">
                     <span className="flex items-center gap-1">
                       <ShieldCheck className="size-3.5" /> {l.claimCount} field{l.claimCount === 1 ? '' : 's'}
-                      {l.includeFile && ' + file'}
+                      {l.includeFile && (l.allowDownload ? ' + file (download allowed)' : ' + file')}
                     </span>
                     <span className="flex items-center gap-1">
                       <Clock className="size-3.5" /> {l.status === 'active' ? `Expires ${relativeTime(l.expiresAt)}` : l.revokedAt ? `Revoked ${relativeTime(l.revokedAt)}` : `Expired ${relativeTime(l.expiresAt)}`}

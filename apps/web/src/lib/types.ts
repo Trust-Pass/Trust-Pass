@@ -70,6 +70,7 @@ export interface DocumentLink {
   recipientType: 'anyone' | 'organization';
   recipientOrg: string | null;
   includeFile: boolean;
+  allowDownload?: boolean;
   claimCount: number;
   expiresAt: string;
   revokedAt: string | null;
@@ -107,7 +108,7 @@ export interface SharedView {
     expiresAt: string;
     viewOnly: boolean;
   };
-  document: { title: string; category: string; kind: 'file' | 'credential'; fileShared: boolean; mimeType: string | null };
+  document: { title: string; category: string; kind: 'file' | 'credential'; fileShared: boolean; downloadAllowed?: boolean; mimeType: string | null };
   fields: Array<{ label: string; value: string; source: 'issuer' | 'self_declared' }>;
   verification: Verification;
   presentation: string | null;
@@ -122,6 +123,7 @@ export interface LinkSummary {
   recipientType: 'anyone' | 'organization';
   recipientOrg: string | null;
   includeFile: boolean;
+  allowDownload?: boolean;
   claimCount: number;
   countries: string[];
   expiresAt: string;

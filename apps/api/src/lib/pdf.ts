@@ -1,4 +1,4 @@
-import { degrees, PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from 'pdf-lib';
+import { degrees, PDFDict, PDFDocument, PDFName, rgb, StandardFonts, type PDFFont, type PDFPage } from 'pdf-lib';
 
 const NAVY = rgb(0.043, 0.106, 0.231);
 const TEAL = rgb(0.078, 0.722, 0.651);
@@ -115,6 +115,8 @@ export interface WatermarkInfo {
   recipient: string;
   viewedAt: Date;
   linkRef: string;
+  /** Set for downloads: a per-download reference that ties a leaked copy to one logged event. */
+  download?: { copyRef: string; downloadedBy?: string };
 }
 
 function watermarkPage(page: PDFPage, font: PDFFont, bold: PDFFont, info: WatermarkInfo) {
@@ -139,10 +141,7 @@ function watermarkPage(page: PDFPage, font: PDFFont, bold: PDFFont, info: Waterm
   }
 
   const when = `${info.viewedAt.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
-  const lines = [
-    `CONFIDENTIAL - Shared with: ${watermarkSafe(info.recipient, 'the named recipient')}`,
-    `Viewed: ${when}  |  Link ${info.linkRef}  |  TrustPass – Authorized Viewing Only`,
-  ];
+  const lines = recipientLines(info, when);
   const textSize = Math.max(6.5, Math.min(9, width / 70));
   const bandHeight = textSize * 2 + 14;
   page.drawRectangle({ x: 0, y: height - bandHeight, width, height: bandHeight, color: NAVY, opacity: 0.82 });
@@ -150,6 +149,21 @@ function watermarkPage(page: PDFPage, font: PDFFont, bold: PDFFont, info: Waterm
   page.drawText(lines[1]!, { x: 10, y: height - textSize * 2 - 9, size: textSize, font, color: rgb(1, 1, 1) });
   page.drawRectangle({ x: 0, y: 0, width, height: textSize + 10, color: NAVY, opacity: 0.82 });
   page.drawText(lines[1]!, { x: 10, y: 5, size: textSize, font, color: rgb(1, 1, 1) });
+}
+
+function recipientLines(info: WatermarkInfo, when: string): [string, string] {
+  if (!info.download) {
+    return [
+      `CONFIDENTIAL - Shared with: ${watermarkSafe(info.recipient, 'the named recipient')}`,
+      `Viewed: ${when}  |  Link ${info.linkRef}  |  TrustPass – Authorized Viewing Only`,
+    ];
+  }
+  const fallback = `the recipient of link ${info.linkRef}`;
+  const by = info.download.downloadedBy ? ` (${watermarkSafe(info.download.downloadedBy, 'member')})` : '';
+  return [
+    `CONFIDENTIAL - Downloaded for: ${watermarkSafe(info.recipient, fallback)}${by}`.slice(0, 160),
+    `Downloaded: ${when}  |  Copy ${info.download.copyRef}  |  Link ${info.linkRef}  |  TrustPass`,
+  ];
 }
 
 /**
@@ -170,6 +184,59 @@ export async function watermarkDocument(data: Buffer, mimeType: string, info: Wa
   }
   pdf.setTitle('TrustPass - authorized viewing only');
   pdf.setProducer('TrustPass');
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  for (const page of pdf.getPages()) watermarkPage(page, font, bold, info);
+  return Buffer.from(await pdf.save());
+}
+
+/**
+ * The recipient's downloadable copy: a NEW PDF, never the stored original.
+ *  - pages are copied into a fresh document, so the original's metadata (author, XMP, outline,
+ *    document-level actions) is not carried over; images are wrapped in a new page
+ *  - every page gets the recipient's name, the download time, a per-download copy reference and
+ *    the link reference, at the top and bottom, plus diagonal stamps
+ *  - link annotations keep their appearance but lose any action
+ * The input buffer is only read. The encrypted original in storage is never touched.
+ */
+export async function buildRecipientCopy(
+  data: Buffer,
+  mimeType: string,
+  info: WatermarkInfo & { download: { copyRef: string; downloadedBy?: string } },
+): Promise<Buffer> {
+  const pdf = await PDFDocument.create({ updateMetadata: false });
+  if (mimeType === 'application/pdf') {
+    const source = await PDFDocument.load(data, { updateMetadata: false });
+    const pages = await pdf.copyPages(source, source.getPageIndices());
+    for (const page of pages) {
+      page.node.delete(PDFName.of('AA'));
+      const annots = page.node.Annots();
+      if (annots) {
+        for (let i = 0; i < annots.size(); i++) {
+          const annot = annots.lookup(i);
+          if (annot instanceof PDFDict) {
+            annot.delete(PDFName.of('A'));
+            annot.delete(PDFName.of('AA'));
+          }
+        }
+      }
+      pdf.addPage(page);
+    }
+  } else {
+    const image = mimeType === 'image/png' ? await pdf.embedPng(data) : await pdf.embedJpg(data);
+    const scale = Math.min(1, 1240 / image.width);
+    const page = pdf.addPage([image.width * scale, image.height * scale]);
+    page.drawImage(image, { x: 0, y: 0, width: image.width * scale, height: image.height * scale });
+  }
+  const now = info.viewedAt;
+  pdf.setTitle(`TrustPass copy ${info.download.copyRef} - for the named recipient only`);
+  pdf.setSubject(`Watermarked copy downloaded from TrustPass link ${info.linkRef}`);
+  pdf.setKeywords(['trustpass', `trustpass-copy:${info.download.copyRef}`, `trustpass-link:${info.linkRef}`]);
+  pdf.setProducer('TrustPass');
+  pdf.setCreator('TrustPass');
+  pdf.setAuthor('TrustPass');
+  pdf.setCreationDate(now);
+  pdf.setModificationDate(now);
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   for (const page of pdf.getPages()) watermarkPage(page, font, bold, info);
