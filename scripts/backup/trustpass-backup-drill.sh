@@ -265,9 +265,12 @@ if [ "$SELFTEST" != 1 ] && [ -f "$OUT/verify-secrets.mjs" ] && command -v node >
   if [[ "$answer" =~ ^[Yy] ]]; then
     psql "${L[@]}" -d restore_drill -XAtq -v ON_ERROR_STOP=1 -c "
       SELECT json_build_object(
-        'documents', COALESCE((SELECT json_agg(to_jsonb(d) || jsonb_build_object('file', encode(so.data, 'hex'), 'key', to_jsonb(k)))
+        'documents', COALESCE((SELECT json_agg((to_jsonb(d) - 'title') || jsonb_build_object('file', encode(so.data, 'hex'), 'key', to_jsonb(k)))
                                FROM documents d LEFT JOIN document_keys k ON k.document_id = d.id
                                LEFT JOIN stored_objects so ON so.key = d.storage_key), '[]'::json),
+        'claims', COALESCE((SELECT json_agg(to_jsonb(c) - 'label') FROM document_claims c), '[]'::json),
+        'credentials', COALESCE((SELECT json_agg(json_build_object('document_id', document_id, 'document_hash', document_hash,
+                                                                  'credential_encrypted', encode(credential_encrypted, 'hex'))) FROM credentials), '[]'::json),
         'links', COALESCE((SELECT json_agg(json_build_object('id', id, 'token_hash', token_hash, 'token_encrypted', encode(token_encrypted, 'hex')))
                            FROM sharing_links), '[]'::json),
         'issuers', COALESCE((SELECT json_agg(public_key_jwk) FROM issuers), '[]'::json),

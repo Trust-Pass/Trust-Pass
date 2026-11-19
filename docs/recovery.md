@@ -75,6 +75,13 @@ docker run --rm -it --tmpfs /work:rw,size=512m,mode=0711 -v "${PWD}:/backup" tru
 ```
 It must end with `RESTORE DRILL OK`. Then do section 4 steps 2–3 and 5 (passphrase in the password manager, copy the `.7z` off this computer). This drill checks structure and data; the full decryption check (`backup verify`, section 5 step 6) additionally needs the secrets and the branch's migrations, and is done separately.
 
+### Document recovery check on an existing backup (no new backup)
+`scripts/backup/trustpass-recovery-check.sh` proves that an existing `.7z` plus the secrets in the password manager recover every document. It runs with **no network**, the backup folder **read-only**, everything decrypted **in RAM**; it decrypts the backup, restores it into a temporary PostgreSQL in RAM, then with the saved `MASTER_KEY` decrypts every document key, file (SHA-256 and file type checked), field, credential and share-link copy, and checks `ISSUER_SIGNING_SEED` against the stored issuer key (`verify-secrets.mjs`). The only output is a report in `recovery-reports/` with counts and yes/no answers. Copy both scripts next to the backups, then from that folder:
+```powershell
+docker run --rm -it --network none --tmpfs /work:rw,size=512m,mode=0711 -v "${PWD}:/backup:ro" -v "${PWD}/recovery-reports:/out" trustpass-pgtools:18 bash /backup/trustpass-recovery-check.sh
+```
+It must end with `RECOVERY OK`. `MASTER_KEY WRONG` means the saved key is not production's; `BACKUP DAMAGED` means the key is right but a stored file is altered or missing.
+
 ### Option B: plain `pg_dump` through Docker
 Use the same major version as the server (18). Only when option A is not possible: this writes an **unencrypted** file, so encrypt it straight away (section 4) and delete the plain file.
 ```bash
