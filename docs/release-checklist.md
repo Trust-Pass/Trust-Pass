@@ -20,6 +20,10 @@ Reham's explicit approval at each APPROVAL step.**
 - ✅ Web hardening: CSRF, rate limits, no-store on all API answers, sandbox CSP on files
 - ✅ QR Shield: offline analysis, dangerous links never auto-opened
 - ✅ Start-up maintenance for a host without a shell (`STARTUP_MAINTENANCE`)
+- ✅ Backfill read-back: no plain value is cleared unless its encrypted copy opens to the same value;
+  a failing document is left untouched and reported
+- ✅ Release rehearsal script + CI end-to-end test on a backup in production's current schema
+- ⏳ Release rehearsal on the real production backup (Reham, on the laptop)
 
 ### Operations
 - ✅ Production secrets saved in the password manager
@@ -48,7 +52,10 @@ copy cannot be recalled.
 ## 3. Exact steps before and during the release
 
 ### Pre-flight (no production change)
-1. CI green on the `claude/release` head (all four jobs). Re-check right before the merge.
+0. **Release rehearsal PASSED on a copy of the latest production backup** (`scripts/rehearsal/README.md`;
+   on the laptop, no network, RAM only). Required before asking for any production approval.
+1. CI green on the `claude/release` head (all five jobs, including `release-rehearsal`). Re-check right
+   before the merge.
 2. Fresh encrypted backup the same day:
    a. Render > trustpass-db > Info > PostgreSQL Inbound IP Rules > Add source: `<your IP>/32` > **Save**
    b. Run the usual backup command on the laptop (normal run, not a new drill)
