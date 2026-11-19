@@ -132,6 +132,11 @@ jobs:
         run: |
           mkdir -p /tmp/rehearsal/dump /tmp/rehearsal/backup /tmp/rehearsal/out
           docker run --rm --network host -v /tmp/rehearsal/dump:/d postgres:18 pg_dump -Fc --no-owner -d "$TEST_DATABASE_URL" -f /d/trustpass-ci.dump
+      - name: Simulate a Windows checkout (CRLF line endings, as Git for Windows creates them)
+        run: |
+          sed -i 's/$/\r/' scripts/rehearsal/trustpass-release-rehearsal.sh
+          find apps/api/prisma/migrations -name '*.sql' -exec sed -i 's/$/\r/' {} +
+          grep -c $'\r' scripts/rehearsal/trustpass-release-rehearsal.sh
       - name: Build the rehearsal image from this commit
         run: docker build -f scripts/rehearsal/Dockerfile --build-arg RELEASE="${GITHUB_SHA::7}" -t trustpass-rehearsal:release .
       - name: Encrypt the backup

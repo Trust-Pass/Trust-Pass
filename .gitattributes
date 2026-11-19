@@ -1,0 +1,6 @@
+# Keep Linux line endings for files that run inside Linux containers, on every checkout
+# (Windows' core.autocrlf would otherwise turn them into CRLF and break bash and checksums).
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+*.sql           text eol=lf
+*.mjs           text eol=lf
