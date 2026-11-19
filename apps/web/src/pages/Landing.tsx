@@ -41,7 +41,7 @@ const HONEST = [
 export function LandingPage() {
   const { me } = useAuth();
   return (
-    <div className="min-h-dvh bg-white">
+    <div className="min-h-dvh">
       <section className="hero-grid text-white">
         <header className="page-pad mx-auto flex h-16 max-w-6xl items-center justify-between">
           <Logo light />
@@ -70,7 +70,7 @@ export function LandingPage() {
           <h1 className="mt-5 max-w-3xl text-4xl leading-[1.1] font-extrabold tracking-tight sm:text-6xl">
             Your documents.
             <br />
-            <span className="text-teal-400">Your control.</span>
+            <span className="bg-gradient-to-r from-teal-300 via-sky-300 to-blue-400 bg-clip-text text-transparent">Your control.</span>
           </h1>
           <p className="mt-5 max-w-xl text-lg text-navy-100">
             Stop sending certificates and IDs over WhatsApp and email. Share only what is necessary, verify what matters, and stay in control after you hit send.
@@ -100,29 +100,29 @@ export function LandingPage() {
       </section>
 
       <section className="page-pad mx-auto max-w-6xl py-16 sm:py-24">
-        <h2 className="text-2xl font-bold tracking-tight text-navy-950 sm:text-3xl">Built for the moments you hand over personal data</h2>
+        <h2 className="text-gradient text-2xl font-bold tracking-tight sm:text-3xl">Built for the moments you hand over personal data</h2>
         <p className="mt-2 max-w-2xl text-slate-600">Job applications, admissions, renting an apartment, proving employment. TrustPass keeps the owner in charge every time.</p>
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map(({ icon: Icon, title, body }) => (
-            <div key={title} className="rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200/80">
-              <div className="inline-flex rounded-xl bg-navy-900 p-2.5 text-teal-400">
+            <div key={title} className="surface-card group rounded-2xl p-5 transition duration-200 hover:-translate-y-0.5 hover:border-blue-400/30">
+              <div className="inline-flex rounded-xl bg-gradient-to-br from-blue-500/25 to-teal-400/10 p-2.5 text-teal-300 ring-1 ring-inset ring-white/10 transition group-hover:text-teal-200">
                 <Icon className="size-5" />
               </div>
-              <h3 className="mt-4 font-semibold text-navy-950">{title}</h3>
+              <h3 className="mt-4 font-semibold text-ink">{title}</h3>
               <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{body}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="bg-navy-50/60 py-16 sm:py-24">
+      <section className="border-y border-white/[0.06] bg-gradient-to-b from-blue-950/40 to-transparent py-16 sm:py-24">
         <div className="page-pad mx-auto max-w-6xl">
-          <h2 className="text-2xl font-bold tracking-tight text-navy-950 sm:text-3xl">How it works</h2>
+          <h2 className="text-gradient text-2xl font-bold tracking-tight sm:text-3xl">How it works</h2>
           <ol className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((step, i) => (
-              <li key={step.title} className="rounded-2xl bg-white p-5 shadow-card ring-1 ring-slate-200/70">
-                <span className="flex size-8 items-center justify-center rounded-full bg-teal-500 text-sm font-bold text-navy-950">{i + 1}</span>
-                <h3 className="mt-3 font-semibold text-navy-950">{step.title}</h3>
+              <li key={step.title} className="surface-card rounded-2xl p-5">
+                <span className="flex size-8 items-center justify-center rounded-full bg-gradient-to-br from-teal-300 to-blue-500 text-sm font-bold text-navy-950 shadow-glow-teal">{i + 1}</span>
+                <h3 className="mt-3 font-semibold text-ink">{step.title}</h3>
                 <p className="mt-1 text-sm text-slate-600">{step.body}</p>
               </li>
             ))}
@@ -136,13 +136,13 @@ export function LandingPage() {
             <div className="inline-flex rounded-xl bg-amber-100 p-2.5 text-amber-700">
               <EyeOff className="size-5" />
             </div>
-            <h2 className="mt-4 text-2xl font-bold tracking-tight text-navy-950 sm:text-3xl">What we will not pretend</h2>
+            <h2 className="mt-4 text-gradient text-2xl font-bold tracking-tight sm:text-3xl">What we will not pretend</h2>
             <p className="mt-2 text-slate-600">Security tools earn trust by being clear about their limits. These are ours.</p>
           </div>
           <ul className="space-y-3">
             {HONEST.map((line) => (
               <li key={line} className="flex gap-3 rounded-xl bg-slate-50 p-4 text-sm leading-relaxed text-slate-700 ring-1 ring-slate-200/80">
-                <Fingerprint className="mt-0.5 size-4 shrink-0 text-navy-500" />
+                <Fingerprint className="mt-0.5 size-4 shrink-0 text-accent" />
                 {line}
               </li>
             ))}
@@ -150,11 +150,11 @@ export function LandingPage() {
         </div>
       </section>
 
-      <footer className="border-t border-slate-200 bg-white">
+      <footer className="border-t border-white/[0.06]">
         <div className="page-pad mx-auto flex max-w-6xl flex-col gap-3 py-8 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <Logo />
           <p>
-            Built for a cybersecurity training camp demonstration. <a href="https://db-ip.com" className="underline hover:text-navy-800" rel="noreferrer noopener" target="_blank">IP Geolocation by DB-IP</a>
+            Built for a cybersecurity training camp demonstration. <a href="https://db-ip.com" className="underline hover:text-ink" rel="noreferrer noopener" target="_blank">IP Geolocation by DB-IP</a>
           </p>
         </div>
       </footer>

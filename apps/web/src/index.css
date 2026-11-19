@@ -1,5 +1,13 @@
 @import 'tailwindcss';
 
+/*
+ * TrustPass "Midnight" theme: a dark navy and electric-blue interface.
+ *
+ * The neutral (slate) scale is mirrored for a dark UI: low numbers are dark surfaces, high numbers
+ * are light text, so `bg-slate-50` is a sunken panel and `text-slate-500` is muted text. Pale tints
+ * of the status colours (50–200) become deep tints and their dark shades (700–950) become light,
+ * so alerts, badges and verdict boxes read correctly on navy without per-page overrides.
+ */
 @theme {
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
@@ -15,20 +23,102 @@
   --color-navy-900: #0b1b3b;
   --color-navy-950: #060f24;
 
-  --shadow-card: 0 1px 2px rgb(11 27 59 / 0.06), 0 1px 3px rgb(11 27 59 / 0.08);
-  --shadow-lift: 0 10px 30px -12px rgb(11 27 59 / 0.35);
+  /* Surfaces and text */
+  --color-canvas: #050b1c;
+  --color-surface: #0b1631;
+  --color-surface-raised: #0f1d3d;
+  --color-ink: #f1f5ff;
+  --color-accent: #8fb4ff;
+  --color-accent-soft: #13254d;
+  --color-accent-line: #24407a;
+
+  --color-slate-50: #08122a;
+  --color-slate-100: #11204a;
+  --color-slate-200: #1b2c57;
+  --color-slate-300: #2a3f72;
+  --color-slate-400: #6b80ad;
+  --color-slate-500: #93a5cb;
+  --color-slate-600: #aebcdc;
+  --color-slate-700: #c7d2ea;
+  --color-slate-800: #dde4f4;
+  --color-slate-900: #edf1fa;
+  --color-slate-950: #f7f9fe;
+
+  --color-teal-50: #072b33;
+  --color-teal-100: #0a3a43;
+  --color-teal-200: #0f5a63;
+  --color-teal-700: #5eead4;
+  --color-teal-800: #99f6e4;
+  --color-teal-900: #ccfbf1;
+  --color-teal-950: #e6fffa;
+
+  --color-emerald-50: #062b22;
+  --color-emerald-100: #083a2d;
+  --color-emerald-200: #0d5641;
+  --color-emerald-700: #6ee7b7;
+  --color-emerald-800: #a7f3d0;
+  --color-emerald-900: #d1fae5;
+  --color-emerald-950: #ecfdf5;
+
+  --color-red-50: #2a0f1d;
+  --color-red-100: #3a1424;
+  --color-red-200: #5c1d33;
+  --color-red-700: #fca5a5;
+  --color-red-800: #fecaca;
+  --color-red-900: #fee2e2;
+  --color-red-950: #fff1f1;
+
+  --color-amber-50: #2a1d0a;
+  --color-amber-100: #3a280d;
+  --color-amber-200: #5a3d12;
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fde68a;
+  --color-amber-900: #fef3c7;
+  --color-amber-950: #fffbeb;
+
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 32px -18px rgb(0 0 0 / 0.8);
+  --shadow-lift: 0 24px 60px -20px rgb(0 0 0 / 0.85), 0 0 0 1px rgb(143 180 255 / 0.08);
+  --shadow-glow: 0 8px 24px -10px rgb(59 130 246 / 0.75);
+  --shadow-glow-teal: 0 8px 24px -10px rgb(45 212 191 / 0.7);
+
+  --animate-rise: rise 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
 }
 
 @layer base {
+  :root {
+    color-scheme: dark;
+  }
   html {
     -webkit-tap-highlight-color: transparent;
     text-size-adjust: 100%;
+    background-color: var(--color-canvas);
   }
   body {
-    @apply bg-slate-50 font-sans text-slate-800 antialiased;
+    @apply font-sans text-slate-800 antialiased;
+    background-color: var(--color-canvas);
+    /* Soft aurora behind every page; fixed so it doesn't scroll with long lists. */
+    background-image:
+      radial-gradient(60rem 40rem at 110% -10%, rgb(37 99 235 / 0.18), transparent 60%),
+      radial-gradient(50rem 36rem at -20% 0%, rgb(20 184 166 / 0.1), transparent 60%),
+      radial-gradient(70rem 50rem at 50% 120%, rgb(30 64 175 / 0.16), transparent 60%);
+    background-attachment: fixed;
+  }
+  ::selection {
+    background: rgb(59 130 246 / 0.45);
+    color: #fff;
   }
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-teal-500;
+    @apply outline-2 outline-offset-2 outline-blue-400;
   }
   input,
   select,
@@ -43,6 +133,13 @@
       font-size: 0.9375rem;
     }
   }
+  select option {
+    background-color: var(--color-surface-raised);
+    color: var(--color-ink);
+  }
+  * {
+    scrollbar-color: var(--color-slate-300) transparent;
+  }
 }
 
 @layer components {
@@ -52,11 +149,61 @@
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
+  /* Cards: a deep panel with a faint top light and a hairline border that brightens toward the top. */
+  .surface-card {
+    background:
+      linear-gradient(180deg, rgb(143 180 255 / 0.05), transparent 120px),
+      var(--color-surface);
+    box-shadow: var(--shadow-card);
+    border: 1px solid rgb(143 180 255 / 0.1);
+  }
+  .btn-primary {
+    background: linear-gradient(180deg, #3b82f6, #2563eb);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: linear-gradient(180deg, #60a5fa, #3b82f6);
+  }
+  .btn-teal {
+    background: linear-gradient(180deg, #5eead4, #2dd4bf);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35);
+  }
+  .btn-teal:hover:not(:disabled) {
+    background: linear-gradient(180deg, #99f6e4, #5eead4);
+  }
+  .text-gradient {
+    background: linear-gradient(90deg, #ffffff 0%, #a5c4ff 55%, #5eead4 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
   .hero-grid {
     background-image:
+      linear-gradient(rgb(143 180 255 / 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(143 180 255 / 0.05) 1px, transparent 1px),
       radial-gradient(circle at 20% 10%, rgb(20 184 166 / 0.25), transparent 40%),
-      radial-gradient(circle at 85% 30%, rgb(47 86 163 / 0.45), transparent 45%),
-      linear-gradient(180deg, var(--color-navy-900), var(--color-navy-950));
+      radial-gradient(circle at 85% 30%, rgb(59 130 246 / 0.4), transparent 45%),
+      linear-gradient(180deg, var(--color-navy-900), var(--color-canvas));
+    background-size:
+      44px 44px,
+      44px 44px,
+      auto,
+      auto,
+      auto;
+  }
+  .glass {
+    background: rgb(8 18 42 / 0.72);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    backdrop-filter: blur(14px) saturate(140%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
@@ -64,4 +211,13 @@
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
+}
+
+@layer components {
+  .sidebar-panel {
+    background:
+      radial-gradient(28rem 20rem at 0% 0%, rgb(59 130 246 / 0.16), transparent 60%),
+      linear-gradient(180deg, #0a1734 0%, #060d22 100%);
+    border-right: 1px solid rgb(143 180 255 / 0.08);
+  }
 }

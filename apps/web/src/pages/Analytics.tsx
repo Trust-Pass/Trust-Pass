@@ -140,13 +140,13 @@ export function AnalyticsPage() {
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData} margin={{ left: -20, right: 8 }}>
-                      <CartesianGrid vertical={false} stroke="#e2e8f0" />
-                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} />
-                      <Tooltip cursor={{ fill: '#f1f5f9' }} />
+                      <CartesianGrid vertical={false} stroke="#1b2c57" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#93a5cb' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#93a5cb' }} tickLine={false} axisLine={false} />
+                      <Tooltip cursor={{ fill: 'rgba(59,130,246,0.08)' }} contentStyle={{ background: '#0f1d3d', border: '1px solid #24407a', borderRadius: 12, color: '#f1f5ff' }} labelStyle={{ color: '#f1f5ff' }} />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="granted" name="Granted" stackId="a" fill="#14b8a6" radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="denied" name="Denied" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="granted" name="Granted" stackId="a" fill="#2dd4bf" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="denied" name="Denied" stackId="a" fill="#f87171" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -161,7 +161,7 @@ export function AnalyticsPage() {
                   {data.byCountry.map((c) => (
                     <li key={c.country ?? 'unknown'}>
                       <div className="flex justify-between text-sm">
-                        <span className="font-medium text-navy-950">{country(c.country)}</span>
+                        <span className="font-medium text-ink">{country(c.country)}</span>
                         <span className="text-slate-500">
                           {c.granted} granted · {c.denied} denied
                         </span>
@@ -186,11 +186,11 @@ export function AnalyticsPage() {
                 <ul className="divide-y divide-slate-100">
                   {data.byDocument.map((d) => (
                     <li key={d.documentId} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
-                      <button type="button" onClick={() => setDocumentId(d.documentId)} className="min-w-0 truncate text-left text-sm font-medium text-navy-950 hover:underline">
+                      <button type="button" onClick={() => setDocumentId(d.documentId)} className="min-w-0 truncate text-left text-sm font-medium text-ink hover:underline">
                         {d.title}
                       </button>
                       <span className="shrink-0 text-sm text-slate-600">
-                        <span className="text-teal-700">{d.granted}</span> / <span className="text-red-600">{d.denied}</span>
+                        <span className="text-teal-700">{d.granted}</span> / <span className="text-red-400">{d.denied}</span>
                       </span>
                     </li>
                   ))}
@@ -205,7 +205,7 @@ export function AnalyticsPage() {
                 <ul className="divide-y divide-slate-100">
                   {data.alerts.map((a) => (
                     <li key={a.id} className="px-4 py-3 sm:px-5">
-                      <p className="text-sm font-semibold text-navy-950">{a.title}</p>
+                      <p className="text-sm font-semibold text-ink">{a.title}</p>
                       <p className="mt-0.5 text-sm text-slate-600">{a.body}</p>
                       <p className="mt-1 text-xs text-slate-400">{relativeTime(a.at)}</p>
                     </li>
@@ -249,7 +249,7 @@ export function AnalyticsPage() {
               {log.data.rows.map((r) => (
                 <li key={r.id} className="px-4 py-3">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="min-w-0 truncate text-sm font-medium text-navy-950">{r.document}</p>
+                    <p className="min-w-0 truncate text-sm font-medium text-ink">{r.document}</p>
                     <OutcomeBadge outcome={r.outcome} />
                   </div>
                   <p className="mt-0.5 text-xs text-slate-500">
@@ -274,7 +274,7 @@ export function AnalyticsPage() {
                   {log.data.rows.map((r) => (
                     <tr key={r.id}>
                       <td className="px-5 py-2.5 whitespace-nowrap text-slate-600">{formatDateTime(r.at)}</td>
-                      <td className="max-w-[14rem] truncate px-3 py-2.5 font-medium text-navy-950">
+                      <td className="max-w-[14rem] truncate px-3 py-2.5 font-medium text-ink">
                         {r.document}
                         {r.resource === 'file' && <Badge className="ml-1.5">file</Badge>}
                       </td>

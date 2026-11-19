@@ -21,7 +21,7 @@ export function SharedDocument({ view, fileUrl }: { view: SharedView; fileUrl: s
   return (
     <div className="space-y-5">
       <Card className="overflow-hidden">
-        <div className="bg-navy-900 px-4 py-5 text-white sm:px-6">
+        <div className="hero-grid border-b border-white/[0.06] px-4 py-5 text-white sm:px-6">
           <p className="text-sm text-navy-200">
             Shared by <span className="font-semibold text-white">{view.link.sharedBy}</span> with{' '}
             <span className="font-semibold text-white">{view.link.recipientOrg ?? view.link.recipientLabel}</span>
@@ -40,7 +40,7 @@ export function SharedDocument({ view, fileUrl }: { view: SharedView; fileUrl: s
           <VerificationPanel verification={view.verification} />
 
           <div>
-            <h2 className="mb-2 text-sm font-semibold text-navy-950">
+            <h2 className="mb-2 text-sm font-semibold text-ink">
               {view.fields.length > 0 ? 'Information shared with you' : 'The owner shared the file below, not individual fields'}
             </h2>
             {view.fields.length > 0 && (
@@ -48,10 +48,10 @@ export function SharedDocument({ view, fileUrl }: { view: SharedView; fileUrl: s
                 {view.fields.map((f) => (
                   <div key={f.label} className="flex flex-col gap-0.5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <dt className="text-sm text-slate-500">{f.label}</dt>
-                    <dd className="flex items-center gap-2 font-semibold text-navy-950">
+                    <dd className="flex items-center gap-2 font-semibold text-ink">
                       {f.value}
                       {f.source === 'issuer' ? (
-                        <ShieldCheck className="size-4 text-teal-600" aria-label="Signed by the issuer" />
+                        <ShieldCheck className="size-4 text-teal-400" aria-label="Signed by the issuer" />
                       ) : (
                         <Badge tone="amber">Self-declared</Badge>
                       )}
@@ -69,13 +69,13 @@ export function SharedDocument({ view, fileUrl }: { view: SharedView; fileUrl: s
 
           {view.presentation && (
             <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
-              <p className="text-sm font-semibold text-navy-950">Verify it yourself</p>
+              <p className="text-sm font-semibold text-ink">Verify it yourself</p>
               <p className="mt-0.5 text-[13px] text-slate-600">
                 This is the signed credential with only the shared fields (SD-JWT). Paste it into any TrustPass Verification page to check the issuer signature independently.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <CopyButton value={view.presentation} label="Copy credential" />
-                <button type="button" onClick={downloadPresentation} className="inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-navy-800 ring-1 ring-slate-300 hover:bg-white">
+                <button type="button" onClick={downloadPresentation} className="inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-ink ring-1 ring-slate-300 hover:bg-surface">
                   <Download className="size-4" /> Download
                 </button>
               </div>
@@ -102,8 +102,8 @@ export function SharedDocument({ view, fileUrl }: { view: SharedView; fileUrl: s
         </Card>
       )}
 
-      <div className="flex gap-3 rounded-xl bg-white p-4 text-[13px] leading-relaxed text-slate-600 ring-1 ring-slate-200">
-        <Info className="mt-0.5 size-4 shrink-0 text-navy-500" />
+      <div className="flex gap-3 rounded-xl bg-surface p-4 text-[13px] leading-relaxed text-slate-600 ring-1 ring-slate-200">
+        <Info className="mt-0.5 size-4 shrink-0 text-accent" />
         <p>{view.notice} Every view is logged for the owner with an approximate country, never your full IP address.</p>
       </div>
     </div>

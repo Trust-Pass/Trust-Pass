@@ -59,7 +59,7 @@ export function UploadPage() {
     <div className="mx-auto max-w-2xl">
       <PageHeader
         back={
-          <Link to="/app/documents" className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-navy-700">
+          <Link to="/app/documents" className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-accent">
             <ArrowLeft className="size-4" /> My documents
           </Link>
         }
@@ -83,20 +83,20 @@ export function UploadPage() {
             }}
             className={clsx(
               'flex w-full flex-col items-center rounded-2xl border-2 border-dashed px-4 py-10 text-center transition-colors',
-              dragging ? 'border-teal-500 bg-teal-50' : 'border-slate-300 hover:border-navy-300 hover:bg-slate-50',
+              dragging ? 'border-teal-500 bg-teal-50' : 'border-slate-300 hover:border-accent hover:bg-slate-50',
             )}
           >
-            <div className="rounded-2xl bg-navy-900 p-3 text-teal-400">
+            <div className="rounded-2xl bg-gradient-to-br from-blue-500/30 to-teal-400/10 p-3 text-teal-300 ring-1 ring-inset ring-white/10">
               <FileUp className="size-6" />
             </div>
             {file ? (
               <>
-                <p className="mt-3 font-semibold text-navy-950">{file.name}</p>
+                <p className="mt-3 font-semibold text-ink">{file.name}</p>
                 <p className="text-sm text-slate-500">{formatBytes(file.size)} · tap to choose another</p>
               </>
             ) : (
               <>
-                <p className="mt-3 font-semibold text-navy-950">Tap to choose a file or take a photo</p>
+                <p className="mt-3 font-semibold text-ink">Tap to choose a file or take a photo</p>
                 <p className="text-sm text-slate-500">or drag and drop it here</p>
               </>
             )}
@@ -121,7 +121,7 @@ export function UploadPage() {
 
         <Card className="space-y-3 p-4 sm:p-5">
           <div>
-            <h2 className="font-semibold text-navy-950">Shareable fields (optional)</h2>
+            <h2 className="font-semibold text-ink">Shareable fields (optional)</h2>
             <p className="mt-0.5 text-sm text-slate-500">
               Add facts from the document, like "Job title: Security Analyst", so you can share one fact without the whole file. These are marked <strong>self-declared</strong> because no issuer signed them.
             </p>
@@ -130,7 +130,7 @@ export function UploadPage() {
             <div key={i} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
               <Input aria-label={`Field ${i + 1} name`} placeholder="Field" value={c.label} maxLength={60} onChange={(e) => setClaims((cs) => cs.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} />
               <Input aria-label={`Field ${i + 1} value`} placeholder="Value" value={c.value} maxLength={200} onChange={(e) => setClaims((cs) => cs.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} />
-              <button type="button" onClick={() => setClaims((cs) => cs.filter((_, j) => j !== i))} className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600" aria-label={`Remove field ${i + 1}`}>
+              <button type="button" onClick={() => setClaims((cs) => cs.filter((_, j) => j !== i))} className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-400" aria-label={`Remove field ${i + 1}`}>
                 <Trash2 className="size-4" />
               </button>
             </div>
@@ -143,10 +143,10 @@ export function UploadPage() {
         {error && <Alert tone="error">{error}</Alert>}
 
         {progress !== null && (
-          <div className="rounded-xl bg-white p-4 ring-1 ring-slate-200">
+          <div className="rounded-xl bg-surface p-4 ring-1 ring-slate-200">
             <div className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-1.5 font-medium text-navy-950">
-                <Lock className="size-4 text-teal-600" />
+              <span className="flex items-center gap-1.5 font-medium text-ink">
+                <Lock className="size-4 text-teal-400" />
                 {progress < 1 ? 'Uploading over HTTPS…' : 'Validating and encrypting…'}
               </span>
               <span className="text-slate-500">{Math.round(progress * 100)}%</span>

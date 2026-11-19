@@ -53,7 +53,7 @@ function UsersTab() {
         {data?.users.map((u) => (
           <li key={u.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <p className="font-medium text-navy-950">
+              <p className="font-medium text-ink">
                 {u.fullName} {u.role === 'admin' && <Badge tone="navy">admin</Badge>} {u.status === 'suspended' && <Badge tone="red">suspended</Badge>}
               </p>
               <p className="truncate text-[13px] text-slate-500">
@@ -88,7 +88,7 @@ function OrgsTab() {
         {data?.organizations.map((o) => (
           <li key={o.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-medium text-navy-950">
+              <p className="font-medium text-ink">
                 {o.name} {o.status === 'suspended' && <Badge tone="red">suspended</Badge>}
               </p>
               <p className="text-[13px] text-slate-500 capitalize">
@@ -129,7 +129,7 @@ function EventsTab() {
         {data?.events.map((e) => (
           <li key={e.id} className="flex items-start justify-between gap-3 px-4 py-3">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-navy-950">{SECURITY_EVENT_LABELS[e.type] ?? e.type.replace(/_/g, ' ')}</p>
+              <p className="text-sm font-medium text-ink">{SECURITY_EVENT_LABELS[e.type] ?? e.type.replace(/_/g, ' ')}</p>
               <p className="truncate text-xs text-slate-500">
                 {e.user ?? 'platform'}
                 {e.actor && e.actor !== e.user ? ` · by ${e.actor}` : ''} · {formatDateTime(e.at)}
@@ -164,7 +164,7 @@ function IssuersTab() {
         <Card key={i.id} className="p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <p className="font-semibold text-navy-950">
+              <p className="font-semibold text-ink">
                 {i.name} {i.simulated && <Badge tone="amber">simulated</Badge>} <Badge tone={i.status === 'trusted' ? 'teal' : 'red'}>{i.status}</Badge>
               </p>
               <p className="mt-0.5 text-[13px] break-all text-slate-500">
@@ -232,9 +232,9 @@ function HealthTab() {
         <ul className="divide-y divide-slate-100">
           {data?.checks.map((c) => (
             <li key={c.name} className="flex items-start gap-3 px-5 py-3">
-              {c.ok ? <CheckCircle2 className="mt-0.5 size-5 text-teal-600" /> : <XCircle className="mt-0.5 size-5 text-red-600" />}
+              {c.ok ? <CheckCircle2 className="mt-0.5 size-5 text-teal-400" /> : <XCircle className="mt-0.5 size-5 text-red-400" />}
               <div>
-                <p className="text-sm font-medium text-navy-950">{c.name}</p>
+                <p className="text-sm font-medium text-ink">{c.name}</p>
                 <p className="text-[13px] text-slate-600">{c.detail}</p>
               </div>
             </li>
@@ -247,7 +247,7 @@ function HealthTab() {
         )}
       </Card>
       <Card className="p-5">
-        <p className="font-semibold text-navy-950">Log retention</p>
+        <p className="font-semibold text-ink">Log retention</p>
         <p className="mt-1 text-sm text-slate-600">Runs automatically every 6 hours. Audit tables only allow deletes from this job.</p>
         <Button className="mt-3" variant="secondary" loading={retention.isPending} onClick={() => retention.mutate()}>
           Run now

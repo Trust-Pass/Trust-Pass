@@ -34,8 +34,8 @@ export function RecipientPage() {
   const denial = error ? (DENIALS[error.code] ?? { icon: <ShieldX className="size-7" />, title: 'This document is not available' }) : null;
 
   return (
-    <div className="min-h-dvh bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
+    <div className="min-h-dvh">
+      <header className="glass border-b border-white/[0.06]">
         <div className="page-pad mx-auto flex h-14 max-w-3xl items-center justify-between">
           <Link to="/">
             <Logo />
@@ -47,9 +47,9 @@ export function RecipientPage() {
         {query.isLoading && <Spinner label="Checking access" />}
         {query.data && <SharedDocument view={query.data} fileUrl={`/api/share/${encodeURIComponent(token)}/file`} />}
         {denial && error && (
-          <div className="rounded-3xl bg-white px-6 py-12 text-center shadow-card ring-1 ring-slate-200/70" data-testid="access-denied" data-code={error.code}>
-            <div className="mx-auto inline-flex rounded-2xl bg-navy-50 p-3.5 text-navy-700">{denial.icon}</div>
-            <h1 className="mt-4 text-xl font-bold text-navy-950">{denial.title}</h1>
+          <div className="surface-card rounded-3xl px-6 py-12 text-center" data-testid="access-denied" data-code={error.code}>
+            <div className="mx-auto inline-flex rounded-2xl bg-accent-soft p-3.5 text-accent">{denial.icon}</div>
+            <h1 className="mt-4 text-xl font-bold text-ink">{denial.title}</h1>
             <p className="mx-auto mt-2 max-w-md text-[15px] text-slate-600">{error.message}</p>
             {error.code === 'login_required' && (
               <ButtonLink to={`/login?next=${encodeURIComponent(location.pathname)}`} className="mt-6" icon={<LogIn className="size-4" />}>

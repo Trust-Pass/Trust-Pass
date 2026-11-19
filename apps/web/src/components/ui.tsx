@@ -35,11 +35,11 @@ type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'teal';
 type Size = 'sm' | 'md' | 'lg';
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-navy-900 text-white hover:bg-navy-800 active:bg-navy-950 shadow-sm',
-  teal: 'bg-teal-500 text-navy-950 hover:bg-teal-400 active:bg-teal-600 shadow-sm font-semibold',
-  secondary: 'bg-white text-navy-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 active:bg-slate-100',
-  ghost: 'text-navy-800 hover:bg-navy-50 active:bg-navy-100',
-  danger: 'bg-red-600 text-white hover:bg-red-500 active:bg-red-700 shadow-sm',
+  primary: 'btn-primary text-white shadow-glow',
+  teal: 'btn-teal text-navy-950 font-semibold shadow-glow-teal',
+  secondary: 'bg-white/[0.04] text-ink ring-1 ring-inset ring-slate-300 hover:bg-white/[0.08] hover:ring-slate-400/60 active:bg-white/[0.02]',
+  ghost: 'text-ink hover:bg-white/[0.06] active:bg-white/[0.03]',
+  danger: 'bg-red-600 text-white hover:bg-red-500 active:bg-red-600 shadow-sm',
 };
 const sizes: Record<Size, string> = {
   sm: 'h-9 px-3 text-sm gap-1.5',
@@ -49,7 +49,7 @@ const sizes: Record<Size, string> = {
 
 export function buttonClass(variant: Variant = 'primary', size: Size = 'md', extra?: string) {
   return clsx(
-    'inline-flex items-center justify-center rounded-xl font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-55 select-none whitespace-nowrap',
+    'inline-flex items-center justify-center rounded-xl font-medium transition-[background,box-shadow,transform,color] duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 select-none whitespace-nowrap',
     variants[variant],
     sizes[size],
     extra,
@@ -89,16 +89,16 @@ export function ButtonLink({ variant = 'primary', size = 'md', className, icon, 
 // ---------------------------------------------------------------------------
 
 export function Card({ className, children, as: Tag = 'div' }: { className?: string; children: ReactNode; as?: 'div' | 'section' | 'article' }) {
-  return <Tag className={clsx('rounded-2xl bg-white shadow-card ring-1 ring-slate-200/70', className)}>{children}</Tag>;
+  return <Tag className={clsx('surface-card rounded-2xl', className)}>{children}</Tag>;
 }
 
 export function CardHeader({ title, subtitle, action, icon }: { title: ReactNode; subtitle?: ReactNode; action?: ReactNode; icon?: ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3.5 sm:px-5">
       <div className="flex min-w-0 items-start gap-2.5">
-        {icon && <div className="mt-0.5 text-navy-700">{icon}</div>}
+        {icon && <div className="mt-0.5 text-accent">{icon}</div>}
         <div className="min-w-0">
-          <h2 className="text-[15px] font-semibold text-navy-950">{title}</h2>
+          <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
           {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
         </div>
       </div>
@@ -109,11 +109,11 @@ export function CardHeader({ title, subtitle, action, icon }: { title: ReactNode
 
 export function PageHeader({ title, description, actions, back }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; back?: ReactNode }) {
   return (
-    <div className="mb-5 sm:mb-7">
+    <div className="mb-5 animate-rise sm:mb-7">
       {back}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-navy-950 sm:text-[28px]">{title}</h1>
+          <h1 className="text-gradient text-2xl font-bold tracking-tight sm:text-[30px]">{title}</h1>
           {description && <p className="mt-1.5 max-w-2xl text-[15px] text-slate-600">{description}</p>}
         </div>
         {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
@@ -124,19 +124,20 @@ export function PageHeader({ title, description, actions, back }: { title: React
 
 export function StatCard({ label, value, hint, icon, tone = 'navy' }: { label: string; value: ReactNode; hint?: ReactNode; icon?: ReactNode; tone?: 'navy' | 'teal' | 'red' | 'amber' | 'slate' }) {
   const tones = {
-    navy: 'bg-navy-50 text-navy-700',
+    navy: 'bg-accent-soft text-accent',
     teal: 'bg-teal-50 text-teal-700',
-    red: 'bg-red-50 text-red-600',
+    red: 'bg-red-50 text-red-400',
     amber: 'bg-amber-50 text-amber-700',
     slate: 'bg-slate-100 text-slate-600',
   };
   return (
-    <Card className="p-4">
+    <Card className="relative overflow-hidden p-4">
+      <div className="pointer-events-none absolute -top-10 -right-10 size-28 rounded-full bg-blue-500/10 blur-2xl" aria-hidden />
       <div className="flex items-start justify-between gap-2">
         <p className="text-[13px] font-medium text-slate-500">{label}</p>
-        {icon && <div className={clsx('rounded-lg p-1.5', tones[tone])}>{icon}</div>}
+        {icon && <div className={clsx('rounded-lg p-1.5 ring-1 ring-inset ring-white/5', tones[tone])}>{icon}</div>}
       </div>
-      <p className="mt-1.5 text-2xl font-bold tracking-tight text-navy-950">{value}</p>
+      <p className="mt-1.5 text-[26px] font-bold tracking-tight text-ink tabular-nums">{value}</p>
       {hint && <p className="mt-0.5 text-xs text-slate-500">{hint}</p>}
     </Card>
   );
@@ -145,8 +146,8 @@ export function StatCard({ label, value, hint, icon, tone = 'navy' }: { label: s
 export function EmptyState({ icon, title, body, action }: { icon: ReactNode; title: string; body?: ReactNode; action?: ReactNode }) {
   return (
     <div className="flex flex-col items-center px-6 py-12 text-center">
-      <div className="mb-3 rounded-2xl bg-navy-50 p-3 text-navy-700">{icon}</div>
-      <p className="font-semibold text-navy-950">{title}</p>
+      <div className="mb-3 rounded-2xl bg-accent-soft p-3 text-accent">{icon}</div>
+      <p className="font-semibold text-ink">{title}</p>
       {body && <p className="mt-1 max-w-sm text-sm text-slate-500">{body}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>
@@ -156,7 +157,7 @@ export function EmptyState({ icon, title, body, action }: { icon: ReactNode; tit
 export function Spinner({ label = 'Loading' }: { label?: string }) {
   return (
     <div role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-slate-500">
-      <Loader2 className="size-5 animate-spin text-teal-600" aria-hidden />
+      <Loader2 className="size-5 animate-spin text-teal-400" aria-hidden />
       {label}…
     </div>
   );
@@ -168,10 +169,10 @@ export function Spinner({ label = 'Loading' }: { label?: string }) {
 
 type AlertTone = 'info' | 'success' | 'warning' | 'error';
 const alertStyles: Record<AlertTone, { box: string; icon: ReactNode }> = {
-  info: { box: 'bg-navy-50 text-navy-900 ring-navy-100', icon: <Info className="size-5 text-navy-600" /> },
-  success: { box: 'bg-teal-50 text-teal-950 ring-teal-100', icon: <CheckCircle2 className="size-5 text-teal-600" /> },
-  warning: { box: 'bg-amber-50 text-amber-950 ring-amber-100', icon: <AlertTriangle className="size-5 text-amber-600" /> },
-  error: { box: 'bg-red-50 text-red-900 ring-red-100', icon: <XCircle className="size-5 text-red-600" /> },
+  info: { box: 'bg-accent-soft text-ink ring-accent-line', icon: <Info className="size-5 text-accent" /> },
+  success: { box: 'bg-teal-50 text-teal-950 ring-teal-100', icon: <CheckCircle2 className="size-5 text-teal-400" /> },
+  warning: { box: 'bg-amber-50 text-amber-950 ring-amber-100', icon: <AlertTriangle className="size-5 text-amber-400" /> },
+  error: { box: 'bg-red-50 text-red-900 ring-red-100', icon: <XCircle className="size-5 text-red-400" /> },
 };
 
 export function Alert({ tone = 'info', title, children, className }: { tone?: AlertTone; title?: ReactNode; children?: ReactNode; className?: string }) {
@@ -194,7 +195,7 @@ const badgeTones: Record<BadgeTone, string> = {
   red: 'bg-red-50 text-red-700 ring-red-200',
   amber: 'bg-amber-50 text-amber-800 ring-amber-200',
   slate: 'bg-slate-100 text-slate-700 ring-slate-200',
-  navy: 'bg-navy-50 text-navy-800 ring-navy-200',
+  navy: 'bg-accent-soft text-ink ring-accent-line',
 };
 
 export function Badge({ tone = 'slate', children, icon, className }: { tone?: BadgeTone; children: ReactNode; icon?: ReactNode; className?: string }) {
@@ -245,17 +246,17 @@ export function OutcomeBadge({ outcome }: { outcome: AccessOutcome }) {
 export function Field({ label, error, hint, children, htmlFor }: { label: ReactNode; error?: string; hint?: ReactNode; children: ReactNode; htmlFor?: string }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={htmlFor} className="block text-sm font-medium text-navy-950">
+      <label htmlFor={htmlFor} className="block text-sm font-medium text-ink">
         {label}
       </label>
       {children}
-      {error ? <p className="text-sm text-red-600">{error}</p> : hint ? <p className="text-[13px] text-slate-500">{hint}</p> : null}
+      {error ? <p className="text-sm text-red-400">{error}</p> : hint ? <p className="text-[13px] text-slate-500">{hint}</p> : null}
     </div>
   );
 }
 
 const inputBase =
-  'block w-full rounded-xl border-0 bg-white px-3.5 py-2.5 text-navy-950 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-teal-500 focus:outline-none disabled:bg-slate-50 disabled:text-slate-500';
+  'block w-full rounded-xl border-0 bg-slate-50/80 px-3.5 py-2.5 text-ink shadow-sm ring-1 ring-inset ring-slate-300 transition-shadow placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-blue-400 focus:shadow-[0_0_0_4px_rgb(59_130_246/0.15)] focus:outline-none disabled:bg-slate-50 disabled:text-slate-500';
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean }>(function Input(
   { className, invalid, ...rest },
@@ -281,7 +282,7 @@ export function Toggle({ checked, onChange, label, description }: { checked: boo
   return (
     <label htmlFor={id} className="flex cursor-pointer items-start justify-between gap-4">
       <span>
-        <span className="block text-sm font-medium text-navy-950">{label}</span>
+        <span className="block text-sm font-medium text-ink">{label}</span>
         {description && <span className="mt-0.5 block text-[13px] text-slate-500">{description}</span>}
       </span>
       <span className="relative mt-0.5 inline-flex shrink-0">
@@ -305,7 +306,7 @@ export function Segmented<T extends string>({ value, onChange, options, label }:
           onClick={() => onChange(o.value)}
           className={clsx(
             'h-10 rounded-xl px-3.5 text-sm font-medium ring-1 ring-inset transition-colors',
-            value === o.value ? 'bg-navy-900 text-white ring-navy-900' : 'bg-white text-navy-900 ring-slate-300 hover:bg-slate-50',
+            value === o.value ? 'bg-blue-600 text-white ring-blue-400/60 shadow-glow' : 'bg-surface text-ink ring-slate-300 hover:bg-slate-50',
           )}
         >
           {o.label}
@@ -318,7 +319,7 @@ export function Segmented<T extends string>({ value, onChange, options, label }:
 export function Tabs<T extends string>({ value, onChange, tabs }: { value: T; onChange: (v: T) => void; tabs: Array<{ value: T; label: ReactNode; count?: number }> }) {
   return (
     <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <div role="tablist" className="inline-flex gap-1 rounded-xl bg-slate-200/60 p-1">
+      <div role="tablist" className="inline-flex gap-1 rounded-xl bg-slate-50/80 p-1 ring-1 ring-inset ring-slate-200">
         {tabs.map((t) => (
           <button
             key={t.value}
@@ -328,7 +329,7 @@ export function Tabs<T extends string>({ value, onChange, tabs }: { value: T; on
             onClick={() => onChange(t.value)}
             className={clsx(
               'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium whitespace-nowrap transition-colors',
-              value === t.value ? 'bg-white text-navy-950 shadow-sm' : 'text-slate-600 hover:text-navy-900',
+              value === t.value ? 'bg-blue-500/20 text-white shadow-sm ring-1 ring-inset ring-blue-400/30' : 'text-slate-600 hover:text-ink',
             )}
           >
             {t.label}
@@ -359,10 +360,10 @@ export function Modal({ open, onClose, title, children, footer }: { open: boolea
       onClick={(e) => {
         if (e.target === ref.current) onClose();
       }}
-      className="m-0 mt-auto w-full max-w-none rounded-t-3xl bg-white p-0 shadow-lift backdrop:bg-navy-950/50 backdrop:backdrop-blur-[2px] sm:m-auto sm:max-w-lg sm:rounded-2xl"
+      className="m-0 mt-auto w-full max-w-none rounded-t-3xl bg-surface-raised p-0 text-slate-800 shadow-lift ring-1 ring-slate-200 backdrop:bg-navy-950/70 backdrop:backdrop-blur-sm sm:m-auto sm:max-w-lg sm:rounded-2xl"
     >
       <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-        <h2 className="text-base font-semibold text-navy-950">{title}</h2>
+        <h2 className="text-base font-semibold text-ink">{title}</h2>
         <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Close">
           <X className="size-5" />
         </button>

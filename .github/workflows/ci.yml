@@ -75,6 +75,14 @@ jobs:
       - run: pnpm --filter @trustpass/e2e exec playwright install --with-deps chromium
       - name: End-to-end tests (phone and desktop)
         run: pnpm e2e
+      - name: Upload UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots
+          path: e2e/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
 
   secrets-scan:
     runs-on: ubuntu-latest

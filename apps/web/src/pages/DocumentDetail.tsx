@@ -80,7 +80,7 @@ export function DocumentDetailPage() {
     <div className="space-y-5">
       <PageHeader
         back={
-          <Link to="/app/documents" className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-navy-700">
+          <Link to="/app/documents" className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-accent">
             <ArrowLeft className="size-4" /> My documents
           </Link>
         }
@@ -121,7 +121,7 @@ export function DocumentDetailPage() {
                 {doc.claims.map((c) => (
                   <div key={c.id} className="flex flex-col gap-0.5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                     <dt className="text-sm text-slate-500">{c.label}</dt>
-                    <dd className="flex items-center gap-2 font-medium text-navy-950">
+                    <dd className="flex items-center gap-2 font-medium text-ink">
                       {c.value}
                       {c.source === 'issuer' ? <Badge tone="teal">Signed</Badge> : <Badge tone="amber">Self-declared</Badge>}
                     </dd>
@@ -149,7 +149,7 @@ export function DocumentDetailPage() {
           </Card>
 
           <Card>
-            <CardHeader title="Sharing links" icon={<Link2 className="size-5" />} action={<Link to="/app/links" className="text-sm font-medium text-navy-700 hover:underline">Manage</Link>} />
+            <CardHeader title="Sharing links" icon={<Link2 className="size-5" />} action={<Link to="/app/links" className="text-sm font-medium text-accent hover:underline">Manage</Link>} />
             {doc.links.length === 0 ? (
               <EmptyState icon={<Share2 className="size-6" />} title="Not shared yet" action={<ButtonLink to={`/app/documents/${doc.id}/share`} size="sm">Create a link</ButtonLink>} />
             ) : (
@@ -157,7 +157,7 @@ export function DocumentDetailPage() {
                 {doc.links.map((l) => (
                   <li key={l.id} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-navy-950">{l.recipientOrg ?? l.recipientLabel}</p>
+                      <p className="truncate text-sm font-medium text-ink">{l.recipientOrg ?? l.recipientLabel}</p>
                       <p className="truncate text-xs text-slate-500">
                         {l.claimCount} field{l.claimCount === 1 ? '' : 's'}
                         {l.includeFile && ' + file'} · {l.status === 'active' ? `expires ${relativeTime(l.expiresAt)}` : formatDate(l.expiresAt)} · {l.viewCount} views
@@ -174,16 +174,16 @@ export function DocumentDetailPage() {
 
         <aside className="space-y-5">
           <Card className="p-4 sm:p-5">
-            <h2 className="flex items-center gap-2 font-semibold text-navy-950">
-              <KeyRound className="size-4 text-teal-600" /> Protection
+            <h2 className="flex items-center gap-2 font-semibold text-ink">
+              <KeyRound className="size-4 text-teal-400" /> Protection
             </h2>
             <dl className="mt-3 space-y-2.5 text-sm">
-              <div className="flex justify-between gap-2"><dt className="text-slate-500">Encryption</dt><dd className="font-medium text-navy-950">{doc.encryption.algorithm}</dd></div>
-              <div className="flex justify-between gap-2"><dt className="text-slate-500">Key</dt><dd className="font-medium text-navy-950">Unique to this file</dd></div>
-              <div className="flex justify-between gap-2"><dt className="text-slate-500">Key wrapping</dt><dd className="text-right font-medium text-navy-950">Master key (AES-256-GCM)</dd></div>
-              <div className="flex justify-between gap-2"><dt className="text-slate-500">Type</dt><dd className="font-medium text-navy-950">{DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory]}</dd></div>
-              <div className="flex justify-between gap-2"><dt className="text-slate-500">Size</dt><dd className="font-medium text-navy-950">{formatBytes(doc.sizeBytes)}</dd></div>
-              <div className="flex justify-between gap-2"><dt className="text-slate-500">Uploaded</dt><dd className="font-medium text-navy-950">{formatDateTime(doc.createdAt)}</dd></div>
+              <div className="flex justify-between gap-2"><dt className="text-slate-500">Encryption</dt><dd className="font-medium text-ink">{doc.encryption.algorithm}</dd></div>
+              <div className="flex justify-between gap-2"><dt className="text-slate-500">Key</dt><dd className="font-medium text-ink">Unique to this file</dd></div>
+              <div className="flex justify-between gap-2"><dt className="text-slate-500">Key wrapping</dt><dd className="text-right font-medium text-ink">Master key (AES-256-GCM)</dd></div>
+              <div className="flex justify-between gap-2"><dt className="text-slate-500">Type</dt><dd className="font-medium text-ink">{DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory]}</dd></div>
+              <div className="flex justify-between gap-2"><dt className="text-slate-500">Size</dt><dd className="font-medium text-ink">{formatBytes(doc.sizeBytes)}</dd></div>
+              <div className="flex justify-between gap-2"><dt className="text-slate-500">Uploaded</dt><dd className="font-medium text-ink">{formatDateTime(doc.createdAt)}</dd></div>
               <div>
                 <dt className="text-slate-500">SHA-256 fingerprint</dt>
                 <dd className="mt-1 font-mono text-[11px] break-all text-slate-700">{doc.sha256}</dd>
@@ -193,11 +193,11 @@ export function DocumentDetailPage() {
 
           {doc.credential && (
             <Card className="p-4 sm:p-5">
-              <h2 className="font-semibold text-navy-950">Credential</h2>
+              <h2 className="font-semibold text-ink">Credential</h2>
               <dl className="mt-3 space-y-2.5 text-sm">
-                <div className="flex justify-between gap-2"><dt className="text-slate-500">Issuer</dt><dd className="text-right font-medium text-navy-950">{doc.credential.issuer}</dd></div>
-                <div className="flex justify-between gap-2"><dt className="text-slate-500">Format</dt><dd className="font-medium text-navy-950">{doc.credential.format}</dd></div>
-                <div className="flex justify-between gap-2"><dt className="text-slate-500">Valid until</dt><dd className="font-medium text-navy-950">{formatDate(doc.credential.expiresAt)}</dd></div>
+                <div className="flex justify-between gap-2"><dt className="text-slate-500">Issuer</dt><dd className="text-right font-medium text-ink">{doc.credential.issuer}</dd></div>
+                <div className="flex justify-between gap-2"><dt className="text-slate-500">Format</dt><dd className="font-medium text-ink">{doc.credential.format}</dd></div>
+                <div className="flex justify-between gap-2"><dt className="text-slate-500">Valid until</dt><dd className="font-medium text-ink">{formatDate(doc.credential.expiresAt)}</dd></div>
               </dl>
               {doc.credential.simulatedIssuer && <p className="mt-3 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900">Issued by a simulated university for this demo.</p>}
               <Button variant="secondary" size="sm" className="mt-3 w-full" icon={<Download className="size-4" />} onClick={downloadCredential}>
@@ -210,7 +210,7 @@ export function DocumentDetailPage() {
             <Button variant="secondary" className="w-full" icon={<Download className="size-4" />} onClick={downloadOriginal}>
               Download original
             </Button>
-            <Button variant="ghost" className="w-full text-red-600 hover:bg-red-50" icon={<Trash2 className="size-4" />} onClick={() => setConfirmDelete(true)}>
+            <Button variant="ghost" className="w-full text-red-400 hover:bg-red-50" icon={<Trash2 className="size-4" />} onClick={() => setConfirmDelete(true)}>
               Delete permanently
             </Button>
           </Card>
@@ -227,7 +227,7 @@ export function DocumentDetailPage() {
         body={
           <>
             <p>All sharing links stop working immediately. The encryption key is destroyed, so the file can never be decrypted again, even from a backup.</p>
-            {remove.error && <p className="mt-2 text-red-600">{errorMessage(remove.error)}</p>}
+            {remove.error && <p className="mt-2 text-red-400">{errorMessage(remove.error)}</p>}
           </>
         }
       />

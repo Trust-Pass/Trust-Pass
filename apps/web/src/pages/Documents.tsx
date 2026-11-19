@@ -62,14 +62,14 @@ export function DocumentsPage() {
         <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {shown.map((doc) => (
             <li key={doc.id}>
-              <Link to={`/app/documents/${doc.id}`} className="block rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200/70 transition hover:ring-teal-300">
+              <Link to={`/app/documents/${doc.id}`} className="block rounded-2xl bg-surface p-4 shadow-card ring-1 ring-slate-200/70 transition hover:ring-teal-300">
                 <div className="flex items-start gap-3">
-                  <div className={doc.kind === 'credential' ? 'rounded-xl bg-teal-50 p-2.5 text-teal-700' : 'rounded-xl bg-navy-50 p-2.5 text-navy-700'}>
+                  <div className={doc.kind === 'credential' ? 'rounded-xl bg-teal-50 p-2.5 text-teal-700' : 'rounded-xl bg-accent-soft p-2.5 text-accent'}>
                     <DocumentIcon doc={doc} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="line-clamp-2 font-semibold text-navy-950">{doc.title}</p>
+                      <p className="line-clamp-2 font-semibold text-ink">{doc.title}</p>
                       <ChevronRight className="mt-0.5 size-5 shrink-0 text-slate-400" />
                     </div>
                     <p className="mt-0.5 text-[13px] text-slate-500">

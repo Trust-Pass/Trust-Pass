@@ -78,17 +78,17 @@ export function VerifyPage() {
                 <button
                   type="button"
                   onClick={() => fileInput.current?.click()}
-                  className="flex w-full flex-col items-center rounded-2xl border-2 border-dashed border-slate-300 px-4 py-8 text-center hover:border-navy-300 hover:bg-slate-50"
+                  className="flex w-full flex-col items-center rounded-2xl border-2 border-dashed border-slate-300 px-4 py-8 text-center hover:border-accent hover:bg-slate-50"
                 >
-                  <FileUp className="size-7 text-navy-600" />
-                  <span className="mt-2 font-semibold text-navy-950">{file ? file.name : 'Choose a PDF certificate'}</span>
+                  <FileUp className="size-7 text-accent" />
+                  <span className="mt-2 font-semibold text-ink">{file ? file.name : 'Choose a PDF certificate'}</span>
                   <span className="text-sm text-slate-500">TrustPass compares its SHA-256 fingerprint with the issuer's signed record.</span>
                 </button>
                 <input ref={fileInput} type="file" accept="application/pdf,image/png,image/jpeg" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} aria-label="File to verify" />
               </>
             ) : (
               <div>
-                <label htmlFor="presentation" className="mb-1.5 block text-sm font-medium text-navy-950">
+                <label htmlFor="presentation" className="mb-1.5 block text-sm font-medium text-ink">
                   Signed credential (SD-JWT)
                 </label>
                 <Textarea id="presentation" value={presentation} onChange={(e) => setPresentation(e.target.value)} placeholder="eyJhbGciOiJFZERTQSIs…~WyJ…~" rows={6} required />
@@ -113,7 +113,7 @@ export function VerifyPage() {
                     {result.claims.map((c) => (
                       <div key={c.key} className="flex justify-between gap-3 px-4 py-2.5 text-sm sm:px-5">
                         <dt className="text-slate-500">{c.label}</dt>
-                        <dd className="font-medium text-navy-950">{c.value}</dd>
+                        <dd className="font-medium text-ink">{c.value}</dd>
                       </div>
                     ))}
                   </dl>
@@ -122,7 +122,7 @@ export function VerifyPage() {
             </div>
           ) : (
             <Card className="p-5">
-              <h2 className="font-semibold text-navy-950">What the results mean</h2>
+              <h2 className="font-semibold text-ink">What the results mean</h2>
               <ul className="mt-3 space-y-3 text-sm text-slate-600">
                 <li className="flex gap-3">
                   <TrustBadge status="verified" /> The digital signature is valid, the issuer is trusted and the credential has not expired.
@@ -150,7 +150,7 @@ export function VerifyPage() {
             {records.data.records.map((r) => (
               <li key={r.id} className="flex items-start justify-between gap-3 px-4 py-3 sm:px-5">
                 <div className="min-w-0">
-                  <p className="text-sm text-navy-950">{r.reason}</p>
+                  <p className="text-sm text-ink">{r.reason}</p>
                   <p className="mt-0.5 text-xs text-slate-500">
                     {r.method === 'share_link' ? 'Opened via share link' : r.method === 'file' ? 'File check' : 'Credential check'}
                     {r.verifiedBy && ` · ${r.verifiedBy}`} · {formatDateTime(r.createdAt)}

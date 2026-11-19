@@ -139,7 +139,7 @@ export function OrganizationPage() {
                 <li key={i.id}>
                   <Link to={`/app/org/inbox/${i.id}`} className="flex items-center justify-between gap-3 px-4 py-3.5 hover:bg-slate-50 sm:px-5">
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-navy-950">{i.document.title}</p>
+                      <p className="truncate font-medium text-ink">{i.document.title}</p>
                       <p className="truncate text-[13px] text-slate-500">
                         From {i.sharedBy} · {i.fieldCount} field{i.fieldCount === 1 ? '' : 's'}
                         {i.includeFile && ' + file'} · {relativeTime(i.createdAt)}
@@ -163,7 +163,7 @@ export function OrganizationPage() {
             <Card className="p-4 sm:p-5">
               <form onSubmit={submitMember} className="flex flex-col gap-3 sm:flex-row sm:items-end">
                 <div className="flex-1">
-                  <label htmlFor="member-email" className="mb-1.5 block text-sm font-medium text-navy-950">
+                  <label htmlFor="member-email" className="mb-1.5 block text-sm font-medium text-ink">
                     Add a member by email
                   </label>
                   <Input id="member-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="colleague@example.com" required />
@@ -185,7 +185,7 @@ export function OrganizationPage() {
               {o.members.map((m) => (
                 <li key={m.userId} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                   <div className="min-w-0">
-                    <p className="font-medium text-navy-950">
+                    <p className="font-medium text-ink">
                       {m.fullName} {m.userId === me.user.id && <span className="text-slate-400">(you)</span>}
                     </p>
                     <p className="truncate text-[13px] text-slate-500">{m.email}</p>
@@ -203,7 +203,7 @@ export function OrganizationPage() {
                       </Badge>
                     )}
                     {canManage && m.userId !== me.user.id && (
-                      <Button size="sm" variant="ghost" className="text-red-600" onClick={() => removeMember.mutate(m.userId)}>
+                      <Button size="sm" variant="ghost" className="text-red-400" onClick={() => removeMember.mutate(m.userId)}>
                         Remove
                       </Button>
                     )}
@@ -211,7 +211,7 @@ export function OrganizationPage() {
                 </li>
               ))}
             </ul>
-            {(updateRole.error || removeMember.error) && <p className="px-5 pb-3 text-sm text-red-600">{errorMessage(updateRole.error ?? removeMember.error)}</p>}
+            {(updateRole.error || removeMember.error) && <p className="px-5 pb-3 text-sm text-red-400">{errorMessage(updateRole.error ?? removeMember.error)}</p>}
           </Card>
         </div>
       )}
@@ -226,7 +226,7 @@ export function OrganizationPage() {
               {records.data.records.map((r) => (
                 <li key={r.id} className="flex items-start justify-between gap-3 px-4 py-3 sm:px-5">
                   <div className="min-w-0">
-                    <p className="text-sm text-navy-950">{r.reason}</p>
+                    <p className="text-sm text-ink">{r.reason}</p>
                     <p className="text-xs text-slate-500">
                       {r.verifiedBy} · {formatDateTime(r.createdAt)}
                     </p>
@@ -247,7 +247,7 @@ export function OrgInboxViewPage() {
   const { data, error, isLoading } = useQuery({ queryKey: ['inbox-item', id], queryFn: () => api<SharedView>(`/api/inbox/${id}`), retry: false, staleTime: Infinity });
   return (
     <div className="mx-auto max-w-3xl">
-      <Link to="/app/org" className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-navy-700">
+      <Link to="/app/org" className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-accent">
         <ArrowLeft className="size-4" /> Organization inbox
       </Link>
       {isLoading && <Spinner label="Checking access" />}

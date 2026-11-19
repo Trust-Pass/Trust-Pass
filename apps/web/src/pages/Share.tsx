@@ -16,8 +16,8 @@ function Step({ n, title, icon, children }: { n: number; title: string; icon: Re
   return (
     <Card className="p-4 sm:p-5">
       <div className="mb-4 flex items-center gap-2.5">
-        <span className="flex size-7 items-center justify-center rounded-full bg-navy-900 text-xs font-bold text-white">{n}</span>
-        <h2 className="flex items-center gap-2 font-semibold text-navy-950">
+        <span className="flex size-7 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-xs font-bold text-white shadow-glow">{n}</span>
+        <h2 className="flex items-center gap-2 font-semibold text-ink">
           {icon}
           {title}
         </h2>
@@ -36,11 +36,11 @@ function OrgSearch({ value, onChange }: { value: { id: string; name: string } | 
   });
   if (value) {
     return (
-      <div className="flex items-center justify-between rounded-xl bg-navy-50 px-3.5 py-2.5 ring-1 ring-navy-100">
-        <span className="flex items-center gap-2 font-medium text-navy-950">
+      <div className="flex items-center justify-between rounded-xl bg-accent-soft px-3.5 py-2.5 ring-1 ring-accent-line">
+        <span className="flex items-center gap-2 font-medium text-ink">
           <Building2 className="size-4" /> {value.name}
         </span>
-        <button type="button" className="text-sm font-medium text-navy-700 underline" onClick={() => onChange(null)}>
+        <button type="button" className="text-sm font-medium text-accent underline" onClick={() => onChange(null)}>
           Change
         </button>
       </div>
@@ -53,7 +53,7 @@ function OrgSearch({ value, onChange }: { value: { id: string; name: string } | 
         {(data?.organizations ?? []).map((o) => (
           <li key={o.id}>
             <button type="button" onClick={() => onChange(o)} className="flex w-full items-center justify-between px-3.5 py-2.5 text-left text-sm hover:bg-slate-50">
-              <span className="font-medium text-navy-950">{o.name}</span>
+              <span className="font-medium text-ink">{o.name}</span>
               <span className="text-xs text-slate-500 capitalize">{o.type}</span>
             </button>
           </li>
@@ -124,7 +124,7 @@ export function SharePage() {
             <p className="mt-1 text-sm text-navy-100">Send it to {recipientType === 'organization' ? org?.name : recipientLabel}. It stops working on {formatDateTime(result.expiresAt)}.</p>
           </div>
           <div className="space-y-4 p-5">
-            <div className="rounded-xl bg-slate-50 p-3 font-mono text-xs break-all text-navy-900 ring-1 ring-slate-200" data-testid="share-url">
+            <div className="rounded-xl bg-slate-50 p-3 font-mono text-xs break-all text-ink ring-1 ring-slate-200" data-testid="share-url">
               {result.url}
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -138,7 +138,7 @@ export function SharePage() {
                   Send…
                 </Button>
               ) : (
-                <a href={result.url} target="_blank" rel="noreferrer noopener" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-medium text-navy-900 ring-1 ring-slate-300 hover:bg-slate-50">
+                <a href={result.url} target="_blank" rel="noreferrer noopener" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-medium text-ink ring-1 ring-slate-300 hover:bg-slate-50">
                   <ExternalLink className="size-4" /> Preview as recipient
                 </a>
               )}
@@ -168,7 +168,7 @@ export function SharePage() {
     <div className="mx-auto max-w-2xl">
       <PageHeader
         back={
-          <Link to={`/app/documents/${doc.id}`} className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-navy-700">
+          <Link to={`/app/documents/${doc.id}`} className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-accent">
             <ArrowLeft className="size-4" /> {doc.title}
           </Link>
         }
@@ -185,7 +185,7 @@ export function SharePage() {
                     <input type="checkbox" checked={claimIds.includes(c.id)} onChange={() => toggleClaim(c.id)} className="size-5 rounded accent-teal-600" />
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm text-slate-500">{c.label}</span>
-                      <span className="block truncate font-medium text-navy-950">{c.value}</span>
+                      <span className="block truncate font-medium text-ink">{c.value}</span>
                     </span>
                     {c.source === 'issuer' ? <Badge tone="teal">Signed</Badge> : <Badge tone="amber">Self-declared</Badge>}
                   </label>

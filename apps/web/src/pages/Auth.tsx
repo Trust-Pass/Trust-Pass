@@ -11,7 +11,7 @@ import type { Me } from '../lib/types';
 
 function AuthShell({ title, subtitle, children, footer }: { title: string; subtitle?: ReactNode; children: ReactNode; footer?: ReactNode }) {
   return (
-    <div className="flex min-h-dvh flex-col bg-slate-50">
+    <div className="flex min-h-dvh flex-col">
       <div className="hero-grid px-4 pt-6 pb-24 sm:pb-28">
         <div className="mx-auto max-w-md">
           <Link to="/">
@@ -20,8 +20,8 @@ function AuthShell({ title, subtitle, children, footer }: { title: string; subti
         </div>
       </div>
       <div className="-mt-16 flex-1 px-4 pb-10 sm:-mt-20">
-        <div className="mx-auto max-w-md rounded-3xl bg-white p-6 shadow-lift ring-1 ring-slate-200/70 sm:p-8">
-          <h1 className="text-2xl font-bold tracking-tight text-navy-950">{title}</h1>
+        <div className="mx-auto max-w-md surface-card glass rounded-3xl p-6 shadow-lift sm:p-8">
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{title}</h1>
           {subtitle && <p className="mt-1.5 text-sm text-slate-600">{subtitle}</p>}
           <div className="mt-6">{children}</div>
         </div>
@@ -79,7 +79,7 @@ export function LoginPage() {
       footer={
         <>
           New to TrustPass?{' '}
-          <Link to={`/register${params.get('next') ? `?next=${encodeURIComponent(params.get('next')!)}` : ''}`} className="font-semibold text-navy-800 underline">
+          <Link to={`/register${params.get('next') ? `?next=${encodeURIComponent(params.get('next')!)}` : ''}`} className="font-semibold text-ink underline">
             Create an account
           </Link>
         </>
@@ -94,7 +94,7 @@ export function LoginPage() {
           <PasswordInput id="password" value={password} onChange={setPassword} autoComplete="current-password" />
         </Field>
         <div className="text-right">
-          <Link to="/forgot-password" className="text-sm font-medium text-navy-700 hover:underline">
+          <Link to="/forgot-password" className="text-sm font-medium text-accent hover:underline">
             Forgot your password?
           </Link>
         </div>
@@ -146,7 +146,7 @@ export function RegisterPage() {
       onClick={() => setAccountType(value)}
       className={clsx(
         'flex flex-1 flex-col items-start gap-1 rounded-2xl p-3.5 text-left ring-1 ring-inset transition-colors',
-        accountType === value ? 'bg-navy-900 text-white ring-navy-900' : 'bg-white text-navy-900 ring-slate-300 hover:bg-slate-50',
+        accountType === value ? 'bg-blue-600 text-white ring-blue-400/60 shadow-glow' : 'bg-surface text-ink ring-slate-300 hover:bg-slate-50',
       )}
     >
       {icon}
@@ -162,7 +162,7 @@ export function RegisterPage() {
       footer={
         <>
           Already registered?{' '}
-          <Link to="/login" className="font-semibold text-navy-800 underline">
+          <Link to="/login" className="font-semibold text-ink underline">
             Sign in
           </Link>
         </>
@@ -226,7 +226,7 @@ export function ForgotPasswordPage() {
     }
   };
   return (
-    <AuthShell title="Reset your password" subtitle="We will email you a link that works for 30 minutes." footer={<Link to="/login" className="font-semibold text-navy-800 underline">Back to sign in</Link>}>
+    <AuthShell title="Reset your password" subtitle="We will email you a link that works for 30 minutes." footer={<Link to="/login" className="font-semibold text-ink underline">Back to sign in</Link>}>
       {done ? (
         <Alert tone="success" title="Check your inbox">
           {done}

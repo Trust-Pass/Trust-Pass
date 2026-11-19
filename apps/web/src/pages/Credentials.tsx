@@ -88,8 +88,8 @@ export function CredentialsPage() {
       </Card>
 
       <Card className="mt-5 p-5">
-        <h2 className="flex items-center gap-2 font-semibold text-navy-950">
-          <KeyRound className="size-4 text-teal-600" /> What you get
+        <h2 className="flex items-center gap-2 font-semibold text-ink">
+          <KeyRound className="size-4 text-teal-400" /> What you get
         </h2>
         <ul className="mt-3 space-y-2 text-sm text-slate-600">
           <li>• A PDF certificate whose SHA-256 fingerprint is signed by the issuer. Change one byte and it verifies as Invalid.</li>

@@ -72,7 +72,7 @@ export function ActivityPage() {
                 return (
                   <li key={e.id} className="flex items-start justify-between gap-3 px-4 py-3.5 sm:px-5">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-navy-950">{SECURITY_EVENT_LABELS[e.type] ?? e.type.replace(/_/g, ' ')}</p>
+                      <p className="text-sm font-medium text-ink">{SECURITY_EVENT_LABELS[e.type] ?? e.type.replace(/_/g, ' ')}</p>
                       {e.document && <p className="truncate text-sm text-slate-600">{e.document}</p>}
                       {detail && <p className="truncate text-xs text-slate-500">{detail}</p>}
                       <p className="mt-0.5 text-xs text-slate-400">

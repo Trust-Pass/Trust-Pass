@@ -64,7 +64,9 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
           className={({ isActive }) =>
             clsx(
               'flex h-11 items-center gap-3 rounded-xl px-3 text-[15px] font-medium transition-colors',
-              isActive ? 'bg-white/10 text-white' : 'text-navy-200 hover:bg-white/5 hover:text-white',
+              isActive
+                ? 'bg-gradient-to-r from-blue-500/25 to-blue-500/5 text-white shadow-[inset_2px_0_0_#60a5fa]'
+                : 'text-navy-200 hover:bg-white/5 hover:text-white',
             )
           }
         >
@@ -131,7 +133,7 @@ function NotificationsPanel({ open, onClose }: { open: boolean; onClose: () => v
               <button type="button" onClick={() => openNotification(n)} className="flex w-full gap-3 rounded-xl px-2 py-3 text-left hover:bg-slate-50">
                 <span className={clsx('mt-1.5 size-2 shrink-0 rounded-full', n.read ? 'bg-transparent' : n.type.startsWith('alert') ? 'bg-amber-500' : 'bg-teal-500')} />
                 <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-navy-950">{n.title}</span>
+                  <span className="block text-sm font-semibold text-ink">{n.title}</span>
                   <span className="mt-0.5 block text-sm text-slate-600">{n.body}</span>
                   <span className="mt-1 block text-xs text-slate-400">{relativeTime(n.at)}</span>
                 </span>
@@ -217,8 +219,8 @@ export function AppLayout() {
   };
 
   const userBlock = (
-    <div className="flex items-center gap-3 rounded-xl bg-white/5 p-3">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-teal-500 text-sm font-bold text-navy-950">{initials(me.user.fullName)}</div>
+    <div className="flex items-center gap-3 rounded-xl bg-white/[0.04] p-3 ring-1 ring-white/[0.06]">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-300 to-blue-500 text-sm font-bold text-navy-950">{initials(me.user.fullName)}</div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-white">{me.user.fullName}</p>
         <p className="truncate text-xs text-navy-300">{me.organizations[0]?.name ?? me.user.email}</p>
@@ -246,7 +248,7 @@ export function AppLayout() {
       <aside
         id="app-sidebar"
         className={clsx(
-          'fixed inset-y-0 left-0 z-20 hidden w-72 flex-col bg-navy-900 px-4 py-5 transition-transform duration-200 lg:flex',
+          'sidebar-panel fixed inset-y-0 left-0 z-20 hidden w-72 flex-col px-4 py-5 transition-transform duration-200 lg:flex',
           !dockedOpen && 'lg:-translate-x-full',
         )}
         inert={!dockedOpen}
@@ -259,13 +261,13 @@ export function AppLayout() {
       </aside>
 
       {/* Top bar: the only navigation bar, on every screen size. */}
-      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur">
+      <header className="glass sticky top-0 z-30 border-b border-white/[0.06]">
         <div className="page-pad flex h-14 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
               onClick={toggleMenu}
-              className="-ml-2 rounded-xl p-2.5 text-navy-800 hover:bg-slate-100"
+              className="-ml-2 rounded-xl p-2.5 text-ink hover:bg-slate-100"
               aria-label={menuExpanded ? 'Close menu' : 'Open menu'}
               aria-controls="app-sidebar app-drawer"
               aria-expanded={menuExpanded}
@@ -278,13 +280,13 @@ export function AppLayout() {
           </div>
           <div className="flex min-w-0 items-center gap-3">
             <p className="hidden min-w-0 truncate text-sm text-slate-500 lg:block">
-              Signed in as <span className="font-medium text-navy-900">{me.user.email}</span>
-              {me.user.role === 'admin' && <span className="ml-2 rounded-full bg-navy-900 px-2 py-0.5 text-xs font-medium text-white">Admin</span>}
+              Signed in as <span className="font-medium text-ink">{me.user.email}</span>
+              {me.user.role === 'admin' && <span className="ml-2 rounded-full bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-200 ring-1 ring-blue-400/30">Admin</span>}
             </p>
             <button
               type="button"
               onClick={() => setNotificationsOpen(true)}
-              className="relative -mr-2 rounded-xl p-2.5 text-navy-800 hover:bg-slate-100"
+              className="relative -mr-2 rounded-xl p-2.5 text-ink hover:bg-slate-100"
               aria-label={`Notifications${me.unreadNotifications ? `, ${me.unreadNotifications} unread` : ''}`}
             >
               <Bell className="size-5" />
@@ -307,7 +309,7 @@ export function AppLayout() {
         <button
           type="button"
           tabIndex={-1}
-          className={clsx('absolute inset-0 bg-navy-950/50 transition-opacity duration-200', drawerOpen ? 'opacity-100' : 'opacity-0')}
+          className={clsx('absolute inset-0 bg-navy-950/70 backdrop-blur-[2px] transition-opacity duration-200', drawerOpen ? 'opacity-100' : 'opacity-0')}
           onClick={closeDrawer}
           aria-label="Close menu"
         />
@@ -317,7 +319,7 @@ export function AppLayout() {
           aria-modal="true"
           aria-label="Menu"
           className={clsx(
-            'safe-bottom absolute inset-y-0 left-0 flex w-[min(18rem,85vw)] flex-col bg-navy-900 px-4 pt-3 pb-4 shadow-2xl transition-transform duration-200',
+            'sidebar-panel safe-bottom absolute inset-y-0 left-0 flex w-[min(18rem,85vw)] flex-col px-4 pt-3 pb-4 shadow-2xl transition-transform duration-200',
             drawerOpen ? 'translate-x-0' : '-translate-x-full',
           )}
         >

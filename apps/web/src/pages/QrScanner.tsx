@@ -57,11 +57,11 @@ const VERDICT_UI = {
 } as const;
 
 const SEVERITY_UI: Record<QrSeverity, { label: string; tone: 'red' | 'amber' | 'slate' | 'navy'; icon: ReactNode }> = {
-  critical: { label: 'Critical', tone: 'red', icon: <ShieldX className="size-4 text-red-600" /> },
-  high: { label: 'High', tone: 'red', icon: <AlertTriangle className="size-4 text-red-600" /> },
-  medium: { label: 'Medium', tone: 'amber', icon: <AlertTriangle className="size-4 text-amber-600" /> },
+  critical: { label: 'Critical', tone: 'red', icon: <ShieldX className="size-4 text-red-400" /> },
+  high: { label: 'High', tone: 'red', icon: <AlertTriangle className="size-4 text-red-400" /> },
+  medium: { label: 'Medium', tone: 'amber', icon: <AlertTriangle className="size-4 text-amber-400" /> },
   low: { label: 'Low', tone: 'slate', icon: <Info className="size-4 text-slate-500" /> },
-  info: { label: 'Info', tone: 'navy', icon: <Info className="size-4 text-navy-500" /> },
+  info: { label: 'Info', tone: 'navy', icon: <Info className="size-4 text-accent" /> },
 };
 
 const LINK_STATUS_UI: Record<LinkStatus, { label: string; tone: 'green' | 'amber' | 'red' }> = {
@@ -190,7 +190,7 @@ function CameraScanner({ onDecoded, analyzing, ignore }: { onDecoded: (text: str
         )}
       </div>
       {state === 'scanning' && (
-        <p className="flex items-center justify-center gap-2 text-sm font-medium text-navy-700" role="status">
+        <p className="flex items-center justify-center gap-2 text-sm font-medium text-accent" role="status">
           <span className="size-2 animate-pulse rounded-full bg-teal-500" aria-hidden />
           Point the camera at a QR code. It is read on this device; no photo is uploaded.
         </p>
@@ -256,14 +256,14 @@ function ResultPanel({ result, onAgain, againLabel }: { result: CheckResponse; o
             <p className="mt-1 text-xs font-medium opacity-80">Safety score</p>
           </div>
         </div>
-        <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white/70" role="meter" aria-label="Safety score" aria-valuemin={0} aria-valuemax={100} aria-valuenow={safety}>
+        <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-surface/70" role="meter" aria-label="Safety score" aria-valuemin={0} aria-valuemax={100} aria-valuenow={safety}>
           <div className={clsx('h-full rounded-full transition-all', ui.bar)} style={{ width: `${Math.max(3, safety)}%` }} />
         </div>
         <p className="mt-3 text-sm leading-relaxed">{analysis.summary}</p>
 
-        <div className="mt-4 rounded-xl bg-white/80 p-3 ring-1 ring-inset ring-black/5">
+        <div className="mt-4 rounded-xl bg-surface/80 p-3 ring-1 ring-inset ring-black/5">
           <p className="text-xs font-semibold uppercase tracking-wide opacity-70">{destination ? 'Destination' : KIND_LABEL[analysis.kind]}</p>
-          <p className="mt-1 break-all font-mono text-[13px] leading-relaxed text-navy-950" data-testid="qr-destination">
+          <p className="mt-1 break-all font-mono text-[13px] leading-relaxed text-ink" data-testid="qr-destination">
             {destination ? destination.href : analysis.content}
           </p>
           <p className="mt-1.5 text-xs opacity-70">Not opened. TrustPass never opens a scanned code by itself.</p>
@@ -298,7 +298,7 @@ function ResultPanel({ result, onAgain, againLabel }: { result: CheckResponse; o
               <span className="mt-0.5 shrink-0">{SEVERITY_UI[f.severity].icon}</span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold text-navy-950">{f.title}</p>
+                  <p className="text-sm font-semibold text-ink">{f.title}</p>
                   {f.severity !== 'info' && <Badge tone={SEVERITY_UI[f.severity].tone}>{SEVERITY_UI[f.severity].label}</Badge>}
                 </div>
                 <p className="mt-0.5 text-sm leading-relaxed text-slate-600">{f.detail}</p>
@@ -311,27 +311,27 @@ function ResultPanel({ result, onAgain, againLabel }: { result: CheckResponse; o
       <Card>
         <CardHeader title="What the code contains" subtitle="Shown as text only." action={<Badge tone="navy">{KIND_LABEL[analysis.kind]}</Badge>} />
         <div className="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5">
-          <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-slate-50 p-3 font-mono text-[13px] leading-relaxed text-navy-950 ring-1 ring-inset ring-slate-200" data-testid="qr-content">
+          <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-slate-50 p-3 font-mono text-[13px] leading-relaxed text-ink ring-1 ring-inset ring-slate-200" data-testid="qr-content">
             {analysis.content}
           </pre>
           {analysis.url && (
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
               <dt className="text-slate-500">Site</dt>
               <dd className="flex min-w-0 flex-wrap items-center gap-2">
-                <span className="break-all font-semibold text-navy-950" data-testid="qr-domain">
+                <span className="break-all font-semibold text-ink" data-testid="qr-domain">
                   {analysis.url.registrableDomain}
                 </span>
                 {analysis.url.isOfficial && <Badge tone="teal" icon={<ShieldCheck className="size-3.5" />}>Official TrustPass</Badge>}
                 {trustpassLink && <Badge tone={LINK_STATUS_UI[trustpassLink.status].tone}>{LINK_STATUS_UI[trustpassLink.status].label}</Badge>}
               </dd>
               <dt className="text-slate-500">Full host</dt>
-              <dd className="break-all text-navy-950">
+              <dd className="break-all text-ink">
                 {analysis.url.host}
                 {analysis.url.port ? `:${analysis.url.port}` : ''}
               </dd>
               <dt className="text-slate-500">Connection</dt>
-              <dd className="flex items-center gap-1.5 text-navy-950">
-                {analysis.url.scheme === 'https' ? <Lock className="size-4 text-teal-600" /> : <LockOpen className="size-4 text-amber-600" />}
+              <dd className="flex items-center gap-1.5 text-ink">
+                {analysis.url.scheme === 'https' ? <Lock className="size-4 text-teal-400" /> : <LockOpen className="size-4 text-amber-400" />}
                 {analysis.url.scheme === 'https' ? 'Encrypted (https)' : `Not encrypted (${analysis.url.scheme})`}
               </dd>
             </dl>
@@ -348,7 +348,7 @@ function ResultPanel({ result, onAgain, againLabel }: { result: CheckResponse; o
         confirmLabel="Open in a new tab"
         body={
           <>
-            TrustPass found warning signs for <strong className="break-all text-navy-950">{analysis.url?.registrableDomain}</strong>. Do not enter passwords, card details or
+            TrustPass found warning signs for <strong className="break-all text-ink">{analysis.url?.registrableDomain}</strong>. Do not enter passwords, card details or
             verification codes unless you are sure the site is genuine.
           </>
         }
@@ -473,7 +473,7 @@ export function QrScannerPage() {
             {showCamera && <CameraScanner key={scanKey} onDecoded={onCamera} analyzing={busy} ignore={ignore} />}
             {mode === 'camera' && result && (
               <div className="flex flex-col items-center gap-3 rounded-2xl bg-slate-50 px-4 py-6 text-center ring-1 ring-inset ring-slate-200">
-                <ScanLine className="size-8 text-navy-600" />
+                <ScanLine className="size-8 text-accent" />
                 <p className="text-sm text-slate-600">Camera paused while you read the result.</p>
                 <Button onClick={scanAgain} icon={<ScanLine className="size-4" />}>
                   Scan another QR code
@@ -486,10 +486,10 @@ export function QrScannerPage() {
                   type="button"
                   onClick={() => fileInput.current?.click()}
                   disabled={busy}
-                  className="flex w-full flex-col items-center rounded-2xl border-2 border-dashed border-slate-300 px-4 py-10 text-center transition-colors hover:border-navy-300 hover:bg-slate-50 disabled:opacity-60"
+                  className="flex w-full flex-col items-center rounded-2xl border-2 border-dashed border-slate-300 px-4 py-10 text-center transition-colors hover:border-accent hover:bg-slate-50 disabled:opacity-60"
                 >
-                  <ImagePlus className="size-8 text-navy-600" />
-                  <span className="mt-2 font-semibold text-navy-950">{imageName ?? 'Choose a photo or screenshot'}</span>
+                  <ImagePlus className="size-8 text-accent" />
+                  <span className="mt-2 font-semibold text-ink">{imageName ?? 'Choose a photo or screenshot'}</span>
                   <span className="mt-1 text-sm text-slate-500">PNG, JPEG or WebP. The image stays on this device; only the decoded text is checked.</span>
                 </button>
                 <input
@@ -505,7 +505,7 @@ export function QrScannerPage() {
             )}
             {mode === 'paste' && (
               <form onSubmit={onPaste} className="space-y-3">
-                <label htmlFor="qr-paste" className="block text-sm font-medium text-navy-950">
+                <label htmlFor="qr-paste" className="block text-sm font-medium text-ink">
                   Link or QR code text
                 </label>
                 <Textarea
@@ -543,7 +543,7 @@ export function QrScannerPage() {
             <ResultPanel result={result} onAgain={scanAgain} againLabel={mode === 'camera' ? 'Scan another QR code' : 'Check another'} />
           ) : (
             <Card className="p-5">
-              <h2 className="font-semibold text-navy-950">What TrustPass checks</h2>
+              <h2 className="font-semibold text-ink">What TrustPass checks</h2>
               <ul className="mt-3 space-y-2.5 text-sm text-slate-600">
                 {[
                   'Fake names that imitate banks, government services, delivery companies and TrustPass itself',
@@ -555,7 +555,7 @@ export function QrScannerPage() {
                   'TrustPass share links: whether the link is genuine and still active',
                 ].map((t) => (
                   <li key={t} className="flex gap-2.5">
-                    <ShieldCheck className="mt-0.5 size-4 shrink-0 text-teal-600" />
+                    <ShieldCheck className="mt-0.5 size-4 shrink-0 text-teal-400" />
                     {t}
                   </li>
                 ))}

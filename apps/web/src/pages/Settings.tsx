@@ -68,15 +68,15 @@ export function SettingsPage() {
           <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
             <div>
               <dt className="text-slate-500">Email</dt>
-              <dd className="font-medium break-all text-navy-950">{me.user.email}</dd>
+              <dd className="font-medium break-all text-ink">{me.user.email}</dd>
             </div>
             <div>
               <dt className="text-slate-500">Account type</dt>
-              <dd className="font-medium text-navy-950 capitalize">{me.user.accountType}</dd>
+              <dd className="font-medium text-ink capitalize">{me.user.accountType}</dd>
             </div>
             <div>
               <dt className="text-slate-500">Member since</dt>
-              <dd className="font-medium text-navy-950">{formatDate(me.user.createdAt)}</dd>
+              <dd className="font-medium text-ink">{formatDate(me.user.createdAt)}</dd>
             </div>
           </dl>
           {me.organizations.length > 0 && (
@@ -126,7 +126,7 @@ export function SettingsPage() {
             {sessions.data.sessions.map((s) => (
               <li key={s.id} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
                 <div>
-                  <p className="text-sm font-medium text-navy-950">
+                  <p className="text-sm font-medium text-ink">
                     {s.client ?? 'Unknown device'} {s.current && <Badge tone="teal">This device</Badge>}
                   </p>
                   <p className="text-xs text-slate-500">
@@ -151,7 +151,7 @@ export function SettingsPage() {
             <Spinner />
           ) : (
             <>
-              <p className="text-lg font-semibold text-navy-950">{country(connection.data?.approximateCountry)}</p>
+              <p className="text-lg font-semibold text-ink">{country(connection.data?.approximateCountry)}</p>
               <p className="mt-1 text-[13px] text-slate-500">
                 Estimated from your internet connection, never stored as a full IP address. A VPN or mobile network can show a different country.
               </p>

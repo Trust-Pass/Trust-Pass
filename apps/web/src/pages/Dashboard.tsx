@@ -25,13 +25,16 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-medium text-teal-700">Dashboard</p>
-          <h1 className="text-2xl font-bold tracking-tight text-navy-950 sm:text-[28px]">Hello, {firstName}</h1>
+      <div className="hero-grid relative flex animate-rise flex-col gap-4 overflow-hidden rounded-3xl border border-white/[0.08] px-5 py-6 shadow-lift sm:flex-row sm:items-end sm:justify-between sm:px-7 sm:py-8">
+        <div className="pointer-events-none absolute -top-24 -right-16 size-64 rounded-full bg-blue-500/20 blur-3xl" aria-hidden />
+        <div className="relative">
+          <p className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-0.5 text-xs font-medium text-teal-200 ring-1 ring-white/10">
+            <span className="size-1.5 rounded-full bg-teal-300 shadow-[0_0_8px_#5eead4]" aria-hidden /> Dashboard
+          </p>
+          <h1 className="text-gradient mt-2 text-2xl font-bold tracking-tight sm:text-[32px]">Hello, {firstName}</h1>
           <p className="mt-1 text-[15px] text-slate-600">Here is what happened with your documents.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="relative flex flex-wrap gap-2">
           <ButtonLink to="/app/documents/upload" icon={<Upload className="size-4" />}>
             Upload
           </ButtonLink>
@@ -43,7 +46,7 @@ export function DashboardPage() {
 
       {onboarding && (
         <Card className="overflow-hidden">
-          <div className="hero-grid px-5 py-6 text-white sm:px-6">
+          <div className="px-5 py-6 text-white sm:px-6">
             <h2 className="text-lg font-bold">Try the full TrustPass flow in 2 minutes</h2>
             <p className="mt-1 text-sm text-navy-100">Works best with a second phone or a friend nearby.</p>
             <ol className="mt-4 space-y-3 text-sm">
@@ -82,7 +85,7 @@ export function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card>
-          <CardHeader title="Recent views of your links" icon={<Share2 className="size-5" />} action={<Link to="/app/analytics" className="text-sm font-medium text-navy-700 hover:underline">Analytics</Link>} />
+          <CardHeader title="Recent views of your links" icon={<Share2 className="size-5" />} action={<Link to="/app/analytics" className="text-sm font-medium text-accent hover:underline">Analytics</Link>} />
           {data.recentAccess.length === 0 ? (
             <EmptyState icon={<Share2 className="size-6" />} title="No views yet" body="When someone opens one of your links, it shows up here." />
           ) : (
@@ -90,7 +93,7 @@ export function DashboardPage() {
               {data.recentAccess.map((a) => (
                 <li key={a.id} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-navy-950">{a.document}</p>
+                    <p className="truncate text-sm font-medium text-ink">{a.document}</p>
                     <p className="truncate text-xs text-slate-500">
                       {a.recipient} · {country(a.country)} · {relativeTime(a.at)}
                     </p>
@@ -103,12 +106,12 @@ export function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader title="Security activity" icon={<Activity className="size-5" />} action={<Link to="/app/activity" className="text-sm font-medium text-navy-700 hover:underline">View all</Link>} />
+          <CardHeader title="Security activity" icon={<Activity className="size-5" />} action={<Link to="/app/activity" className="text-sm font-medium text-accent hover:underline">View all</Link>} />
           <ul className="divide-y divide-slate-100">
             {data.recentEvents.map((e) => (
               <li key={e.id} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-navy-950">{SECURITY_EVENT_LABELS[e.type] ?? e.type}</p>
+                  <p className="truncate text-sm font-medium text-ink">{SECURITY_EVENT_LABELS[e.type] ?? e.type}</p>
                   <p className="text-xs text-slate-500">{relativeTime(e.at)}</p>
                 </div>
                 {e.severity !== 'info' && <Badge tone={e.severity === 'high' ? 'red' : 'amber'}>{e.severity === 'high' ? 'Important' : 'Review'}</Badge>}

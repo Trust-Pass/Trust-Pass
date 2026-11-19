@@ -36,7 +36,7 @@ function LinkActivity({ id }: { id: string }) {
   return (
     <div className="space-y-3 border-t border-slate-100 px-4 py-4 sm:px-5">
       <p className="text-sm text-slate-600">
-        <span className="font-medium text-navy-950">Shared:</span> {l.fields.map((f) => f.label).join(', ') || 'no fields'}
+        <span className="font-medium text-ink">Shared:</span> {l.fields.map((f) => f.label).join(', ') || 'no fields'}
         {l.includeFile && ' + watermarked file'}
       </p>
       {l.recentAccess.length === 0 ? (
@@ -46,7 +46,7 @@ function LinkActivity({ id }: { id: string }) {
           {l.recentAccess.map((a) => (
             <li key={a.id} className="flex items-center justify-between gap-2 px-3 py-2.5 text-sm">
               <span className="min-w-0">
-                <span className="block text-navy-950">{country(a.country)}</span>
+                <span className="block text-ink">{country(a.country)}</span>
                 <span className="block truncate text-xs text-slate-500">
                   {a.client} · {a.resource === 'file' ? 'file' : 'details'} · {formatDateTime(a.at)}
                 </span>
@@ -125,11 +125,11 @@ export function LinksPage() {
                 <div className="p-4 sm:p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <Link to={`/app/documents/${l.document.id}`} className="line-clamp-1 font-semibold text-navy-950 hover:underline">
+                      <Link to={`/app/documents/${l.document.id}`} className="line-clamp-1 font-semibold text-ink hover:underline">
                         {l.document.title}
                       </Link>
                       <p className="mt-0.5 text-sm text-slate-600">
-                        For <span className="font-medium text-navy-900">{l.recipientOrg ?? l.recipientLabel}</span>
+                        For <span className="font-medium text-ink">{l.recipientOrg ?? l.recipientLabel}</span>
                         {l.recipientType === 'organization' && ' (members only)'}
                       </p>
                     </div>
@@ -147,7 +147,7 @@ export function LinksPage() {
                       <Globe2 className="size-3.5" /> {l.countries.length ? l.countries.map(flag).join(' ') : 'Any country'}
                     </span>
                     <span>
-                      {l.attempts.granted} views · <span className={l.attempts.denied ? 'font-medium text-red-600' : ''}>{l.attempts.denied} blocked</span>
+                      {l.attempts.granted} views · <span className={l.attempts.denied ? 'font-medium text-red-400' : ''}>{l.attempts.denied} blocked</span>
                     </span>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -165,7 +165,7 @@ export function LinksPage() {
                         >
                           Countries
                         </Button>
-                        <Button size="sm" variant="secondary" className="text-red-600" icon={<Ban className="size-4" />} onClick={() => setRevoking(l)}>
+                        <Button size="sm" variant="secondary" className="text-red-400" icon={<Ban className="size-4" />} onClick={() => setRevoking(l)}>
                           Revoke
                         </Button>
                       </>
@@ -194,7 +194,7 @@ export function LinksPage() {
             <p>
               {revoking?.recipientOrg ?? revoking?.recipientLabel} will no longer be able to open "{revoking?.document.title}". This takes effect on the next request and cannot be undone.
             </p>
-            {revoke.error && <p className="mt-2 text-red-600">{errorMessage(revoke.error)}</p>}
+            {revoke.error && <p className="mt-2 text-red-400">{errorMessage(revoke.error)}</p>}
           </>
         }
       />
@@ -216,7 +216,7 @@ export function LinksPage() {
       >
         <p className="mb-4 text-sm text-slate-600">Leave empty to allow any country. Location is approximate (IP-based).</p>
         <CountryPicker value={countries} onChange={setCountries} />
-        {saveCountries.error && <p className="mt-3 text-sm text-red-600">{errorMessage(saveCountries.error)}</p>}
+        {saveCountries.error && <p className="mt-3 text-sm text-red-400">{errorMessage(saveCountries.error)}</p>}
       </Modal>
     </div>
   );
