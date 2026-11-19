@@ -18,7 +18,9 @@
  *  - every stored file decrypts (AAD "file|<id>|<owner>"), matches its SHA-256 (sealed or legacy
  *    plain) and starts like a PDF, PNG or JPEG; a credential's file also matches its public hash;
  *  - every field value, label (if sealed), disclosure, sealed title and signed credential opens;
- *  - every share-link copy opens with the link-token key and matches its stored hash.
+ *  - every share-link copy opens and matches its stored hash: with the link-token key
+ *    (info "link-token:v<n>", since E2) or, for links created before E2, with the
+ *    key-encryption key itself (info "kek:v<n>"), exactly as the server reads them.
  * With ISSUER_SIGNING_SEED: the derived Ed25519 key equals the issuer public key in the backup.
  * IP_HASH_SECRET cannot be proven offline (no stored value depends on it alone).
  */
@@ -80,6 +82,7 @@ if (masterKey) {
     deletedSkipped: 0,
     linkTokens: 0,
     linkTokensMatched: 0,
+    linkTokensLegacy: 0,
     kmsManagedKeys: data.kmsKeys ?? 0,
     perDocument: [],
     failures: [],
@@ -186,29 +189,40 @@ if (masterKey) {
     if (docOk) r.recovered++;
   }
 
+  // Same order as the server (modules/sharing.ts decryptToken): link-token keys first, then the
+  // key-encryption keys, which sealed every link created before E2.
+  const kekVersions = [...new Set([1, ...(data.documents ?? []).map((d) => d.key?.kek_version).filter((v) => Number.isInteger(v))])];
+  const linkKeys = (data.linkTokenVersions ?? [1]).map((v) => derive(masterKey, `link-token:v${v}`));
+  const candidates = [
+    ...linkKeys.map((k) => ({ legacy: false, key: () => k })),
+    ...kekVersions.map((v) => ({ legacy: true, key: () => kek(v) })),
+  ];
   for (const link of data.links ?? []) {
     r.linkTokens++;
     let opened = false;
-    for (const v of data.linkTokenVersions ?? [1]) {
+    for (const c of candidates) {
       try {
-        const token = openSealed(derive(masterKey, `link-token:v${v}`), hex(link.token_encrypted), `link-token|${link.id}`);
+        const token = openSealed(c.key(), hex(link.token_encrypted), `link-token|${link.id}`);
         const match = sha256(token.toString('utf8')) === link.token_hash;
         token.fill(0);
         if (match) {
           r.linkTokensMatched++;
+          if (c.legacy) r.linkTokensLegacy++;
           opened = true;
           break;
         }
       } catch {
-        /* try the next version */
+        /* try the next key */
       }
     }
     if (!opened) {
       r.failures.push(`link ${String(link.id).slice(0, 8)}: copy does not open with this MASTER_KEY`);
-      keyFailures++;
+      // Only a wrong key if no document key opened either; otherwise this row is damaged.
+      if (r.recovered === 0) keyFailures++;
     }
   }
   for (const k of keks.values()) k.fill(0);
+  for (const k of linkKeys) k.fill(0);
 
   if (r.kmsManagedKeys > 0) r.note = 'This backup also has KMS-protected keys: those need the KMS, not MASTER_KEY.';
   // A wrong key fails at the key step; a right key with a failing file means the backup is damaged.

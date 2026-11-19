@@ -159,6 +159,29 @@ describe('fix B: versions never clash, and start-up checks before writing', () =
 });
 
 describe('migrating from the legacy MASTER_KEY to KMS-protected keys', () => {
+  it('a link sealed the way production does today (with the KEK itself) keeps working, and the re-wrap moves it to the link-token key', async () => {
+    const legacy = await start(LEGACY);
+    const owner = await registerUser(legacy);
+    const docId = (await uploadDocument(legacy, owner)).json().document.id as string;
+    const link = await createLink(legacy, owner, docId, { recipientLabel: 'HR' });
+    const linkId = await linkIdFor(link.token);
+    // Re-create the pre-E2 row: token sealed with the key-encryption key derived from MASTER_KEY ("kek:v1").
+    const { linkTokenAad, seal: sealWith, open: openWith } = await import('../../src/lib/crypto');
+    const kek = legacy.config.masterKeys.current.key;
+    await legacy.prisma.sharingLink.update({ where: { id: linkId }, data: { tokenEncrypted: sealWith(kek, Buffer.from(link.token), linkTokenAad(linkId)) } });
+
+    const app = await start({ MASTER_KEY: TEST_SECRETS.MASTER_KEY });
+    expect((await as(app, owner, { method: 'GET', url: `/api/links/${linkId}/url` })).json().url).toContain(link.token);
+    expect((await app.app.inject({ method: 'GET', url: `/api/share/${link.token}`, remoteAddress: IPS.SA })).statusCode).toBe(200);
+
+    const real = await keysCli(['rewrap'], { MASTER_KEY: TEST_SECRETS.MASTER_KEY });
+    expect(real.code, real.output).toBe(0);
+    const row = await app.prisma.sharingLink.findUniqueOrThrow({ where: { id: linkId } });
+    expect(() => openWith(kek, row.tokenEncrypted, linkTokenAad(linkId))).toThrow(); // no longer under the KEK
+    const kmsOnly = await start();
+    expect((await as(kmsOnly, owner, { method: 'GET', url: `/api/links/${linkId}/url` })).json().url).toContain(link.token);
+  });
+
   it('keeps every old document, field, credential and link working through the switch, the re-wrap and the removal of MASTER_KEY', async () => {
     const legacy = await start(LEGACY);
     const owner = await registerUser(legacy);
