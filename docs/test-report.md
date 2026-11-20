@@ -19,7 +19,7 @@ Every number below comes from an actual run. Nothing here is estimated.
 | OWASP ZAP baseline scan (production container) | 0 failures, 61 checks passed, 1 informational warning |
 | GitHub Actions CI (type check, tests, build, end-to-end, audit, gitleaks) | All 4 jobs pass on GitHub ([run 43882092323](https://github.com/Trust-Pass/Trust-Pass/actions/runs/43882092323)) |
 | Secret scan of the git history (gitleaks 8.30.1) | No leaks |
-| Deployment to a public URL | **Not done yet**: needs a Render account (see README) |
+| Live deployment (https://trustpass-gwnp.onrender.com, Render + PostgreSQL) | 18 / 18 live checks pass on the final version (see below) |
 
 ## Unit tests (36)
 
@@ -166,9 +166,17 @@ Branch `claude/encryption-hardening`, commit `f66e785`. Runbook: [recovery.md](r
 
 Earlier test failures caused by the tests themselves (ambiguous selectors, a session expiring after a simulated one-hour jump) were corrected in the tests; they are not listed as product fixes.
 
+## Live deployment checks
+
+Run against https://trustpass-gwnp.onrender.com on 16 November 2026 with Playwright (iPhone 13 and Pixel 7 profiles), using throw-away test accounts whose documents were deleted afterwards:
+
+HTTPS with HSTS; strict CSP; `Referrer-Policy: no-referrer`; `__Host-` session cookie (Secure, HttpOnly, SameSite=Lax); connection diagnostics without IP addresses; issuer credential verifies; recipient sees only the shared field; real visitor country detected; country rule refuses other countries and admits allowed ones; revoked link stops immediately; genuine certificate verifies and a one-byte change is Invalid; analytics record granted and denied attempts; admin and document APIs refuse anonymous requests; test document crypto-shredded; no browser JavaScript errors.
+
+Geolocation spoofing on the live site: a visitor-supplied `CF-Connecting-IP` is blocked by Cloudflare (HTTP 403); forged `True-Client-IP`, `X-Forwarded-For` and `X-Real-IP` headers are ignored and the detected country does not change.
+
 ## Not yet tested
 
-- The live deployment and production geolocation behind Render's proxy (pending a Render account).
+- Geolocation from a phone physically in Saudi Arabia (checked from the test machine's real location only).
 - Real email delivery (no SMTP provider configured).
 - Load and performance testing.
 - Real VPN traffic (VPN and proxy scenarios are simulated with forged headers and a trusted-proxy configuration).
