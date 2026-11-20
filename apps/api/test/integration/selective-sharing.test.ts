@@ -77,7 +77,7 @@ async function createRedactedLink(owner: Session, documentId: string, link: Reco
   const form = multipart([
     {
       name: 'link',
-      value: JSON.stringify({ includeFile: true, fileMode: 'redacted', recipientType: 'anyone', recipientLabel: 'Example Company', expiresIn: '24h', allowedCountries: [], claimIds: [], ...link }),
+      value: JSON.stringify({ includeFile: true, fileMode: 'redacted', recipientType: 'anyone', recipientLabel: 'Example Company', expiresIn: '24h', allowedCountries: [], claimIds: [], watermark: { enabled: true }, ...link }),
     },
     ...pages.map((content, i) => ({ name: 'page', filename: `page-${i + 1}.png`, content, contentType: 'image/png' })),
   ]);
@@ -261,7 +261,7 @@ describe('Smart Selective Encryption: redacted copies', () => {
     const original = await secretPdf();
     const id = (await uploadDocument(ctx, owner, { file: original })).json().document.id as string;
     const form = multipart([
-      { name: 'link', value: JSON.stringify({ fileMode: 'redacted', redactions: REDACTIONS, recipientLabel: 'Example Company' }) },
+      { name: 'link', value: JSON.stringify({ fileMode: 'redacted', redactions: REDACTIONS, recipientLabel: 'Example Company', watermark: { enabled: true } }) },
       ...(await browserRenderings()).map((content, i) => ({ name: 'page', filename: `page-${i + 1}.png`, content, contentType: 'image/png' })),
     ]);
     const res = await as(ctx, owner, { method: 'POST', url: `/api/documents/${id}/links/preview`, payload: form.payload, headers: form.headers });
@@ -283,6 +283,94 @@ describe('Smart Selective Encryption: redacted copies', () => {
     for (const secret of HIDDEN) expect(content).not.toContain(secret);
     expect(content).not.toMatch(/\/BaseFont/);
     for (const img of await imagesOf(plain.rawPayload)) expect(countPixels(img.pixels, isRed)).toBe(0);
+  });
+
+  it('hiding styles: white-out, pixelate and blur replace the hidden pixels and take nothing from them', async () => {
+    const owner = await registerUser(ctx);
+    const original = await secretPdf();
+    const id = (await uploadDocument(ctx, owner, { file: original })).json().document.id as string;
+    const isWhite = (r: number, g: number, b: number) => r > 245 && g > 245 && b > 245;
+    // Pixels inside the hidden band of page 1 (rows 450-600 of the 800x600 rendering).
+    const band = (img: { pixels: Buffer; width: number }, top: number, bottom: number) => img.pixels.subarray(top * img.width * 3, bottom * img.width * 3);
+    const regions: Buffer[] = [];
+    for (const style of ['white', 'pixelate', 'blur'] as const) {
+      const res = await createRedactedLink(owner, id, { redactions: REDACTIONS.map((r) => ({ ...r, style, kind: 'id' })), watermark: { enabled: false } }, await browserRenderings());
+      expect(res.statusCode, res.body).toBe(201);
+      const token = (res.json().url as string).split('/s/')[1]!;
+      for (const route of ['file', 'download']) {
+        const copy = await ctx.app.inject({ method: 'GET', url: `/api/share/${token}/${route}`, remoteAddress: IPS.SA });
+        if (route === 'download') {
+          expect(copy.statusCode).toBe(403); // downloads stay off unless allowed
+          continue;
+        }
+        const content = pdfContent(copy.rawPayload);
+        for (const secret of HIDDEN) expect(content).not.toContain(secret);
+        expect(content).not.toMatch(/\/BaseFont/); // no text at all: page images only, no watermark
+        const images = await imagesOf(copy.rawPayload);
+        for (const img of images) expect(countPixels(img.pixels, isRed)).toBe(0);
+        const region = band(images[0]!, 455, 595);
+        if (style === 'white') expect(countPixels(region, isWhite)).toBe(region.length / 3);
+        else {
+          // Greys only (no colour of the hidden content), and not a flat fill.
+          expect(countPixels(region, (r, g, b) => Math.max(r, g, b) - Math.min(r, g, b) > 20)).toBe(0);
+          expect(new Set(Array.from({ length: region.length / 3 }, (_, i) => region[i * 3])).size).toBeGreaterThan(3);
+          regions.push(Buffer.from(region));
+        }
+        // The visible part is untouched.
+        expect(countPixels(images[0]!.pixels, isBlue)).toBeGreaterThan(800 * 140);
+      }
+    }
+    // Pixelate and blur are drawn from random values: two shares never produce the same pixels.
+    const again = await createRedactedLink(owner, id, { redactions: REDACTIONS.map((r) => ({ ...r, style: 'pixelate' })), watermark: { enabled: false } }, await browserRenderings());
+    const token = (again.json().url as string).split('/s/')[1]!;
+    const img = (await imagesOf((await ctx.app.inject({ method: 'GET', url: `/api/share/${token}/file`, remoteAddress: IPS.SA })).rawPayload))[0]!;
+    expect(band(img, 455, 595).equals(regions[0]!)).toBe(false);
+    // The original is unchanged.
+    expect((await as(ctx, owner, { method: 'GET', url: `/api/documents/${id}/file` })).rawPayload.equals(original)).toBe(true);
+  });
+
+  it('saved hiding plan (chosen at upload): sealed with the document key, owner only, original untouched', async () => {
+    const owner = await registerUser(ctx);
+    const stranger = await registerUser(ctx);
+    const original = await secretPdf();
+    const id = (await uploadDocument(ctx, owner, { file: original })).json().document.id as string;
+    const plan = [
+      { page: 0, x: 0, y: 0.74, w: 1, h: 0.26, kind: 'id', style: 'black' },
+      { page: 1, x: 0, y: 0.32, w: 1, h: 0.36, kind: 'financial', style: 'blur' },
+    ];
+    expect((await as(ctx, owner, { method: 'GET', url: `/api/documents/${id}/redaction-plan` })).json()).toEqual({ redactions: [] });
+    const put = await as(ctx, owner, { method: 'PUT', url: `/api/documents/${id}/redaction-plan`, payload: { redactions: plan } });
+    expect(put.statusCode, put.body).toBe(200);
+    expect((await as(ctx, owner, { method: 'GET', url: `/api/documents/${id}/redaction-plan` })).json().redactions).toEqual(plan);
+
+    // Sealed: the database holds ciphertext, not the categories or positions.
+    const row = await ctx.prisma.document.findUniqueOrThrow({ where: { id } });
+    const sealed = Buffer.from(row.redactionPlanEncrypted!).toString('latin1');
+    expect(sealed).not.toContain('financial');
+    expect(sealed).not.toContain('"page"');
+    const event = await ctx.prisma.securityEvent.findFirstOrThrow({ where: { documentId: id, eventType: 'redaction_plan_saved' } });
+    expect(event.metadata).toMatchObject({ areas: 2, kinds: ['id', 'financial'] });
+
+    // Owner only; areas must be on real pages.
+    expect((await as(ctx, stranger, { method: 'GET', url: `/api/documents/${id}/redaction-plan` })).statusCode).toBe(404);
+    expect((await as(ctx, stranger, { method: 'PUT', url: `/api/documents/${id}/redaction-plan`, payload: { redactions: [] } })).statusCode).toBe(404);
+    const offPage = await as(ctx, owner, { method: 'PUT', url: `/api/documents/${id}/redaction-plan`, payload: { redactions: [{ ...plan[0], page: 5 }] } });
+    expect(offPage.statusCode).toBe(400);
+    const badStyle = await as(ctx, owner, { method: 'PUT', url: `/api/documents/${id}/redaction-plan`, payload: { redactions: [{ ...plan[0], style: 'transparent' }] } });
+    expect(badStyle.statusCode).toBe(400);
+
+    // The plan applied to a shared copy hides the content; the original is unchanged.
+    const res = await createRedactedLink(owner, id, { redactions: plan }, await browserRenderings());
+    expect(res.statusCode, res.body).toBe(201);
+    const token = (res.json().url as string).split('/s/')[1]!;
+    const copy = (await ctx.app.inject({ method: 'GET', url: `/api/share/${token}/file`, remoteAddress: IPS.SA })).rawPayload;
+    for (const secret of HIDDEN) expect(pdfContent(copy)).not.toContain(hexOf(secret));
+    for (const img of await imagesOf(copy)) expect(countPixels(img.pixels, isRed)).toBe(0);
+    expect((await as(ctx, owner, { method: 'GET', url: `/api/documents/${id}/file` })).rawPayload.equals(original)).toBe(true);
+
+    // Clearing it removes it.
+    await as(ctx, owner, { method: 'PUT', url: `/api/documents/${id}/redaction-plan`, payload: { redactions: [] } });
+    expect((await ctx.prisma.document.findUniqueOrThrow({ where: { id } })).redactionPlanEncrypted).toBeNull();
   });
 
   it('refuses incomplete or mismatched redacted copies, and stores nothing', async () => {

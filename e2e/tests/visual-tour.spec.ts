@@ -86,6 +86,8 @@ test('visual tour of the remaining screens', async ({ page, browser }, info) => 
   await shot('32-share-watermark');
   await page.getByRole('radio', { name: 'Redacted copy' }).click();
   await expect(page.getByTestId('redaction-page-0').locator('img')).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('button', { name: 'Detect sensitive information' }).click();
+  await expect(page.getByTestId('sensitive-kinds')).toBeVisible();
   await page.getByLabel('Text to hide').fill('Reham Alkhamees');
   await page.getByTestId('find-and-hide').getByRole('button', { name: 'Hide', exact: true }).click();
   await expect(page.getByTestId('find-result')).toContainText('Hid');
@@ -98,6 +100,12 @@ test('visual tour of the remaining screens', async ({ page, browser }, info) => 
   await page.getByRole('button', { name: 'Check encryption now' }).click();
   await expect(page.getByTestId('encryption-check-result')).toHaveAttribute('data-ok', 'true');
   await shot('35-encryption-check');
+  await page.goto(`/app/documents/${docId}/sensitive`);
+  await expect(page.getByTestId('redaction-page-0').locator('img')).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('button', { name: 'Detect sensitive information' }).click();
+  await page.getByRole('radio', { name: 'Blur' }).click();
+  await expect(page.getByTestId('sensitive-kinds')).toBeVisible();
+  await shot('36-hide-sensitive');
   const url = await shareFields(page, docId, { fields: ['Enrollment status'], recipient: 'Example Company' });
   const viewer = await newPhone(browser);
   await viewer.goto(url);

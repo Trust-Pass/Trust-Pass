@@ -1,5 +1,8 @@
 import {
   WATERMARK_DEFAULT_TEXT,
+  WATERMARK_POSITION_LABELS,
+  WATERMARK_POSITIONS,
+  type WatermarkPosition,
   WATERMARK_STYLE_LABELS,
   type WatermarkColor,
   type WatermarkSettings,
@@ -23,6 +26,7 @@ function WatermarkSample({ value, recipient }: { value: WatermarkSettings; recip
   const color = SWATCHES[value.color].hex;
   const bands = value.style !== 'diagonal';
   const stamp = value.style !== 'bands';
+  const position = value.position ?? 'tiled';
   const word = (value.text || WATERMARK_DEFAULT_TEXT).toUpperCase();
   return (
     <div className="relative mx-auto aspect-[1/1.3] w-full max-w-[150px] overflow-hidden rounded-md bg-white shadow-card ring-1 ring-slate-300" aria-hidden="true">
@@ -33,24 +37,39 @@ function WatermarkSample({ value, recipient }: { value: WatermarkSettings; recip
         ))}
       </div>
       {value.enabled && stamp && (
-        <div className="absolute inset-0 flex flex-col items-center justify-around py-6">
-          {[0, 1].map((i) => (
-            <span key={i} className="-rotate-[30deg] whitespace-nowrap text-[13px] font-bold tracking-wide" style={{ color, opacity: STRENGTH_OPACITY[value.strength] * 3.2 }}>
+        <div
+          className={clsx(
+            'absolute inset-0 flex flex-col items-center py-6',
+            position === 'top' ? 'justify-start pt-9' : position === 'bottom' ? 'justify-end pb-6' : 'justify-around',
+          )}
+        >
+          {(position === 'tiled' ? [0, 1] : [0]).map((i) => (
+            <span
+              key={i}
+              className={clsx('whitespace-nowrap text-[13px] font-bold tracking-wide', (position === 'tiled' || position === 'center') && '-rotate-[30deg]')}
+              style={{ color, opacity: STRENGTH_OPACITY[value.strength] * 3.2 }}
+            >
               {word}
             </span>
           ))}
         </div>
       )}
-      {value.enabled && bands && (
-        <>
-          <div className="absolute inset-x-0 top-0 px-1.5 py-1 text-[5.5px] leading-tight text-white" style={{ background: color }}>
-            <span className="block truncate font-bold">{word} - Shared with: {recipient || 'the recipient'}</span>
-            <span className="block truncate">Viewed: date, time | Link reference</span>
-          </div>
-          <div className="absolute inset-x-0 bottom-0 truncate px-1.5 py-0.5 text-[5.5px] text-white" style={{ background: color }}>
-            Viewed: date, time | Link reference
-          </div>
-        </>
+      {value.enabled && bands && position !== 'bottom' && (
+        <div className="absolute inset-x-0 top-0 px-1.5 py-1 text-[5.5px] leading-tight text-white" style={{ background: color }}>
+          <span className="block truncate font-bold">{word} - Shared with: {recipient || 'the recipient'}</span>
+          <span className="block truncate">Viewed: date, time | Link reference</span>
+        </div>
+      )}
+      {value.enabled && bands && position === 'bottom' && (
+        <div className="absolute inset-x-0 bottom-0 px-1.5 py-1 text-[5.5px] leading-tight text-white" style={{ background: color }}>
+          <span className="block truncate font-bold">{word} - Shared with: {recipient || 'the recipient'}</span>
+          <span className="block truncate">Viewed: date, time | Link reference</span>
+        </div>
+      )}
+      {value.enabled && bands && (position === 'tiled' || position === 'center') && (
+        <div className="absolute inset-x-0 bottom-0 truncate px-1.5 py-0.5 text-[5.5px] text-white" style={{ background: color }}>
+          Viewed: date, time | Link reference
+        </div>
       )}
     </div>
   );
@@ -74,8 +93,8 @@ export function WatermarkControls({ value, onChange, recipient }: { value: Water
         }
         description={
           value.enabled
-            ? 'Every view and download shows the recipient, the time and a link reference, so a leaked copy can be traced.'
-            : 'No watermark is drawn on the recipient’s copy. Views and downloads are still logged, but a leaked copy will not show who it came from.'
+            ? 'Every view and download shows your stamp and, with name bands, the recipient, the time and a link reference.'
+            : 'Off: the recipient’s copy has no watermark. Turn it on to mark copies so a leak can be traced. Views and downloads are logged either way.'
         }
       />
       {value.enabled && (
@@ -88,6 +107,15 @@ export function WatermarkControls({ value, onChange, recipient }: { value: Water
                 value={value.style}
                 onChange={(v: WatermarkStyle) => set('style', v)}
                 options={(Object.keys(WATERMARK_STYLE_LABELS) as WatermarkStyle[]).map((k) => ({ value: k, label: WATERMARK_STYLE_LABELS[k] }))}
+              />
+            </div>
+            <div>
+              <p className="mb-2 text-[13px] font-medium text-slate-600">Position</p>
+              <Segmented
+                label="Watermark position"
+                value={value.position}
+                onChange={(v: WatermarkPosition) => set('position', v)}
+                options={WATERMARK_POSITIONS.map((k) => ({ value: k, label: WATERMARK_POSITION_LABELS[k] }))}
               />
             </div>
             {value.style !== 'bands' && (

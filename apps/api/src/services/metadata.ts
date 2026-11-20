@@ -1,4 +1,4 @@
-import { DEFAULT_WATERMARK, watermarkSchema, type WatermarkSettings } from '@trustpass/shared';
+import { STANDARD_WATERMARK, watermarkSchema, type WatermarkSettings } from '@trustpass/shared';
 import { claimLabelAad, open, recipientLabelAad, seal, sha256Aad, titleAad, unwrapDataKey, watermarkAad } from '../lib/crypto';
 import { UnknownKeyVersionError } from '../lib/keyset';
 import type { AppDeps } from '../types';
@@ -93,22 +93,22 @@ export interface WatermarkSource {
 }
 
 /**
- * A link's watermark. Fails toward a watermark: it is off only when the clear flag AND the sealed
- * settings both say so. Missing or unreadable settings mean the standard watermark (every link
- * created before watermark control has none).
+ * A link's watermark, as its owner chose it. A link made before watermark control has no sealed
+ * settings and keeps the standard watermark it was created with (its clear flag defaults to on).
+ * If sealed settings exist but cannot be read, the clear flag decides on/off with the standard look,
+ * so an owner's "off" is never overridden.
  */
 export function openWatermark(dek: Buffer | undefined, link: WatermarkSource): WatermarkSettings {
   const raw = openText(dek, link.watermarkEncrypted, watermarkAad(link.documentId, link.id));
-  let settings: WatermarkSettings = DEFAULT_WATERMARK;
   if (raw) {
     try {
       const parsed = watermarkSchema.safeParse(JSON.parse(raw));
-      if (parsed.success) settings = parsed.data;
+      if (parsed.success) return { ...parsed.data, enabled: parsed.data.enabled && link.watermarkEnabled };
     } catch {
-      /* standard watermark */
+      /* fall through */
     }
   }
-  return { ...settings, enabled: settings.enabled || link.watermarkEnabled };
+  return { ...STANDARD_WATERMARK, enabled: link.watermarkEnabled };
 }
 
 /**

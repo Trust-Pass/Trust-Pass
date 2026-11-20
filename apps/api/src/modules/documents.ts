@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Credential, Document, Issuer } from '@prisma/client';
-import { documentMetadataSchema, MAX_CLAIMS_PER_DOCUMENT } from '@trustpass/shared';
+import { documentMetadataSchema, MAX_CLAIMS_PER_DOCUMENT, redactionPlanSchema } from '@trustpass/shared';
+import { PDFDocument } from 'pdf-lib';
 import { z } from 'zod';
 import { AppError, badRequest, notFound, parse } from '../lib/errors';
 import { validateUpload } from '../lib/upload-validation';
@@ -15,7 +16,7 @@ import {
 } from '../services/documents';
 import { loadStoredCredential, presentAndVerify } from '../services/verification';
 import { documentTitles, openSha256, openTitle, recipientLabels } from '../services/metadata';
-import { sha256Hex } from '../lib/crypto';
+import { open, redactionPlanAad, seal, sha256Hex, toBytes } from '../lib/crypto';
 import type { AppDeps } from '../types';
 
 export const uuidParam = z.object({ id: z.string().uuid() });
@@ -57,6 +58,22 @@ export function fileResponseHeaders(mimeType: string) {
     // Even if a browser rendered the file as a page, it could not run scripts.
     'Content-Security-Policy': "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:",
   };
+}
+
+/** Pages of a stored document (1 for an image). Decrypts it in memory to count PDF pages. */
+async function pageCount(deps: AppDeps, document: Parameters<typeof readDocumentFile>[1]): Promise<number> {
+  if (document.mimeType !== 'application/pdf') return 1;
+  const dek = await loadDataKey(deps, document.id);
+  try {
+    const data = await readDocumentFile(deps, document, dek);
+    try {
+      return (await PDFDocument.load(data, { updateMetadata: false })).getPageCount();
+    } finally {
+      data.fill(0);
+    }
+  } finally {
+    dek.fill(0);
+  }
 }
 
 export async function documentRoutes(app: FastifyInstance) {
@@ -326,6 +343,52 @@ export async function documentRoutes(app: FastifyInstance) {
       };
     },
   );
+
+  /**
+   * The owner's saved choice of what to hide when this document is shared (sensitive information
+   * chosen at upload or later). Sealed with the document's key; the original file is not touched.
+   * Applied when the owner shares a redacted copy, where it can still be adjusted.
+   */
+  app.get('/api/documents/:id/redaction-plan', async (request) => {
+    const { user } = requireUser(request);
+    const document = await getOwnedDocument(deps, parseId(request, 'Document'), user.id);
+    if (!document.redactionPlanEncrypted) return { redactions: [] };
+    const dek = await loadDataKey(deps, document.id);
+    try {
+      const raw = open(dek, toBytes(document.redactionPlanEncrypted), redactionPlanAad(document.id)).toString('utf8');
+      const parsed = redactionPlanSchema.safeParse(JSON.parse(raw));
+      return { redactions: parsed.success ? parsed.data.redactions : [] };
+    } catch {
+      return { redactions: [] };
+    } finally {
+      dek.fill(0);
+    }
+  });
+
+  app.put('/api/documents/:id/redaction-plan', async (request) => {
+    const { user } = requireUser(request);
+    const document = await getOwnedDocument(deps, parseId(request, 'Document'), user.id);
+    const input = parse(redactionPlanSchema, request.body);
+    const pages = await pageCount(deps, document);
+    if (input.redactions.some((r) => r.page >= pages)) throw badRequest('An area to hide is on a page the document does not have');
+    const dek = await loadDataKey(deps, document.id);
+    let sealed: Uint8Array<ArrayBuffer> | null = null;
+    try {
+      if (input.redactions.length > 0) sealed = seal(dek, JSON.stringify(input.redactions), redactionPlanAad(document.id));
+    } finally {
+      dek.fill(0);
+    }
+    await prisma.document.update({ where: { id: document.id }, data: { redactionPlanEncrypted: sealed } });
+    await logEvent(prisma, {
+      userId: user.id,
+      actorUserId: user.id,
+      eventType: 'redaction_plan_saved',
+      documentId: document.id,
+      // Counts per category only: never positions or found text.
+      metadata: { areas: input.redactions.length, kinds: [...new Set(input.redactions.map((r) => r.kind))] },
+    });
+    return { ok: true, areas: input.redactions.length };
+  });
 
   app.get('/api/documents/:id/credential', async (request, reply) => {
     const { user } = requireUser(request);

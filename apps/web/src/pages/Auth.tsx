@@ -25,7 +25,7 @@ function AuthShell({ title, subtitle, children, footer }: { title: string; subti
       <main className="relative">
         <section className="page-pad mx-auto max-w-3xl pt-4 text-center sm:pt-8">
           <p className="text-[30px] leading-tight font-semibold tracking-[-0.03em] text-white sm:text-[46px]">
-            Your documents. <span className="text-glow">Your control.</span>
+            Your documents <span className="text-glow">Your control</span>
           </p>
           <p className="mt-3 text-[15px] text-slate-600 sm:text-lg">A secure and simple way to encrypt, share, and verify your documents.</p>
         </section>

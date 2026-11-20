@@ -41,30 +41,40 @@ test('owner checks encryption, finds and hides private details, previews, and sh
   await expect(page.getByTestId('encryption-method')).toContainText('AES-256-GCM');
   await page.getByTestId('file-input').setInputFiles({ name: 'letter.pdf', mimeType: 'application/pdf', buffer: bytes });
   await page.getByLabel('Title').fill('Employment letter');
+
+  // Hide sensitive information at upload: detected in the browser, before anything is sent.
+  await page.getByTestId('upload-sensitive').getByText('Hide sensitive information when sharing').click();
+  await expect(page.getByTestId('redaction-page-0').locator('img')).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('button', { name: 'Detect sensitive information' }).click();
+  const kinds = page.getByTestId('sensitive-kinds');
+  await expect(kinds.getByRole('button', { name: 'Email addresses: hidden' })).toBeVisible();
+  await expect(kinds.getByRole('button', { name: 'Phone numbers: hidden' })).toBeVisible();
+  await expect(kinds.getByRole('button', { name: 'Financial details: hidden' })).toBeVisible();
+  // The owner lets recipients see the phone number, then changes their mind.
+  await kinds.getByRole('button', { name: 'Phone numbers: hidden' }).click();
+  await expect(kinds.getByRole('button', { name: 'Phone numbers: visible' })).toBeVisible();
+  await kinds.getByRole('button', { name: 'Phone numbers: visible' }).click();
+  await page.getByRole('radio', { name: 'Pixelate' }).click();
   await page.getByRole('button', { name: 'Encrypt and upload' }).click();
   await page.waitForURL(/\/app\/documents\/[0-9a-f-]{36}$/);
   const docId = page.url().split('/').pop()!;
+  const plan = (await (await page.request.get(`/api/documents/${docId}/redaction-plan`)).json()).redactions as Array<{ kind: string; style: string }>;
+  expect(new Set(plan.map((r) => r.kind))).toEqual(new Set(['email', 'phone', 'financial']));
+  expect(plan.every((r) => r.style === 'pixelate')).toBe(true);
 
   await page.getByRole('button', { name: 'Check encryption now' }).click();
   await expect(page.getByTestId('encryption-check-result')).toHaveAttribute('data-ok', 'true');
   await expect(page.getByTestId('encryption-check')).toContainText('Authentication tag verified');
 
+  // Sharing starts from the saved choice: a redacted copy with those areas.
   await page.goto(`/app/documents/${docId}/share`);
   await page.getByText('Include the file').click();
-  await page.getByRole('radio', { name: 'Redacted copy' }).click();
+  await expect(page.getByTestId('plan-applied')).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Redacted copy' })).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByTestId('redaction-page-0').locator('img')).toBeVisible({ timeout: 20_000 });
-  const finder = page.getByTestId('find-and-hide');
-  await finder.getByRole('button', { name: 'Email addresses' }).click();
-  await expect(page.getByTestId('find-result')).toContainText('Hid 1');
-  await finder.getByRole('button', { name: 'Phone numbers' }).click();
-  await expect(page.getByTestId('find-result')).toContainText('Hid 1');
-  await finder.getByRole('button', { name: 'Amounts and salaries' }).click();
-  await expect(page.getByTestId('find-result')).toContainText('Hid 1');
-  await expect(page.getByText(/3 areas hidden\./)).toBeVisible();
 
-  // Watermark off, then preview the exact recipient copy.
-  await page.getByTestId('watermark-controls').getByText('Watermark the file').click();
-  await expect(page.getByTestId('watermark-controls')).toContainText('No watermark is drawn');
+  // The watermark is off unless the owner turns it on.
+  await expect(page.getByTestId('watermark-controls')).toContainText('Off: the recipient’s copy has no watermark');
   await page.getByLabel('Recipient name').fill('Example Company');
   await page.getByRole('button', { name: 'Preview recipient copy' }).click();
   await expect(page.getByTestId('preview-viewer').locator('canvas.pdf-page').first()).toBeVisible({ timeout: 20_000 });

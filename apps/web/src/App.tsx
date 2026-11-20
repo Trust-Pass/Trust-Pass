@@ -17,6 +17,7 @@ import { QrScannerPage } from './pages/QrScanner';
 import { OrgInboxViewPage, OrganizationPage } from './pages/Organization';
 import { RecipientPage } from './pages/Recipient';
 import { SettingsPage } from './pages/Settings';
+import { SensitiveInfoPage } from './pages/SensitiveInfo';
 import { SharePage } from './pages/Share';
 import { UploadPage } from './pages/Upload';
 import { VerifyPage } from './pages/Verify';
@@ -62,6 +63,7 @@ export function App() {
           <Route path="documents/upload" element={<UploadPage />} />
           <Route path="documents/:id" element={<DocumentDetailPage />} />
           <Route path="documents/:id/share" element={<SharePage />} />
+          <Route path="documents/:id/sensitive" element={<SensitiveInfoPage />} />
           <Route path="links" element={<LinksPage />} />
           <Route path="analytics" element={<Suspense fallback={<Spinner />}><AnalyticsPage /></Suspense>} />
           <Route path="verify" element={<VerifyPage />} />

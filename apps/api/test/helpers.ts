@@ -261,7 +261,9 @@ export async function createLink(ctx: TestContext, session: Session, documentId:
   const res = await as(ctx, session, {
     method: 'POST',
     url: `/api/documents/${documentId}/links`,
-    payload: { includeFile: false, recipientType: 'anyone', recipientLabel: 'Example Company', expiresIn: '24h', allowedCountries: [], claimIds: [], ...body },
+    // Watermarks are off unless the owner turns them on. Most tests check the watermarked copy, so
+    // this helper turns it on; tests of the default and of "off" pass their own setting.
+    payload: { includeFile: false, recipientType: 'anyone', recipientLabel: 'Example Company', expiresIn: '24h', allowedCountries: [], claimIds: [], watermark: { enabled: true }, ...body },
   });
   if (res.statusCode !== 201) throw new Error(`createLink failed ${res.statusCode}: ${res.body}`);
   const json = res.json();

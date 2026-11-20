@@ -92,6 +92,23 @@ export function SharePage() {
   const [watermark, setWatermark] = useState<WatermarkSettings>(DEFAULT_WATERMARK);
   const [preview, setPreview] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; blob?: Blob; message?: string }>({ status: 'idle' });
 
+  // What the owner chose to hide (at upload or on the document): applied to redacted copies.
+  const plan = useQuery({
+    queryKey: ['redaction-plan', id],
+    queryFn: () => api<{ redactions: Redaction[] }>(`/api/documents/${id}/redaction-plan`),
+    enabled: Boolean(id),
+  });
+  const savedPlan = plan.data?.redactions ?? [];
+  const planApplied = useRef(false);
+  useEffect(() => {
+    // Including the file of a document with hidden information starts from a redacted copy.
+    if (includeFile && savedPlan.length > 0 && !planApplied.current) {
+      planApplied.current = true;
+      setFileMode('redacted');
+      setRedactions(savedPlan);
+    }
+  }, [includeFile, savedPlan]);
+
   // A preview shows one exact set of choices: any change makes it stale, so it is cleared.
   const previewKey = JSON.stringify([includeFile, fileMode, redactions, watermark, recipientType, recipientLabel, org?.id]);
   useEffect(() => {
@@ -286,6 +303,7 @@ export function SharePage() {
                 onChange={(v) => {
                   setFileMode(v);
                   if (v === 'original') setRedactions([]);
+                  else if (redactions.length === 0 && savedPlan.length > 0) setRedactions(savedPlan);
                 }}
                 options={[
                   { value: 'original', label: 'Original file' },
@@ -298,9 +316,14 @@ export function SharePage() {
               {fileMode === 'redacted' && (
                 <>
                   <Alert tone="info">
-                    The recipient gets a new copy made only of page images, with your black boxes burned in. Nothing under a box, and no text,
-                    hidden layer or file information of the original, is in their copy. Your original stays encrypted and unchanged.
+                    The recipient gets a new copy made only of page images, with your hidden areas burned in. Nothing under them, and no
+                    text, hidden layer or file information of the original, is in their copy. Your original stays encrypted and unchanged.
                   </Alert>
+                  {savedPlan.length > 0 && (
+                    <p className="text-[13px] text-slate-600" data-testid="plan-applied">
+                      Starts from the information you chose to hide ({savedPlan.length} area{savedPlan.length === 1 ? '' : 's'}). Changes here apply to this link only.
+                    </p>
+                  )}
                   <RedactionEditor ref={editor} documentId={doc.id} mimeType={doc.mimeType} boxes={redactions} onChange={setRedactions} />
                 </>
               )}

@@ -1,7 +1,7 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { PDFDocument } from 'pdf-lib';
 import sharp, { type Sharp } from 'sharp';
-import { REDACTION_MAX_EDGE, type Redaction } from '@trustpass/shared';
+import { REDACTION_MAX_EDGE, type Redaction, type RedactionStyle } from '@trustpass/shared';
 import { decrypt, encrypt, toBytes } from '../lib/crypto';
 import { AppError } from '../lib/errors';
 import { newStorageKey } from '../lib/storage';
@@ -14,8 +14,9 @@ import { readDocumentFile } from './documents';
  * A redacted copy contains NOTHING of the original file except pixels:
  *  - every page becomes a flat image (images: rendered here from the decrypted original; PDFs:
  *    rendered by the owner's browser with pdf.js, because the server has no PDF renderer);
- *  - the owner's boxes are burned into those pixels here, as opaque black, so what was under a box
- *    is replaced, not covered;
+ *  - the owner's boxes are burned into those pixels here, so what was under a box is replaced, not
+ *    covered. Styles: black, white-out, pixelate and blur. Pixelate and blur are drawn fresh from
+ *    random values: no pixel of the hidden area is read, so no "de-pixelation" can bring it back;
  *  - each page is re-encoded as a new PNG with no metadata (EXIF, XMP, text chunks, ICC comments);
  *  - the recipient's PDF is built from scratch from those images only: no text layer, no fonts, no
  *    original content streams, annotations, outline or document info.
@@ -54,21 +55,62 @@ async function flatten(input: Buffer): Promise<Sharp> {
   }
 }
 
-/** Burns opaque black rectangles into one page. Boxes are rounded outwards to whole pixels. */
+/**
+ * The fill for one hidden area. Never derived from the pixels underneath: black and white are
+ * solid; pixelate is a mosaic of random greys; blur is random noise smoothed into a frosted panel.
+ */
+async function fillFor(style: RedactionStyle, w: number, h: number): Promise<Buffer | { r: number; g: number; b: number }> {
+  if (style === 'black') return { r: 0, g: 0, b: 0 };
+  if (style === 'white') return { r: 255, g: 255, b: 255 };
+  if (style === 'pixelate') {
+    const block = Math.max(8, Math.round(Math.min(w, h) / 2));
+    const cols = Math.max(1, Math.ceil(w / block));
+    const rows = Math.max(1, Math.ceil(h / block));
+    const noise = randomBytes(cols * rows);
+    const small = Buffer.alloc(cols * rows * 3);
+    for (let i = 0; i < cols * rows; i++) small.fill(120 + (noise[i]! % 110), i * 3, i * 3 + 3);
+    return sharp(small, { raw: { width: cols, height: rows, channels: 3 } }).resize(w, h, { kernel: 'nearest', fit: 'fill' }).removeAlpha().png().toBuffer();
+  }
+  // blur
+  const cols = Math.max(2, Math.ceil(w / 14));
+  const rows = Math.max(2, Math.ceil(h / 14));
+  const noise = randomBytes(cols * rows);
+  const small = Buffer.alloc(cols * rows * 3);
+  for (let i = 0; i < cols * rows; i++) {
+    const v = 190 + (noise[i]! % 50);
+    small[i * 3] = v - 6;
+    small[i * 3 + 1] = v;
+    small[i * 3 + 2] = Math.min(255, v + 8);
+  }
+  return sharp(small, { raw: { width: cols, height: rows, channels: 3 } })
+    .resize(w, h, { kernel: 'cubic', fit: 'fill' })
+    .blur(Math.max(1, Math.min(12, Math.min(w, h) / 6)))
+    .removeAlpha()
+    .png()
+    .toBuffer();
+}
+
+/** Burns the hidden areas into one page in their chosen styles. Boxes are rounded outwards to whole pixels. */
 export async function burnBoxes(page: Sharp, boxes: Redaction[]): Promise<RedactedPageImage> {
   const raw = await page.png().toBuffer();
   const meta = await sharp(raw).metadata();
   const width = meta.width!;
   const height = meta.height!;
-  const overlays = boxes.map((b) => {
+  const overlays = [];
+  for (const b of boxes) {
     const left = Math.max(0, Math.floor(b.x * width));
     const top = Math.max(0, Math.floor(b.y * height));
     const right = Math.min(width, Math.ceil((b.x + b.w) * width));
     const bottom = Math.min(height, Math.ceil((b.y + b.h) * height));
     const w = Math.max(1, right - left);
     const h = Math.max(1, bottom - top);
-    return { input: { create: { width: w, height: h, channels: 3 as const, background: { r: 0, g: 0, b: 0 } } }, left, top };
-  });
+    const fill = await fillFor(b.style ?? 'black', w, h);
+    overlays.push(
+      Buffer.isBuffer(fill)
+        ? { input: fill, left, top }
+        : { input: { create: { width: w, height: h, channels: 3 as const, background: fill } }, left, top },
+    );
+  }
   // A fresh PNG from the composited pixels: sharp writes no metadata unless asked to keep it.
   const data = await sharp(raw).composite(overlays).removeAlpha().png({ compressionLevel: 9 }).toBuffer();
   return { data, width, height };

@@ -117,6 +117,11 @@ export function recipientLabelAad(documentId: string, linkId: string): string {
   return `recipient|${documentId}|${linkId}`;
 }
 
+/** A document's saved redaction plan (what to hide in shared copies), sealed with its data key. */
+export function redactionPlanAad(documentId: string): string {
+  return `redaction-plan|${documentId}`;
+}
+
 /** A link's watermark settings (owner's choice), sealed with the document's data key. */
 export function watermarkAad(documentId: string, linkId: string): string {
   return `watermark|${documentId}|${linkId}`;

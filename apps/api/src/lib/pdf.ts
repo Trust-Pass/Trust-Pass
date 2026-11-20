@@ -1,5 +1,5 @@
 import { degrees, PDFDict, PDFDocument, PDFName, rgb, StandardFonts, type PDFFont, type PDFPage, type RGB } from 'pdf-lib';
-import { DEFAULT_WATERMARK, type WatermarkColor, type WatermarkSettings, type WatermarkStrength } from '@trustpass/shared';
+import { STANDARD_WATERMARK, type WatermarkColor, type WatermarkPosition, type WatermarkSettings, type WatermarkStrength } from '@trustpass/shared';
 
 const NAVY = rgb(0.043, 0.106, 0.231);
 const TEAL = rgb(0.078, 0.722, 0.651);
@@ -137,27 +137,38 @@ const WATERMARK_STRENGTH: Record<WatermarkStrength, { stamp: number; band: numbe
 
 /** True when recipient copies of this link get a visible watermark. */
 export function watermarkOn(info: Pick<WatermarkInfo, 'look'>): boolean {
-  return (info.look ?? DEFAULT_WATERMARK).enabled;
+  return (info.look ?? STANDARD_WATERMARK).enabled;
 }
 
 function watermarkPage(page: PDFPage, font: PDFFont, bold: PDFFont, info: WatermarkInfo) {
-  const look = info.look ?? DEFAULT_WATERMARK;
+  const look = info.look ?? STANDARD_WATERMARK;
   if (!look.enabled) return;
   const color = WATERMARK_COLORS[look.color];
   const strength = WATERMARK_STRENGTH[look.strength];
   const { width, height } = page.getSize();
-  if (look.style !== 'bands') drawStamps(page, bold, watermarkSafe(look.text, 'CONFIDENTIAL'), color, strength.stamp);
+  const position = look.position ?? 'tiled';
+  if (look.style !== 'bands') drawStamps(page, bold, watermarkSafe(look.text, 'CONFIDENTIAL'), color, strength.stamp, position);
   if (look.style === 'diagonal') return;
 
   const when = `${info.viewedAt.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
   const lines = recipientLines(info, when);
   const textSize = Math.max(6.5, Math.min(9, width / 70));
   const bandHeight = textSize * 2 + 14;
-  page.drawRectangle({ x: 0, y: height - bandHeight, width, height: bandHeight, color, opacity: strength.band });
-  page.drawText(lines[0]!, { x: 10, y: height - textSize - 5, size: textSize, font: bold, color: rgb(1, 1, 1) });
-  page.drawText(lines[1]!, { x: 10, y: height - textSize * 2 - 9, size: textSize, font, color: rgb(1, 1, 1) });
-  page.drawRectangle({ x: 0, y: 0, width, height: textSize + 10, color, opacity: strength.band });
-  page.drawText(lines[1]!, { x: 10, y: 5, size: textSize, font, color: rgb(1, 1, 1) });
+  const white = rgb(1, 1, 1);
+  // Name bands: top and bottom, or only the edge the owner picked (then with both lines).
+  if (position !== 'bottom') {
+    page.drawRectangle({ x: 0, y: height - bandHeight, width, height: bandHeight, color, opacity: strength.band });
+    page.drawText(lines[0]!, { x: 10, y: height - textSize - 5, size: textSize, font: bold, color: white });
+    page.drawText(lines[1]!, { x: 10, y: height - textSize * 2 - 9, size: textSize, font, color: white });
+  }
+  if (position === 'bottom') {
+    page.drawRectangle({ x: 0, y: 0, width, height: bandHeight, color, opacity: strength.band });
+    page.drawText(lines[0]!, { x: 10, y: textSize + 9, size: textSize, font: bold, color: white });
+    page.drawText(lines[1]!, { x: 10, y: 5, size: textSize, font, color: white });
+  } else if (position !== 'top') {
+    page.drawRectangle({ x: 0, y: 0, width, height: textSize + 10, color, opacity: strength.band });
+    page.drawText(lines[1]!, { x: 10, y: 5, size: textSize, font, color: white });
+  }
 }
 
 /** Watermarks every page, or draws nothing at all (no fonts added) when the owner turned it off. */
@@ -168,8 +179,17 @@ async function drawWatermarks(pdf: PDFDocument, info: WatermarkInfo) {
   for (const page of pdf.getPages()) watermarkPage(page, font, bold, info);
 }
 
-function drawStamps(page: PDFPage, bold: PDFFont, stamp: string, color: RGB, opacity: number) {
+function drawStamps(page: PDFPage, bold: PDFFont, stamp: string, color: RGB, opacity: number, position: WatermarkPosition = 'tiled') {
   const { width, height } = page.getSize();
+  if (position === 'top' || position === 'bottom') {
+    // One straight stamp near the chosen edge, clear of the name band.
+    const unit = bold.widthOfTextAtSize(stamp, 1);
+    const size = Math.max(12, Math.min(48, (width * 0.7) / unit));
+    const x = (width - unit * size) / 2;
+    const y = position === 'top' ? height - size * 2.6 : size * 1.6;
+    page.drawText(stamp, { x, y, size, font: bold, color, opacity });
+    return;
+  }
   const angle = 30;
   const cos = Math.cos((angle * Math.PI) / 180);
   const sin = Math.sin((angle * Math.PI) / 180);
@@ -181,7 +201,7 @@ function drawStamps(page: PDFPage, bold: PDFFont, stamp: string, color: RGB, opa
   const x = (width - dx) / 2;
   // Evenly spaced stamps, every one fully on the page.
   const usable = Math.max(0, height - dy - size * 2);
-  const count = Math.max(1, Math.min(4, Math.floor(usable / (dy + size * 2)) + 1));
+  const count = position === 'center' ? 1 : Math.max(1, Math.min(4, Math.floor(usable / (dy + size * 2)) + 1));
   const step = count > 1 ? usable / (count - 1) : 0;
   const y0 = count > 1 ? size : (height - dy) / 2;
   for (let i = 0; i < count; i++) {
@@ -190,7 +210,7 @@ function drawStamps(page: PDFPage, bold: PDFFont, stamp: string, color: RGB, opa
 }
 
 function recipientLines(info: WatermarkInfo, when: string): [string, string] {
-  const word = watermarkSafe((info.look ?? DEFAULT_WATERMARK).text, 'CONFIDENTIAL').toUpperCase();
+  const word = watermarkSafe((info.look ?? STANDARD_WATERMARK).text, 'CONFIDENTIAL').toUpperCase();
   if (!info.download) {
     return [
       `${word} - Shared with: ${watermarkSafe(info.recipient, 'the named recipient')}`,

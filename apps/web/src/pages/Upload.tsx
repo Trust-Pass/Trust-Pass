@@ -1,11 +1,12 @@
-import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS } from '@trustpass/shared';
+import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS, type Redaction } from '@trustpass/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { ArrowLeft, CheckCircle2, FileUp, KeyRound, Lock, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, EyeOff, FileUp, KeyRound, Lock, Plus, Trash2 } from 'lucide-react';
 import { useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { Alert, Button, Card, Field, Input, PageHeader, Select } from '../components/ui';
-import { ApiError, errorMessage, uploadWithProgress } from '../lib/api';
+import { RedactionEditor } from '../components/RedactionEditor';
+import { Alert, Button, Card, Field, Input, PageHeader, Select, Toggle } from '../components/ui';
+import { api, ApiError, errorMessage, uploadWithProgress } from '../lib/api';
 import { formatBytes } from '../lib/format';
 
 const MAX_MB = 10;
@@ -22,6 +23,8 @@ export function UploadPage() {
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
+  const [hideSensitive, setHideSensitive] = useState(false);
+  const [plan, setPlan] = useState<Redaction[]>([]);
 
   const choose = (f: File | undefined) => {
     if (!f) return;
@@ -31,6 +34,7 @@ export function UploadPage() {
       return;
     }
     setFile(f);
+    setPlan([]);
     if (!title) setTitle(f.name.replace(/\.[^.]+$/, '').slice(0, 120));
   };
 
@@ -47,6 +51,15 @@ export function UploadPage() {
     try {
       const res = await uploadWithProgress<{ document: { id: string } }>('/api/documents', form, setProgress);
       await queryClient.invalidateQueries({ queryKey: ['documents'] });
+      if (hideSensitive && plan.length > 0) {
+        try {
+          await api(`/api/documents/${res.document.id}/redaction-plan`, { method: 'PUT', body: { redactions: plan } });
+        } catch {
+          // The document is safely stored; the owner can choose again on its page.
+          navigate(`/app/documents/${res.document.id}/sensitive`);
+          return;
+        }
+      }
       navigate(`/app/documents/${res.document.id}`);
     } catch (err) {
       if (err instanceof ApiError) setFields(err.fields);
@@ -139,6 +152,24 @@ export function UploadPage() {
             Add a field
           </Button>
         </Card>
+
+        {file && ['application/pdf', 'image/png', 'image/jpeg'].includes(file.type) && (
+          <div data-testid="upload-sensitive">
+          <Card className="space-y-3 p-4 sm:p-5">
+            <Toggle
+              checked={hideSensitive}
+              onChange={setHideSensitive}
+              label={
+                <span className="flex items-center gap-1.5">
+                  <EyeOff className="size-4" /> Hide sensitive information when sharing
+                </span>
+              }
+              description="Choose what recipients must never see, like ID or phone numbers, photos or signatures. Your original is stored encrypted and unchanged; shared copies have these parts permanently removed."
+            />
+            {hideSensitive && <RedactionEditor file={file} mimeType={file.type} boxes={plan} onChange={setPlan} />}
+          </Card>
+          </div>
+        )}
 
         <Card className="p-4 sm:p-5">
           <h2 className="flex items-center gap-2 font-semibold text-ink">

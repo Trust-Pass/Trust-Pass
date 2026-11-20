@@ -1,6 +1,6 @@
 import { DOCUMENT_CATEGORY_LABELS, type DocumentCategory } from '@trustpass/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Download, Eye, KeyRound, Link2, Share2, ShieldCheck, Trash2 } from 'lucide-react';
+import { ArrowLeft, Download, Eye, EyeOff, KeyRound, Link2, Share2, ShieldCheck, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import {
@@ -93,9 +93,14 @@ export function DocumentDetailPage() {
           </span>
         }
         actions={
-          <ButtonLink to={`/app/documents/${doc.id}/share`} variant="teal" icon={<Share2 className="size-4" />}>
-            Share document
-          </ButtonLink>
+          <div className="flex flex-wrap gap-2">
+            <ButtonLink to={`/app/documents/${doc.id}/share`} variant="teal" icon={<Share2 className="size-4" />}>
+              Share document
+            </ButtonLink>
+            <ButtonLink to={`/app/documents/${doc.id}/sensitive`} variant="secondary" icon={<EyeOff className="size-4" />}>
+              Hide sensitive info
+            </ButtonLink>
+          </div>
         }
       />
 

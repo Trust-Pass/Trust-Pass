@@ -198,6 +198,8 @@ model Document {
   storageKey       String           @unique @map("storage_key")
   plaintextSha256  String?          @map("plaintext_sha256")
   sha256Encrypted  Bytes?           @map("sha256_encrypted")
+  /// What to hide in shared copies (owner's choice), sealed with the document key. Null = nothing chosen.
+  redactionPlanEncrypted Bytes? @map("redaction_plan_encrypted")
   encIv            Bytes            @map("enc_iv")
   encTag           Bytes            @map("enc_tag")
   createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)

@@ -159,14 +159,55 @@ export const REDACTION_MAX_EDGE = 2400;
 export const REDACTION_MAX_TOTAL_BYTES = 40 * 1024 * 1024;
 
 const unit = z.number().min(0).max(1);
+/**
+ * How a hidden area looks in the shared copy. Every style replaces the pixels: pixelate and blur
+ * are drawn fresh from random values, never from what was underneath, so nothing can be recovered.
+ */
+export const REDACTION_STYLES = ['black', 'white', 'pixelate', 'blur'] as const;
+export type RedactionStyle = (typeof REDACTION_STYLES)[number];
+export const REDACTION_STYLE_LABELS: Record<RedactionStyle, string> = {
+  black: 'Black box',
+  white: 'White-out',
+  pixelate: 'Pixelate',
+  blur: 'Blur',
+};
+
+/** What a hidden area holds, so the owner can show or hide a whole category at once. */
+export const SENSITIVE_KINDS = ['id', 'passport', 'phone', 'email', 'address', 'financial', 'photo', 'signature', 'custom', 'manual'] as const;
+export type SensitiveKind = (typeof SENSITIVE_KINDS)[number];
+export const SENSITIVE_KIND_LABELS: Record<SensitiveKind, string> = {
+  id: 'ID numbers',
+  passport: 'Passport numbers',
+  phone: 'Phone numbers',
+  email: 'Email addresses',
+  address: 'Addresses',
+  financial: 'Financial details',
+  photo: 'Photos and pictures',
+  signature: 'Signatures',
+  custom: 'Text you searched for',
+  manual: 'Areas you marked',
+};
+
 export const redactionSchema = z
-  .object({ page: z.number().int().min(0).max(49), x: unit, y: unit, w: unit, h: unit })
+  .object({
+    page: z.number().int().min(0).max(49),
+    x: unit,
+    y: unit,
+    w: unit,
+    h: unit,
+    style: z.enum(REDACTION_STYLES).default('black'),
+    kind: z.enum(SENSITIVE_KINDS).default('manual'),
+  })
   .refine((r) => r.w > 0 && r.h > 0 && r.x + r.w <= 1.000001 && r.y + r.h <= 1.000001, { message: 'An area lies outside the page' });
-export type Redaction = z.infer<typeof redactionSchema>;
+export type Redaction = z.output<typeof redactionSchema>;
+export type RedactionInput = z.input<typeof redactionSchema>;
+
+/** The owner's saved choice of what to hide in shared copies of a document (set at upload or later). */
+export const redactionPlanSchema = z.object({ redactions: z.array(redactionSchema).max(MAX_REDACTIONS) });
 
 /**
- * Watermark of a link's recipient copies (view and download). On by default: the recipient's name,
- * the time and the link reference on every page. The owner may change its look or turn it off.
+ * Watermark of a link's recipient copies (view and download). Optional and OFF unless the owner
+ * turns it on; when on, the owner chooses its text, look and position.
  */
 export const WATERMARK_STYLES = ['full', 'diagonal', 'bands'] as const;
 export type WatermarkStyle = (typeof WATERMARK_STYLES)[number];
@@ -174,6 +215,14 @@ export const WATERMARK_COLORS = ['navy', 'teal', 'crimson', 'gray'] as const;
 export type WatermarkColor = (typeof WATERMARK_COLORS)[number];
 export const WATERMARK_STRENGTHS = ['light', 'medium', 'strong'] as const;
 export type WatermarkStrength = (typeof WATERMARK_STRENGTHS)[number];
+export const WATERMARK_POSITIONS = ['tiled', 'center', 'top', 'bottom'] as const;
+export type WatermarkPosition = (typeof WATERMARK_POSITIONS)[number];
+export const WATERMARK_POSITION_LABELS: Record<WatermarkPosition, string> = {
+  tiled: 'Across the page',
+  center: 'Centre',
+  top: 'Top',
+  bottom: 'Bottom',
+};
 export const WATERMARK_DEFAULT_TEXT = 'CONFIDENTIAL';
 export const WATERMARK_STYLE_LABELS: Record<WatermarkStyle, string> = {
   full: 'Stamp and name bands',
@@ -182,7 +231,7 @@ export const WATERMARK_STYLE_LABELS: Record<WatermarkStyle, string> = {
 };
 
 export const watermarkSchema = z.object({
-  enabled: z.boolean().default(true),
+  enabled: z.boolean().default(false),
   style: z.enum(WATERMARK_STYLES).default('full'),
   /** The diagonal stamp word. The standard PDF fonts only draw Latin characters. */
   text: z
@@ -194,9 +243,13 @@ export const watermarkSchema = z.object({
     .transform((t) => (t.length === 0 ? WATERMARK_DEFAULT_TEXT : t)),
   color: z.enum(WATERMARK_COLORS).default('navy'),
   strength: z.enum(WATERMARK_STRENGTHS).default('light'),
+  position: z.enum(WATERMARK_POSITIONS).default('tiled'),
 });
 export type WatermarkSettings = z.output<typeof watermarkSchema>;
-export const DEFAULT_WATERMARK: WatermarkSettings = { enabled: true, style: 'full', text: WATERMARK_DEFAULT_TEXT, color: 'navy', strength: 'light' };
+/** A new link: no watermark until the owner turns it on. */
+export const DEFAULT_WATERMARK: WatermarkSettings = { enabled: false, style: 'full', text: WATERMARK_DEFAULT_TEXT, color: 'navy', strength: 'light', position: 'tiled' };
+/** The watermark every link made before watermark control was created with; they keep it. */
+export const STANDARD_WATERMARK: WatermarkSettings = { ...DEFAULT_WATERMARK, enabled: true };
 
 export const createLinkSchema = z
   .object({
@@ -362,6 +415,7 @@ export const SECURITY_EVENT_LABELS: Record<string, string> = {
   link_countries_updated: 'Country rules updated',
   link_download_updated: 'Download permission changed',
   link_watermark_updated: 'Watermark changed',
+  redaction_plan_saved: 'Hidden information chosen',
   document_encryption_checked: 'Encryption checked',
   recipient_downloaded: 'Recipient downloaded a copy',
   verification_completed: 'Verification completed',

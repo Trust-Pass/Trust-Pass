@@ -53,19 +53,56 @@ const recipientFile = (token: string) => ctx.app.inject({ method: 'GET', url: `/
 const recipientDownload = (token: string) => ctx.app.inject({ method: 'GET', url: `/api/share/${token}/download`, remoteAddress: IPS.SA });
 
 describe('Watermark control', () => {
-  it('is on by default: view and download carry the stamp and the recipient name', async () => {
+  it('is off by default: a link made without choosing gets no watermark on the view or the download', async () => {
     const owner = await registerUser(ctx);
     const id = (await uploadDocument(ctx, owner, { file: await samplePdf(MARK) })).json().document.id as string;
-    const link = await fileLink(owner, id);
+    const res = await as(ctx, owner, {
+      method: 'POST',
+      url: `/api/documents/${id}/links`,
+      payload: { includeFile: true, allowDownload: true, recipientType: 'anyone', recipientLabel: 'Example Company', expiresIn: '24h', allowedCountries: [], claimIds: [] },
+    });
+    expect(res.statusCode, res.body).toBe(201);
+    expect(res.json().link.watermark).toMatchObject({ enabled: false });
+    const token = (res.json().url as string).split('/s/')[1]!;
+    for (const copy of [await recipientFile(token), await recipientDownload(token)]) {
+      expect(copy.statusCode).toBe(200);
+      expect(drawn(copy.rawPayload, MARK)).toBe(true);
+      expect(drawn(copy.rawPayload, 'CONFIDENTIAL')).toBe(false);
+      expect(fontsOf(copy.rawPayload)).toEqual(['Helvetica']);
+    }
+    const shared = (await ctx.app.inject({ method: 'GET', url: `/api/share/${token}`, remoteAddress: IPS.SA })).json();
+    expect(shared.document.watermarked).toBe(false);
+  });
+
+  it('on when the owner chooses: view and download carry the stamp and the recipient name', async () => {
+    const owner = await registerUser(ctx);
+    const id = (await uploadDocument(ctx, owner, { file: await samplePdf(MARK) })).json().document.id as string;
+    const link = await fileLink(owner, id, { watermark: { enabled: true } });
     const view = await recipientFile(link.token);
     expect(view.statusCode).toBe(200);
-    expect(drawn(view.rawPayload, 'CONFIDENTIAL')).toBe(true);
     expect(drawn(view.rawPayload, 'CONFIDENTIAL - Shared with: Example Company')).toBe(true);
     const dl = await recipientDownload(link.token);
     expect(drawn(dl.rawPayload, 'CONFIDENTIAL - Downloaded for: Example Company')).toBe(true);
     const shared = (await ctx.app.inject({ method: 'GET', url: `/api/share/${link.token}`, remoteAddress: IPS.SA })).json();
     expect(shared.document.watermarked).toBe(true);
     expect(shared.notice).toMatch(/A watermark identifies this view/);
+  });
+
+  it('position: one centred stamp, or the stamp and name band at the top or the bottom only', async () => {
+    const owner = await registerUser(ctx);
+    const id = (await uploadDocument(ctx, owner, { file: await samplePdf(MARK) })).json().document.id as string;
+    const count = (pdf: Buffer, t: string) => pdfContent(pdf).split(hexOf(t)).length - 1;
+    const copy = async (watermark: Record<string, unknown>) => (await recipientFile((await fileLink(owner, id, { watermark: { enabled: true, text: 'STAMPX', ...watermark } })).token)).rawPayload;
+    // The stamp alone: one stamp, centred or at an edge.
+    expect(count(await copy({ style: 'diagonal', position: 'center' }), 'STAMPX')).toBe(1);
+    expect(count(await copy({ style: 'diagonal', position: 'top' }), 'STAMPX')).toBe(1);
+    expect(count(await copy({ style: 'diagonal', position: 'bottom' }), 'STAMPX')).toBe(1);
+    // Name bands: top and bottom by default, or only the edge the owner picked.
+    expect(count(await copy({ style: 'bands', position: 'tiled' }), 'Viewed: ')).toBe(2);
+    expect(count(await copy({ style: 'bands', position: 'top' }), 'Viewed: ')).toBe(1);
+    const bottom = await copy({ style: 'bands', position: 'bottom' });
+    expect(count(bottom, 'Viewed: ')).toBe(1);
+    expect(count(bottom, 'STAMPX - Shared with: Example Company')).toBe(1);
   });
 
   it('off: no watermark is drawn on the view or the download (no stamp, no bands, no fonts added)', async () => {
@@ -110,7 +147,7 @@ describe('Watermark control', () => {
   it('settings are sealed with the document key: the stamp text is not in the database in clear', async () => {
     const owner = await registerUser(ctx);
     const id = (await uploadDocument(ctx, owner)).json().document.id as string;
-    const link = await fileLink(owner, id, { watermark: { text: 'SEALED STAMP TEXT' } });
+    const link = await fileLink(owner, id, { watermark: { enabled: true, text: 'SEALED STAMP TEXT' } });
     const row = await ctx.prisma.sharingLink.findUniqueOrThrow({ where: { id: link.id } });
     expect(row.watermarkEnabled).toBe(true);
     expect(row.watermarkEncrypted).not.toBeNull();
@@ -124,13 +161,19 @@ describe('Watermark control', () => {
     expect(detail.watermark).toMatchObject({ enabled: true, text: 'SEALED STAMP TEXT', style: 'full' });
   });
 
-  it('fails toward a watermark: flipping only the clear flag in the database does not remove it', async () => {
+  it('the owner\'s "off" always wins; links made before watermark control keep their watermark', async () => {
     const owner = await registerUser(ctx);
     const id = (await uploadDocument(ctx, owner, { file: await samplePdf(MARK) })).json().document.id as string;
-    const link = await fileLink(owner, id);
-    await ctx.prisma.sharingLink.update({ where: { id: link.id }, data: { watermarkEnabled: false } });
+    const link = await fileLink(owner, id, { watermark: { enabled: true } });
     expect(drawn((await recipientFile(link.token)).rawPayload, 'CONFIDENTIAL')).toBe(true);
-    // A link made before watermark control (no sealed settings) keeps the standard watermark.
+    // Either record saying off means off: a watermark is never forced.
+    await ctx.prisma.sharingLink.update({ where: { id: link.id }, data: { watermarkEnabled: false } });
+    expect(drawn((await recipientFile(link.token)).rawPayload, 'CONFIDENTIAL')).toBe(false);
+    // Unreadable settings: the clear flag decides.
+    await ctx.prisma.sharingLink.update({ where: { id: link.id }, data: { watermarkEncrypted: Buffer.from('garbage') } });
+    expect(drawn((await recipientFile(link.token)).rawPayload, 'CONFIDENTIAL')).toBe(false);
+    // A link made before watermark control (no sealed settings, flag left at its default true)
+    // keeps the standard watermark it was created with.
     await ctx.prisma.sharingLink.update({ where: { id: link.id }, data: { watermarkEnabled: true, watermarkEncrypted: null } });
     expect(drawn((await recipientFile(link.token)).rawPayload, 'CONFIDENTIAL - Shared with: Example Company')).toBe(true);
   });
@@ -174,7 +217,7 @@ describe('Recipient copy preview', () => {
     const stranger = await registerUser(ctx);
     const id = (await uploadDocument(ctx, owner, { file: await samplePdf(MARK) })).json().document.id as string;
     const objectsBefore = await ctx.prisma.storedObject.count().catch(() => null);
-    const body = { fileMode: 'original', recipientLabel: 'Example Company', watermark: { text: 'PREVIEW STAMP' } };
+    const body = { fileMode: 'original', recipientLabel: 'Example Company', watermark: { enabled: true, text: 'PREVIEW STAMP' } };
 
     const res = await as(ctx, owner, { method: 'POST', url: `/api/documents/${id}/links/preview`, payload: body });
     expect(res.statusCode, res.body).toBe(200);
@@ -187,7 +230,7 @@ describe('Recipient copy preview', () => {
     const off = await as(ctx, owner, { method: 'POST', url: `/api/documents/${id}/links/preview`, payload: { watermark: { enabled: false } } });
     expect(drawn(off.rawPayload, 'Shared with')).toBe(false);
 
-    const dl = await as(ctx, owner, { method: 'POST', url: `/api/documents/${id}/links/preview`, payload: { copy: 'download' } });
+    const dl = await as(ctx, owner, { method: 'POST', url: `/api/documents/${id}/links/preview`, payload: { copy: 'download', watermark: { enabled: true } } });
     expect(drawn(dl.rawPayload, 'Copy PREVIEW')).toBe(true);
 
     expect((await as(ctx, stranger, { method: 'POST', url: `/api/documents/${id}/links/preview`, payload: body })).statusCode).toBe(404);
