@@ -183,7 +183,12 @@ export async function documentRoutes(app: FastifyInstance) {
           sizeBytes: document.sizeBytes,
           createdAt: document.createdAt,
           sha256: openSha256(dek, document),
-          encryption: { algorithm: 'AES-256-GCM', keyWrapping: 'AES-256-GCM master key', perDocumentKey: true, encryptedMetadata: Boolean(document.titleEncrypted) },
+          encryption: {
+            algorithm: 'AES-256-GCM',
+            keyWrapping: config.env.KEY_PROVIDER === 'gcp-kms' ? 'Google Cloud KMS' : 'AES-256-GCM master key',
+            perDocumentKey: true,
+            encryptedMetadata: Boolean(document.titleEncrypted),
+          },
           trust: quickTrust(document, current),
           credential: document.credential
             ? {
@@ -203,6 +208,7 @@ export async function documentRoutes(app: FastifyInstance) {
             recipientType: l.recipientType,
             recipientOrg: l.recipientOrg?.name ?? null,
             includeFile: l.includeFile,
+            fileMode: l.includeFile ? (l.fileMode ?? 'original') : null,
             claimCount: l._count.permissions,
             expiresAt: l.expiresAt,
             revokedAt: l.revokedAt,
@@ -224,6 +230,102 @@ export async function documentRoutes(app: FastifyInstance) {
     const data = await readDocumentFile(deps, document);
     return reply.headers(fileResponseHeaders(document.mimeType)).send(data);
   });
+
+  /**
+   * "Check encryption": proves, on demand, what happens to this document at rest. Reads the stored
+   * object as it is in storage, decrypts it with the document's own key (AES-256-GCM checks its
+   * authentication tag, so any changed byte fails) and compares its SHA-256 with the sealed hash
+   * from upload. Read-only: nothing is re-encrypted or rewritten. Owner only.
+   */
+  app.post(
+    '/api/documents/:id/encryption-check',
+    { config: { rateLimit: { max: 20, timeWindow: '10 minutes' } } },
+    async (request) => {
+      const { user } = requireUser(request);
+      const document = await getOwnedDocument(deps, parseId(request, 'Document'), user.id);
+      const key = await prisma.documentKey.findUnique({ where: { documentId: document.id }, select: { kekVersion: true, wrapIv: true, wrapTag: true } });
+      const stored = await deps.storage.get(document.storageKey);
+      const storedBytes = stored.length;
+      // A plain file would start with its own signature; ciphertext must not.
+      const head = stored.subarray(0, 8);
+      const looksPlain =
+        head.subarray(0, 5).toString('latin1') === '%PDF-' ||
+        head.equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) ||
+        (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff);
+      stored.fill(0);
+
+      let authenticated = false;
+      let sha256: string | null = null;
+      let sha256Matches = false;
+      const dek = await loadDataKey(deps, document.id);
+      try {
+        const expected = openSha256(dek, document);
+        try {
+          // Decrypts, checks the GCM tag and the sealed SHA-256 (and alerts on failure, as for any read).
+          const plain = await readDocumentFile(deps, document, dek);
+          authenticated = true;
+          sha256 = sha256Hex(plain);
+          sha256Matches = expected !== null && sha256 === expected;
+          plain.fill(0);
+        } catch {
+          authenticated = false;
+        }
+      } finally {
+        dek.fill(0);
+      }
+      const labelsSealed = document.claims.filter((c) => c.labelEncrypted).length;
+      const redactedPages = await prisma.redactedPage.count({ where: { documentId: document.id } });
+      const ok = authenticated && sha256Matches && !looksPlain && Boolean(document.titleEncrypted) && Boolean(document.sha256Encrypted);
+      const current = now();
+      await logEvent(prisma, {
+        userId: user.id,
+        actorUserId: user.id,
+        eventType: 'document_encryption_checked',
+        severity: ok ? 'info' : 'warning',
+        documentId: document.id,
+        metadata: { ok, authenticated, sha256Matches },
+        at: current,
+      });
+      const provider = config.env.KEY_PROVIDER;
+      return {
+        check: {
+          ok,
+          checkedAt: current,
+          file: {
+            algorithm: 'AES-256-GCM',
+            keyBits: 256,
+            ivBytes: document.encIv.length,
+            tagBytes: document.encTag.length,
+            storedBytes,
+            originalBytes: document.sizeBytes,
+            storedLooksLikePlainFile: looksPlain,
+            authenticated,
+            sha256,
+            sha256Matches,
+          },
+          key: {
+            perDocument: true,
+            wrapping: 'AES-256-GCM',
+            provider,
+            providerLabel:
+              provider === 'gcp-kms'
+                ? 'Google Cloud KMS'
+                : provider === 'fake-kms'
+                  ? 'Test-only KMS emulator (never used in production)'
+                  : 'Server master key (Google Cloud KMS is not active)',
+            kekVersion: key?.kekVersion ?? null,
+          },
+          metadata: {
+            titleEncrypted: Boolean(document.titleEncrypted),
+            sha256Encrypted: Boolean(document.sha256Encrypted),
+            fieldLabelsEncrypted: labelsSealed,
+            fields: document.claims.length,
+          },
+          redactedCopyPages: redactedPages,
+        },
+      };
+    },
+  );
 
   app.get('/api/documents/:id/credential', async (request, reply) => {
     const { user } = requireUser(request);

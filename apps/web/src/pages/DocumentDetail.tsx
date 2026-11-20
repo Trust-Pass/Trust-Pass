@@ -16,6 +16,7 @@ import {
   Spinner,
   TrustBadge,
 } from '../components/ui';
+import { EncryptionCheckPanel } from '../components/EncryptionCheck';
 import { LazyPdfViewer } from '../components/LazyPdfViewer';
 import { VerificationPanel } from '../components/VerificationPanel';
 import { api, apiBlob, errorMessage } from '../lib/api';
@@ -180,7 +181,7 @@ export function DocumentDetailPage() {
             <dl className="mt-3 space-y-2.5 text-sm">
               <div className="flex justify-between gap-2"><dt className="text-slate-500">Encryption</dt><dd className="font-medium text-ink">{doc.encryption.algorithm}</dd></div>
               <div className="flex justify-between gap-2"><dt className="text-slate-500">Key</dt><dd className="font-medium text-ink">Unique to this file</dd></div>
-              <div className="flex justify-between gap-2"><dt className="text-slate-500">Key wrapping</dt><dd className="text-right font-medium text-ink">Master key (AES-256-GCM)</dd></div>
+              <div className="flex justify-between gap-2"><dt className="text-slate-500">Key wrapping</dt><dd className="text-right font-medium text-ink">{doc.encryption.keyWrapping}</dd></div>
               <div className="flex justify-between gap-2"><dt className="text-slate-500">Type</dt><dd className="font-medium text-ink">{DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory]}</dd></div>
               <div className="flex justify-between gap-2"><dt className="text-slate-500">Size</dt><dd className="font-medium text-ink">{formatBytes(doc.sizeBytes)}</dd></div>
               <div className="flex justify-between gap-2"><dt className="text-slate-500">Uploaded</dt><dd className="font-medium text-ink">{formatDateTime(doc.createdAt)}</dd></div>
@@ -189,6 +190,7 @@ export function DocumentDetailPage() {
                 <dd className="mt-1 font-mono text-[11px] break-all text-slate-700">{doc.sha256}</dd>
               </div>
             </dl>
+            <EncryptionCheckPanel documentId={doc.id} />
           </Card>
 
           {doc.credential && (
@@ -226,7 +228,7 @@ export function DocumentDetailPage() {
         confirmLabel="Delete permanently"
         body={
           <>
-            <p>All sharing links stop working immediately. The encryption key is destroyed, so the file can never be decrypted again, even from a backup.</p>
+            <p>All sharing links stop working immediately. The file's encryption key is destroyed, so TrustPass can no longer decrypt it.</p>
             {remove.error && <p className="mt-2 text-red-400">{errorMessage(remove.error)}</p>}
           </>
         }

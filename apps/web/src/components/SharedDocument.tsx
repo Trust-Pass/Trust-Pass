@@ -129,7 +129,7 @@ export function SharedDocument({ view, fileUrl }: { view: SharedView; fileUrl: s
         <Card>
           <CardHeader
             title="Document"
-            subtitle={`${view.document.fileMode === 'redacted' ? 'Redacted copy: the owner hid parts of this document. ' : ''}${view.document.downloadAllowed ? 'Watermarked for you. You can download a watermarked copy.' : 'Watermarked for you. Downloads are disabled.'}`}
+            subtitle={`${view.document.fileMode === 'redacted' ? 'Redacted copy: the owner hid parts of this document. ' : ''}${view.document.watermarked === false ? '' : 'Watermarked for you. '}${view.document.downloadAllowed ? 'You can download a copy.' : 'Downloads are disabled.'}`}
             icon={<FileText className="size-5" />}
           />
           {view.document.downloadAllowed && (
@@ -141,10 +141,12 @@ export function SharedDocument({ view, fileUrl }: { view: SharedView; fileUrl: s
                 data-testid="download-copy"
                 className="inline-flex h-10 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
               >
-                <Download className="size-4" /> {downloading ? 'Preparing your copy…' : 'Download watermarked PDF'}
+                <Download className="size-4" /> {downloading ? 'Preparing your copy…' : view.document.watermarked === false ? 'Download PDF' : 'Download watermarked PDF'}
               </button>
               <p className="text-[13px] text-slate-500">
-                Your name, the time and a unique copy reference are printed on every page. The download is logged for the owner.
+                {view.document.watermarked === false
+                  ? 'The owner chose no watermark. The download is logged for the owner.'
+                  : 'Your name, the time and a unique copy reference are printed on every page. The download is logged for the owner.'}
               </p>
               {lastCopy && <p className="text-[13px] text-teal-400" data-testid="download-done">Downloaded copy {lastCopy}.</p>}
               {downloadError && <p className="text-[13px] text-red-500" role="alert" data-testid="download-error">{downloadError}</p>}

@@ -5,13 +5,13 @@ import { z } from 'zod';
 import { randomBytes } from 'node:crypto';
 import { hashToken, hmacHex } from '../lib/crypto';
 import { AppError, notFound } from '../lib/errors';
-import { buildRecipientCopy, stampRecipientPdf, watermarkDocument } from '../lib/pdf';
+import { buildRecipientCopy, stampRecipientPdf, watermarkDocument, watermarkOn } from '../lib/pdf';
 import { loadRedactedPages, pagesToPdf } from '../services/redaction';
 import { userAgentFamily } from '../lib/user-agent';
 import { requireUser } from '../plugins/auth';
 import { logEvent, notify, recentlyNotified } from '../services/audit';
 import { decryptClaims, loadDataKey, readDocumentFile } from '../services/documents';
-import { documentTitles, openRecipientLabel, openTitle, TITLE_SELECT } from '../services/metadata';
+import { documentTitles, openRecipientLabel, openTitle, openWatermark, TITLE_SELECT } from '../services/metadata';
 import { loadStoredCredential, presentAndVerify, recordVerification } from '../services/verification';
 import { memberOrgIds } from '../services/users';
 import type { AppDeps } from '../types';
@@ -246,6 +246,7 @@ async function buildSharedView(deps: AppDeps, request: FastifyRequest, link: Gat
       };
     }
 
+    const watermark = openWatermark(dek, link);
     return {
       link: {
         id: link.id,
@@ -266,13 +267,17 @@ async function buildSharedView(deps: AppDeps, request: FastifyRequest, link: Gat
         fileMode: link.includeFile ? fileModeOf(link) : null,
         downloadAllowed: link.includeFile && link.allowDownload,
         mimeType: link.includeFile ? document.mimeType : null,
+        /** Whether the file this link serves carries a visible watermark (the owner's choice). */
+        watermarked: link.includeFile ? watermark.enabled : null,
       },
       fields,
       verification,
       presentation,
       viewer: { approximateCountry: decision.country },
       notice:
-        'View only. A watermark identifies this view. Screenshots, screen recording and phone cameras cannot be blocked by any website.',
+        link.includeFile && !watermark.enabled
+          ? 'View only. The owner chose no watermark for this link; every view is still logged. Screenshots, screen recording and phone cameras cannot be blocked by any website.'
+          : 'View only. A watermark identifies this view. Screenshots, screen recording and phone cameras cannot be blocked by any website.',
     };
   } finally {
     dek.fill(0);
@@ -297,11 +302,11 @@ async function redactedPdf(deps: AppDeps, link: GateLink, info: Parameters<typeo
   }
 }
 
-async function recipientName(deps: AppDeps, link: GateLink): Promise<string> {
-  if (link.recipientOrg) return link.recipientOrg.name;
+/** Who the copy is stamped for, and the owner's watermark choice for this link. */
+async function recipientContext(deps: AppDeps, link: GateLink) {
   const dek = await loadDataKey(deps, link.document.id);
   try {
-    return openRecipientLabel(dek, link);
+    return { recipient: link.recipientOrg?.name ?? openRecipientLabel(dek, link), look: openWatermark(dek, link) };
   } finally {
     dek.fill(0);
   }
@@ -309,24 +314,21 @@ async function recipientName(deps: AppDeps, link: GateLink): Promise<string> {
 
 async function sendWatermarkedFile(deps: AppDeps, reply: FastifyReply, link: GateLink) {
   if (!link.includeFile) throw new AppError(403, 'file_not_shared', 'The owner shared selected details only, not the file.');
+  const { recipient, look } = await recipientContext(deps, link);
+  const info = { recipient, look, viewedAt: deps.now(), linkRef: link.id.slice(0, 8) };
   if (fileModeOf(link) === 'redacted') {
-    const pdf = await redactedPdf(deps, link, { recipient: await recipientName(deps, link), viewedAt: deps.now(), linkRef: link.id.slice(0, 8) });
+    const pdf = await redactedPdf(deps, link, info);
     return reply.headers(fileResponseHeaders('application/pdf')).send(pdf);
   }
   const dek = await loadDataKey(deps, link.document.id);
   let data: Buffer = Buffer.alloc(0);
-  let recipient = '';
   try {
     data = await readDocumentFile(deps, link.document, dek);
-    recipient = link.recipientOrg?.name ?? openRecipientLabel(dek, link);
   } finally {
     dek.fill(0);
   }
-  const watermarked = await watermarkDocument(data, link.document.mimeType, {
-    recipient,
-    viewedAt: deps.now(),
-    linkRef: link.id.slice(0, 8),
-  });
+  const watermarked = await watermarkDocument(data, link.document.mimeType, info);
+  data.fill(0);
   return reply.headers(fileResponseHeaders('application/pdf')).send(watermarked);
 }
 
@@ -359,8 +361,10 @@ async function sendRecipientDownload(
   const { prisma } = deps;
   const current = deps.now();
   const copyRef = randomBytes(5).toString('hex').toUpperCase();
+  const { recipient, look } = await recipientContext(deps, link);
   const info = {
-    recipient: await recipientName(deps, link),
+    recipient,
+    look,
     viewedAt: current,
     linkRef: link.id.slice(0, 8),
     download: {
@@ -392,7 +396,7 @@ async function sendRecipientDownload(
     documentId: link.documentId,
     linkId: link.id,
     // Ids and references only (E4): no title, no recipient name.
-    metadata: { copyRef, accessLogId: decision.logId.toString(), country: decision.country, sizeBytes: copy.length, fileMode: fileModeOf(link) },
+    metadata: { copyRef, accessLogId: decision.logId.toString(), country: decision.country, sizeBytes: copy.length, fileMode: fileModeOf(link), watermark: watermarkOn(info) },
     at: current,
   });
   const since = new Date(current.getTime() - DOWNLOAD_NOTICE_WINDOW_MS);
@@ -401,7 +405,9 @@ async function sendRecipientDownload(
       userId: link.ownerId,
       type: 'link_downloaded',
       title: 'A recipient downloaded your document',
-      body: `"{document}" was downloaded through your link for {recipient} as a watermarked copy (reference ${copyRef}).`,
+      body: watermarkOn(info)
+        ? `"{document}" was downloaded through your link for {recipient} as a watermarked copy (reference ${copyRef}).`
+        : `"{document}" was downloaded through your link for {recipient}, without a watermark as you chose (reference ${copyRef}).`,
       linkId: link.id,
       documentId: link.documentId,
       at: current,

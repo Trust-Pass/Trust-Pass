@@ -71,6 +71,7 @@ export interface DocumentLink {
   recipientOrg: string | null;
   includeFile: boolean;
   allowDownload?: boolean;
+  fileMode?: 'original' | 'redacted' | null;
   claimCount: number;
   expiresAt: string;
   revokedAt: string | null;
@@ -89,7 +90,7 @@ export interface DocumentDetail {
   sizeBytes: number;
   createdAt: string;
   sha256: string;
-  encryption: { algorithm: string; keyWrapping: string; perDocumentKey: boolean };
+  encryption: { algorithm: string; keyWrapping: string; perDocumentKey: boolean; encryptedMetadata?: boolean };
   trust: { status: TrustStatus; label: string };
   credential: { id: string; issuer: string; simulatedIssuer: boolean; issuedAt: string; expiresAt: string; format: string } | null;
   verification: Verification | null;
@@ -108,7 +109,7 @@ export interface SharedView {
     expiresAt: string;
     viewOnly: boolean;
   };
-  document: { title: string; category: string; kind: 'file' | 'credential'; fileShared: boolean; fileMode?: 'original' | 'redacted' | null; downloadAllowed?: boolean; mimeType: string | null };
+  document: { title: string; category: string; kind: 'file' | 'credential'; fileShared: boolean; fileMode?: 'original' | 'redacted' | null; downloadAllowed?: boolean; mimeType: string | null; watermarked?: boolean | null };
   fields: Array<{ label: string; value: string; source: 'issuer' | 'self_declared' }>;
   verification: Verification;
   presentation: string | null;
@@ -125,6 +126,8 @@ export interface LinkSummary {
   includeFile: boolean;
   allowDownload?: boolean;
   fileMode?: 'original' | 'redacted' | null;
+  /** Whether recipient copies carry a watermark (null when only fields are shared). */
+  watermark?: boolean | null;
   claimCount: number;
   countries: string[];
   expiresAt: string;
@@ -146,4 +149,24 @@ export interface Notification {
   at: string;
   linkId: string | null;
   documentId: string | null;
+}
+
+export interface EncryptionCheck {
+  ok: boolean;
+  checkedAt: string;
+  file: {
+    algorithm: string;
+    keyBits: number;
+    ivBytes: number;
+    tagBytes: number;
+    storedBytes: number;
+    originalBytes: number;
+    storedLooksLikePlainFile: boolean;
+    authenticated: boolean;
+    sha256: string | null;
+    sha256Matches: boolean;
+  };
+  key: { perDocument: boolean; wrapping: string; provider: string; providerLabel: string; kekVersion: number | null };
+  metadata: { titleEncrypted: boolean; sha256Encrypted: boolean; fieldLabelsEncrypted: number; fields: number };
+  redactedCopyPages: number;
 }

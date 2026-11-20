@@ -4,7 +4,7 @@
 name: ui-preview
 on:
   push:
-    branches: ['claude/ui-turquoise']
+    branches: ['claude/ui-turquoise', 'claude/final-improvements']
 permissions:
   contents: write
 jobs:

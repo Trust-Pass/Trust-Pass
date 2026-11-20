@@ -68,6 +68,18 @@ export async function apiBlob(path: string): Promise<Blob> {
   return res.blob();
 }
 
+/** POST that answers with a file (the recipient-copy preview). JSON body or multipart form. */
+export async function apiPostBlob(path: string, options: { body?: unknown; form?: FormData }): Promise<Blob> {
+  const res = await fetch(path, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: headers('POST', options.body !== undefined),
+    body: options.form ?? JSON.stringify(options.body ?? {}),
+  });
+  if (!res.ok) throw await toError(res);
+  return res.blob();
+}
+
 /** Multipart upload with progress, used for documents. */
 export function uploadWithProgress<T>(path: string, form: FormData, onProgress: (fraction: number) => void): Promise<T> {
   return new Promise((resolve, reject) => {

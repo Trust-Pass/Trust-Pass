@@ -117,6 +117,11 @@ export function recipientLabelAad(documentId: string, linkId: string): string {
   return `recipient|${documentId}|${linkId}`;
 }
 
+/** A link's watermark settings (owner's choice), sealed with the document's data key. */
+export function watermarkAad(documentId: string, linkId: string): string {
+  return `watermark|${documentId}|${linkId}`;
+}
+
 export function credentialAad(documentId: string): string {
   return `credential|${documentId}`;
 }

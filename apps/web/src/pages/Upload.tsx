@@ -1,7 +1,7 @@
 import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS } from '@trustpass/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { ArrowLeft, FileUp, Lock, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, FileUp, KeyRound, Lock, Plus, Trash2 } from 'lucide-react';
 import { useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Alert, Button, Card, Field, Input, PageHeader, Select } from '../components/ui';
@@ -138,6 +138,26 @@ export function UploadPage() {
           <Button variant="secondary" size="sm" icon={<Plus className="size-4" />} onClick={() => setClaims((cs) => [...cs, { label: '', value: '' }])} disabled={claims.length >= 20}>
             Add a field
           </Button>
+        </Card>
+
+        <Card className="p-4 sm:p-5">
+          <h2 className="flex items-center gap-2 font-semibold text-ink">
+            <KeyRound className="size-4 text-teal-400" /> Encryption
+          </h2>
+          <div role="radiogroup" aria-label="Encryption method" className="mt-3" data-testid="encryption-method">
+            <div role="radio" aria-checked="true" aria-disabled="true" className="flex items-start gap-3 rounded-xl bg-accent-soft p-3.5 ring-1 ring-inset ring-accent-line">
+              <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-accent" />
+              <span>
+                <span className="block font-medium text-ink">AES-256-GCM</span>
+                <span className="block text-[13px] text-slate-600">256-bit key, authenticated: any change to the stored file is detected.</span>
+              </span>
+            </div>
+          </div>
+          <p className="mt-3 text-[13px] leading-relaxed text-slate-500">
+            TrustPass uses one method for every file: AES-256-GCM, a widely used standard for authenticated encryption. Offering weaker
+            alternatives would only add risk, so there is nothing else to choose. Your file gets its own random key, which is itself
+            encrypted before it is stored. After upload, use <strong>Check encryption now</strong> on the document to verify it yourself.
+          </p>
         </Card>
 
         {error && <Alert tone="error">{error}</Alert>}

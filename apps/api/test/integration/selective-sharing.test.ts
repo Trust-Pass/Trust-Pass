@@ -256,6 +256,35 @@ describe('Smart Selective Encryption: redacted copies', () => {
     expect(await ctx.prisma.redactedPage.count({ where: { linkId: full.json().link.id } })).toBe(0);
   });
 
+  it('preview: the owner sees exactly the redacted copy before sharing, and nothing is stored', async () => {
+    const owner = await registerUser(ctx);
+    const original = await secretPdf();
+    const id = (await uploadDocument(ctx, owner, { file: original })).json().document.id as string;
+    const form = multipart([
+      { name: 'link', value: JSON.stringify({ fileMode: 'redacted', redactions: REDACTIONS, recipientLabel: 'Example Company' }) },
+      ...(await browserRenderings()).map((content, i) => ({ name: 'page', filename: `page-${i + 1}.png`, content, contentType: 'image/png' })),
+    ]);
+    const res = await as(ctx, owner, { method: 'POST', url: `/api/documents/${id}/links/preview`, payload: form.payload, headers: form.headers });
+    expect(res.statusCode, res.body).toBe(200);
+    // The same guarantees as the recipient's copy: no hidden pixel, text, font or metadata.
+    await expectNothingHidden(res.rawPayload, original);
+    expect(pdfContent(res.rawPayload)).toContain(hexOf('Shared with: Example Company'));
+    expect(await ctx.prisma.sharingLink.count()).toBe(0);
+    expect(await ctx.prisma.redactedPage.count()).toBe(0);
+
+    // Without a watermark the copy is page images only: not even the watermark fonts.
+    const bare = multipart([
+      { name: 'link', value: JSON.stringify({ fileMode: 'redacted', redactions: REDACTIONS, watermark: { enabled: false } }) },
+      ...(await browserRenderings()).map((content, i) => ({ name: 'page', filename: `page-${i + 1}.png`, content, contentType: 'image/png' })),
+    ]);
+    const plain = await as(ctx, owner, { method: 'POST', url: `/api/documents/${id}/links/preview`, payload: bare.payload, headers: bare.headers });
+    expect(plain.statusCode).toBe(200);
+    const content = pdfContent(plain.rawPayload);
+    for (const secret of HIDDEN) expect(content).not.toContain(secret);
+    expect(content).not.toMatch(/\/BaseFont/);
+    for (const img of await imagesOf(plain.rawPayload)) expect(countPixels(img.pixels, isRed)).toBe(0);
+  });
+
   it('refuses incomplete or mismatched redacted copies, and stores nothing', async () => {
     const owner = await registerUser(ctx);
     const id = (await uploadDocument(ctx, owner, { file: await secretPdf() })).json().document.id as string;

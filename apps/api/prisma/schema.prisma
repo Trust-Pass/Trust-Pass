@@ -298,6 +298,10 @@ model SharingLink {
   allowDownload  Boolean       @default(false) @map("allow_download")
   /// What file the recipient gets when includeFile: "original" (null = original) or "redacted".
   fileMode       String?       @map("file_mode")
+  /// Recipient copies carry a watermark (owner's choice; true for every link made before the option).
+  watermarkEnabled   Boolean   @default(true) @map("watermark_enabled")
+  /// Watermark look (style, colour, strength, stamp text) sealed with the document key. Null = standard.
+  watermarkEncrypted Bytes?    @map("watermark_encrypted")
   expiresAt      DateTime      @map("expires_at") @db.Timestamptz(3)
   revokedAt      DateTime?     @map("revoked_at") @db.Timestamptz(3)
   lastAccessedAt DateTime?     @map("last_accessed_at") @db.Timestamptz(3)

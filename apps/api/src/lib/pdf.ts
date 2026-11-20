@@ -1,4 +1,5 @@
-import { degrees, PDFDict, PDFDocument, PDFName, rgb, StandardFonts, type PDFFont, type PDFPage } from 'pdf-lib';
+import { degrees, PDFDict, PDFDocument, PDFName, rgb, StandardFonts, type PDFFont, type PDFPage, type RGB } from 'pdf-lib';
+import { DEFAULT_WATERMARK, type WatermarkColor, type WatermarkSettings, type WatermarkStrength } from '@trustpass/shared';
 
 const NAVY = rgb(0.043, 0.106, 0.231);
 const TEAL = rgb(0.078, 0.722, 0.651);
@@ -117,11 +118,58 @@ export interface WatermarkInfo {
   linkRef: string;
   /** Set for downloads: a per-download reference that ties a leaked copy to one logged event. */
   download?: { copyRef: string; downloadedBy?: string };
+  /** The owner's choice for this link. Missing = the standard watermark. enabled: false = none drawn. */
+  look?: WatermarkSettings;
+}
+
+const WATERMARK_COLORS: Record<WatermarkColor, RGB> = {
+  navy: NAVY,
+  teal: rgb(0.03, 0.42, 0.39),
+  crimson: rgb(0.55, 0.06, 0.12),
+  gray: rgb(0.3, 0.32, 0.36),
+};
+/** Opacity of the diagonal stamp and of the name bands, per strength. "light" is the original look. */
+const WATERMARK_STRENGTH: Record<WatermarkStrength, { stamp: number; band: number }> = {
+  light: { stamp: 0.09, band: 0.82 },
+  medium: { stamp: 0.16, band: 0.88 },
+  strong: { stamp: 0.26, band: 0.94 },
+};
+
+/** True when recipient copies of this link get a visible watermark. */
+export function watermarkOn(info: Pick<WatermarkInfo, 'look'>): boolean {
+  return (info.look ?? DEFAULT_WATERMARK).enabled;
 }
 
 function watermarkPage(page: PDFPage, font: PDFFont, bold: PDFFont, info: WatermarkInfo) {
+  const look = info.look ?? DEFAULT_WATERMARK;
+  if (!look.enabled) return;
+  const color = WATERMARK_COLORS[look.color];
+  const strength = WATERMARK_STRENGTH[look.strength];
   const { width, height } = page.getSize();
-  const stamp = 'CONFIDENTIAL';
+  if (look.style !== 'bands') drawStamps(page, bold, watermarkSafe(look.text, 'CONFIDENTIAL'), color, strength.stamp);
+  if (look.style === 'diagonal') return;
+
+  const when = `${info.viewedAt.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+  const lines = recipientLines(info, when);
+  const textSize = Math.max(6.5, Math.min(9, width / 70));
+  const bandHeight = textSize * 2 + 14;
+  page.drawRectangle({ x: 0, y: height - bandHeight, width, height: bandHeight, color, opacity: strength.band });
+  page.drawText(lines[0]!, { x: 10, y: height - textSize - 5, size: textSize, font: bold, color: rgb(1, 1, 1) });
+  page.drawText(lines[1]!, { x: 10, y: height - textSize * 2 - 9, size: textSize, font, color: rgb(1, 1, 1) });
+  page.drawRectangle({ x: 0, y: 0, width, height: textSize + 10, color, opacity: strength.band });
+  page.drawText(lines[1]!, { x: 10, y: 5, size: textSize, font, color: rgb(1, 1, 1) });
+}
+
+/** Watermarks every page, or draws nothing at all (no fonts added) when the owner turned it off. */
+async function drawWatermarks(pdf: PDFDocument, info: WatermarkInfo) {
+  if (!watermarkOn(info)) return;
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  for (const page of pdf.getPages()) watermarkPage(page, font, bold, info);
+}
+
+function drawStamps(page: PDFPage, bold: PDFFont, stamp: string, color: RGB, opacity: number) {
+  const { width, height } = page.getSize();
   const angle = 30;
   const cos = Math.cos((angle * Math.PI) / 180);
   const sin = Math.sin((angle * Math.PI) / 180);
@@ -137,31 +185,22 @@ function watermarkPage(page: PDFPage, font: PDFFont, bold: PDFFont, info: Waterm
   const step = count > 1 ? usable / (count - 1) : 0;
   const y0 = count > 1 ? size : (height - dy) / 2;
   for (let i = 0; i < count; i++) {
-    page.drawText(stamp, { x, y: y0 + i * step, size, font: bold, color: NAVY, opacity: 0.09, rotate: degrees(angle) });
+    page.drawText(stamp, { x, y: y0 + i * step, size, font: bold, color, opacity, rotate: degrees(angle) });
   }
-
-  const when = `${info.viewedAt.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
-  const lines = recipientLines(info, when);
-  const textSize = Math.max(6.5, Math.min(9, width / 70));
-  const bandHeight = textSize * 2 + 14;
-  page.drawRectangle({ x: 0, y: height - bandHeight, width, height: bandHeight, color: NAVY, opacity: 0.82 });
-  page.drawText(lines[0]!, { x: 10, y: height - textSize - 5, size: textSize, font: bold, color: rgb(1, 1, 1) });
-  page.drawText(lines[1]!, { x: 10, y: height - textSize * 2 - 9, size: textSize, font, color: rgb(1, 1, 1) });
-  page.drawRectangle({ x: 0, y: 0, width, height: textSize + 10, color: NAVY, opacity: 0.82 });
-  page.drawText(lines[1]!, { x: 10, y: 5, size: textSize, font, color: rgb(1, 1, 1) });
 }
 
 function recipientLines(info: WatermarkInfo, when: string): [string, string] {
+  const word = watermarkSafe((info.look ?? DEFAULT_WATERMARK).text, 'CONFIDENTIAL').toUpperCase();
   if (!info.download) {
     return [
-      `CONFIDENTIAL - Shared with: ${watermarkSafe(info.recipient, 'the named recipient')}`,
+      `${word} - Shared with: ${watermarkSafe(info.recipient, 'the named recipient')}`,
       `Viewed: ${when}  |  Link ${info.linkRef}  |  TrustPass – Authorized Viewing Only`,
     ];
   }
   const fallback = `the recipient of link ${info.linkRef}`;
   const by = info.download.downloadedBy ? ` (${watermarkSafe(info.download.downloadedBy, 'member')})` : '';
   return [
-    `CONFIDENTIAL - Downloaded for: ${watermarkSafe(info.recipient, fallback)}${by}`.slice(0, 160),
+    `${word} - Downloaded for: ${watermarkSafe(info.recipient, fallback)}${by}`.slice(0, 160),
     `Downloaded: ${when}  |  Copy ${info.download.copyRef}  |  Link ${info.linkRef}  |  TrustPass`,
   ];
 }
@@ -182,11 +221,9 @@ export async function watermarkDocument(data: Buffer, mimeType: string, info: Wa
     const page = pdf.addPage([image.width * scale, image.height * scale]);
     page.drawImage(image, { x: 0, y: 0, width: image.width * scale, height: image.height * scale });
   }
-  pdf.setTitle('TrustPass - authorized viewing only');
+  pdf.setTitle(watermarkOn(info) ? 'TrustPass - authorized viewing only' : 'TrustPass - shared document');
   pdf.setProducer('TrustPass');
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  for (const page of pdf.getPages()) watermarkPage(page, font, bold, info);
+  await drawWatermarks(pdf, info);
   return Buffer.from(await pdf.save());
 }
 
@@ -237,9 +274,7 @@ export async function buildRecipientCopy(
   pdf.setAuthor('TrustPass');
   pdf.setCreationDate(now);
   pdf.setModificationDate(now);
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  for (const page of pdf.getPages()) watermarkPage(page, font, bold, info);
+  await drawWatermarks(pdf, info);
   return Buffer.from(await pdf.save());
 }
 
@@ -259,9 +294,7 @@ export async function stampRecipientPdf(pdf: PDFDocument, info: WatermarkInfo, l
   pdf.setAuthor('TrustPass');
   pdf.setCreationDate(now);
   pdf.setModificationDate(now);
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  for (const page of pdf.getPages()) watermarkPage(page, font, bold, info);
+  await drawWatermarks(pdf, info);
   return Buffer.from(await pdf.save());
 }
 

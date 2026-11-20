@@ -44,7 +44,7 @@ test('the owner hides an area; the recipient copy has no trace of it, in text or
   await page.mouse.up();
   await expect(page.getByText('1 area hidden.')).toBeVisible();
 
-  await page.getByText('Allow download of a watermarked PDF').click();
+  await page.getByText('Allow download of a PDF copy').click();
   await page.getByLabel('Recipient name').fill('Example Company');
   await page.getByRole('button', { name: 'Create secure link' }).click();
   const url = (await page.getByTestId('share-url').textContent())!.trim();

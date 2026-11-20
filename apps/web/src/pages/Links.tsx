@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Ban, ChevronDown, Clock, Download, Globe2, Link2, Pencil, ShieldCheck } from 'lucide-react';
+import { WATERMARK_STYLE_LABELS, type WatermarkSettings } from '@trustpass/shared';
+import { Ban, ChevronDown, Clock, Download, Globe2, Link2, Pencil, ShieldCheck, Stamp } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { CountryPicker } from '../components/CountryPicker';
@@ -22,7 +23,8 @@ import { country, flag, formatDateTime, relativeTime } from '../lib/format';
 import type { AccessOutcome, LinkSummary } from '../lib/types';
 
 interface LinkDetail {
-  link: LinkSummary & {
+  link: Omit<LinkSummary, 'watermark'> & {
+    watermark: WatermarkSettings | null;
     fields: Array<{ id: string; label: string; source: string }>;
     viewCount: number;
     recentAccess: Array<{ id: string; outcome: AccessOutcome; resource: string; country: string | null; client: string | null; at: string }>;
@@ -39,18 +41,25 @@ function LinkActivity({ id }: { id: string }) {
       void queryClient.invalidateQueries({ queryKey: ['links'] });
     },
   });
+  const setWatermark = useMutation({
+    mutationFn: (watermark: WatermarkSettings) => api(`/api/links/${id}/watermark`, { method: 'PUT', body: { watermark } }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['link', id] });
+      void queryClient.invalidateQueries({ queryKey: ['links'] });
+    },
+  });
   if (isLoading || !data) return <Spinner />;
   const l = data.link;
   return (
     <div className="space-y-3 border-t border-slate-100 px-4 py-4 sm:px-5">
       <p className="text-sm text-slate-600">
         <span className="font-medium text-ink">Shared:</span> {l.fields.map((f) => f.label).join(', ') || 'no fields'}
-        {l.includeFile && (l.fileMode === 'redacted' ? ' + redacted copy' : ' + watermarked file')}
+        {l.includeFile && (l.fileMode === 'redacted' ? ' + redacted copy' : ' + the file')}
       </p>
       {l.includeFile && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-sm ring-1 ring-slate-200" data-testid="link-download">
           <span className="flex items-center gap-1.5 text-ink">
-            <Download className="size-4" /> {l.allowDownload ? 'Recipient can download a watermarked PDF' : 'View only: downloads are off'}
+            <Download className="size-4" /> {l.allowDownload ? 'Recipient can download a PDF copy' : 'View only: downloads are off'}
           </span>
           {l.status === 'active' && (
             <Button variant="secondary" size="sm" loading={setDownload.isPending} onClick={() => setDownload.mutate(!l.allowDownload)}>
@@ -58,6 +67,25 @@ function LinkActivity({ id }: { id: string }) {
             </Button>
           )}
           {setDownload.error && <p className="w-full text-[13px] text-red-500">{errorMessage(setDownload.error)}</p>}
+        </div>
+      )}
+      {l.includeFile && l.watermark && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-sm ring-1 ring-slate-200" data-testid="link-watermark">
+          <span className="flex items-center gap-1.5 text-ink">
+            <Stamp className="size-4" />{' '}
+            {l.watermark.enabled ? `Watermark on: ${WATERMARK_STYLE_LABELS[l.watermark.style].toLowerCase()}` : 'No watermark: views and downloads are still logged'}
+          </span>
+          {l.status === 'active' && (
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={setWatermark.isPending}
+              onClick={() => setWatermark.mutate({ ...l.watermark!, enabled: !l.watermark!.enabled })}
+            >
+              {l.watermark.enabled ? 'Turn off watermark' : 'Turn on watermark'}
+            </Button>
+          )}
+          {setWatermark.error && <p className="w-full text-[13px] text-red-500">{errorMessage(setWatermark.error)}</p>}
         </div>
       )}
       {l.recentAccess.length === 0 ? (

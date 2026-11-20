@@ -164,6 +164,40 @@ export const redactionSchema = z
   .refine((r) => r.w > 0 && r.h > 0 && r.x + r.w <= 1.000001 && r.y + r.h <= 1.000001, { message: 'An area lies outside the page' });
 export type Redaction = z.infer<typeof redactionSchema>;
 
+/**
+ * Watermark of a link's recipient copies (view and download). On by default: the recipient's name,
+ * the time and the link reference on every page. The owner may change its look or turn it off.
+ */
+export const WATERMARK_STYLES = ['full', 'diagonal', 'bands'] as const;
+export type WatermarkStyle = (typeof WATERMARK_STYLES)[number];
+export const WATERMARK_COLORS = ['navy', 'teal', 'crimson', 'gray'] as const;
+export type WatermarkColor = (typeof WATERMARK_COLORS)[number];
+export const WATERMARK_STRENGTHS = ['light', 'medium', 'strong'] as const;
+export type WatermarkStrength = (typeof WATERMARK_STRENGTHS)[number];
+export const WATERMARK_DEFAULT_TEXT = 'CONFIDENTIAL';
+export const WATERMARK_STYLE_LABELS: Record<WatermarkStyle, string> = {
+  full: 'Stamp and name bands',
+  diagonal: 'Diagonal stamp only',
+  bands: 'Name bands only',
+};
+
+export const watermarkSchema = z.object({
+  enabled: z.boolean().default(true),
+  style: z.enum(WATERMARK_STYLES).default('full'),
+  /** The diagonal stamp word. The standard PDF fonts only draw Latin characters. */
+  text: z
+    .string()
+    .trim()
+    .max(24, 'Keep the stamp to 24 characters')
+    .regex(/^[A-Za-z0-9 .,:;'!?&()/#+-]*$/, 'Use Latin letters, digits and basic punctuation for the stamp')
+    .default(WATERMARK_DEFAULT_TEXT)
+    .transform((t) => (t.length === 0 ? WATERMARK_DEFAULT_TEXT : t)),
+  color: z.enum(WATERMARK_COLORS).default('navy'),
+  strength: z.enum(WATERMARK_STRENGTHS).default('light'),
+});
+export type WatermarkSettings = z.output<typeof watermarkSchema>;
+export const DEFAULT_WATERMARK: WatermarkSettings = { enabled: true, style: 'full', text: WATERMARK_DEFAULT_TEXT, color: 'navy', strength: 'light' };
+
 export const createLinkSchema = z
   .object({
     claimIds: z.array(z.string().uuid()).max(MAX_CLAIMS_PER_DOCUMENT).default([]),
@@ -180,6 +214,7 @@ export const createLinkSchema = z
     expiresIn: z.enum(['1h', '24h', '3d', '7d', 'custom']),
     expiresAt: z.string().datetime({ offset: true }).optional(),
     allowedCountries: allowedCountriesSchema.default([]),
+    watermark: watermarkSchema.prefault({}),
   })
   .superRefine((value, ctx) => {
     if (value.fileMode === 'redacted' && !value.includeFile) {
@@ -225,6 +260,30 @@ export type CreateLinkInput = z.infer<typeof createLinkSchema>;
 export const updateCountriesSchema = z.object({ allowedCountries: allowedCountriesSchema });
 
 export const updateDownloadSchema = z.object({ allowDownload: z.boolean() });
+
+export const updateWatermarkSchema = z.object({ watermark: watermarkSchema });
+
+/**
+ * Preview of the exact copy a recipient would get, built by the server and never stored.
+ * Same file rules as createLinkSchema; the recipient name is optional here.
+ */
+export const previewLinkSchema = z
+  .object({
+    fileMode: z.enum(FILE_MODES).default('original'),
+    redactions: z.array(redactionSchema).max(MAX_REDACTIONS).default([]),
+    recipientLabel: z.string().trim().max(80).default(''),
+    copy: z.enum(['view', 'download']).default('view'),
+    watermark: watermarkSchema.prefault({}),
+  })
+  .superRefine((value, ctx) => {
+    if (value.fileMode === 'redacted' && value.redactions.length === 0) {
+      ctx.addIssue({ code: 'custom', path: ['redactions'], message: 'Mark at least one area to hide' });
+    }
+    if (value.fileMode === 'original' && value.redactions.length > 0) {
+      ctx.addIssue({ code: 'custom', path: ['redactions'], message: 'Hidden areas only apply to a redacted copy' });
+    }
+  });
+export type PreviewLinkInput = z.infer<typeof previewLinkSchema>;
 
 // ---------------------------------------------------------------------------
 // Access, verification and events
@@ -302,7 +361,9 @@ export const SECURITY_EVENT_LABELS: Record<string, string> = {
   link_revoked: 'Sharing link revoked',
   link_countries_updated: 'Country rules updated',
   link_download_updated: 'Download permission changed',
-  recipient_downloaded: 'Recipient downloaded a watermarked copy',
+  link_watermark_updated: 'Watermark changed',
+  document_encryption_checked: 'Encryption checked',
+  recipient_downloaded: 'Recipient downloaded a copy',
   verification_completed: 'Verification completed',
   org_member_added: 'Organization member added',
   org_member_removed: 'Organization member removed',

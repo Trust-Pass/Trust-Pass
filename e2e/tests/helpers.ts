@@ -47,7 +47,7 @@ export async function shareFields(
   await page.goto(`/app/documents/${documentId}/share`);
   for (const field of opts.fields ?? []) await page.getByText(field, { exact: true }).click();
   if (opts.includeFile) await page.getByText('Include the file').click();
-  if (opts.allowDownload) await page.getByText('Allow download of a watermarked PDF').click();
+  if (opts.allowDownload) await page.getByText('Allow download of a PDF copy').click();
   if (opts.organization) {
     await page.getByRole('radio', { name: 'A TrustPass organization' }).click();
     await page.getByLabel('Search organizations').fill(opts.organization);

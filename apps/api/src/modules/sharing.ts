@@ -1,17 +1,19 @@
 import { randomUUID } from 'node:crypto';
-import type { FastifyInstance } from 'fastify';
-import { createLinkSchema, EXPIRY_PRESETS, REDACTION_MAX_TOTAL_BYTES, updateCountriesSchema, updateDownloadSchema } from '@trustpass/shared';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { createLinkSchema, EXPIRY_PRESETS, previewLinkSchema, REDACTION_MAX_TOTAL_BYTES, updateCountriesSchema, updateDownloadSchema, updateWatermarkSchema } from '@trustpass/shared';
 import { z } from 'zod';
 import { hashToken, linkTokenAad, open, randomToken, seal } from '../lib/crypto';
 import { AppError, badRequest, notFound, parse } from '../lib/errors';
 import { requireUser } from '../plugins/auth';
 import { logEvent, notify } from '../services/audit';
 import { loadDataKey } from '../services/documents';
-import { dataKeys, openClaimLabel, openRecipientLabel, openTitle, sealRecipientLabel, TITLE_SELECT } from '../services/metadata';
+import { dataKeys, openClaimLabel, openRecipientLabel, openTitle, openWatermark, sealRecipientLabel, sealWatermark, TITLE_SELECT } from '../services/metadata';
+import { readDocumentFile } from '../services/documents';
+import { stampRecipientPdf, watermarkDocument } from '../lib/pdf';
 import { getSettings } from '../services/settings';
-import { buildRedactedPages, storeRedactedPages } from '../services/redaction';
+import { buildRedactedPages, pagesToPdf, storeRedactedPages } from '../services/redaction';
 import type { AppDeps } from '../types';
-import { getOwnedDocument, parseId } from './documents';
+import { fileResponseHeaders, getOwnedDocument, parseId } from './documents';
 
 export function linkStatus(link: { revokedAt: Date | null; expiresAt: Date }, now: Date) {
   if (link.revokedAt) return 'revoked' as const;
@@ -60,6 +62,40 @@ async function getOwnedLink(deps: AppDeps, id: string, ownerId: string) {
   return link;
 }
 
+/**
+ * The body of a create or preview request: JSON, or multipart when the owner's browser sends the
+ * rendered pages of a PDF for a redacted copy: one "link" field (the same JSON) and one "page"
+ * file per page, in order.
+ */
+async function readLinkRequest(request: FastifyRequest): Promise<{ body: unknown; pageImages: Buffer[] }> {
+  let body: unknown = request.body;
+  const pageImages: Buffer[] = [];
+  let pageBytes = 0;
+  if (request.isMultipart()) {
+    for await (const part of request.parts({ limits: { fileSize: 12 * 1024 * 1024, files: 50, fields: 1, fieldSize: 65_536 } })) {
+      if (part.type === 'file') {
+        if (part.fieldname !== 'page') throw badRequest('Unexpected file');
+        const page = await part.toBuffer();
+        pageBytes += page.length;
+        // One request may not hold more than REDACTION_MAX_TOTAL_BYTES of page images, so a
+        // single owner cannot exhaust the server's memory with 50 large files.
+        if (pageBytes > REDACTION_MAX_TOTAL_BYTES) {
+          for (const b of pageImages) b.fill(0);
+          throw new AppError(413, 'payload_too_large', 'The page images are too large in total. Try a document with fewer pages.');
+        }
+        pageImages.push(page);
+      } else if (part.fieldname === 'link') {
+        try {
+          body = JSON.parse(String(part.value));
+        } catch {
+          throw badRequest('The link settings are not valid JSON');
+        }
+      }
+    }
+  }
+  return { body, pageImages };
+}
+
 export async function sharingRoutes(app: FastifyInstance) {
   const deps = app.deps;
   const { prisma, config, now } = deps;
@@ -70,33 +106,7 @@ export async function sharingRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { user } = requireUser(request);
       const document = await getOwnedDocument(deps, parseId(request, 'Document'), user.id);
-      // JSON, or multipart when the owner's browser sends the rendered pages of a PDF for a
-      // redacted copy: one "link" field (the same JSON) and one "page" file per page, in order.
-      let body: unknown = request.body;
-      const pageImages: Buffer[] = [];
-      let pageBytes = 0;
-      if (request.isMultipart()) {
-        for await (const part of request.parts({ limits: { fileSize: 12 * 1024 * 1024, files: 50, fields: 1, fieldSize: 65_536 } })) {
-          if (part.type === 'file') {
-            if (part.fieldname !== 'page') throw badRequest('Unexpected file');
-            const page = await part.toBuffer();
-            pageBytes += page.length;
-            // One request may not hold more than REDACTION_MAX_TOTAL_BYTES of page images, so a
-            // single owner cannot exhaust the server's memory with 50 large files.
-            if (pageBytes > REDACTION_MAX_TOTAL_BYTES) {
-              for (const b of pageImages) b.fill(0);
-              throw new AppError(413, 'payload_too_large', 'The page images are too large in total. Try a document with fewer pages.');
-            }
-            pageImages.push(page);
-          } else if (part.fieldname === 'link') {
-            try {
-              body = JSON.parse(String(part.value));
-            } catch {
-              throw badRequest('The link settings are not valid JSON');
-            }
-          }
-        }
-      }
+      const { body, pageImages } = await readLinkRequest(request);
       const input = parse(createLinkSchema, body);
       if (input.fileMode === 'original' && pageImages.length > 0) throw badRequest('Page images are only used for a redacted copy');
       const settings = await getSettings(prisma);
@@ -131,9 +141,11 @@ export async function sharingRoutes(app: FastifyInstance) {
       // The recipient label is sealed with the document's key (E3), like the title.
       const dek = await loadDataKey(deps, document.id);
       let recipientLabelEncrypted: Uint8Array<ArrayBuffer>;
+      let watermarkEncrypted: Uint8Array<ArrayBuffer>;
       let redacted: Awaited<ReturnType<typeof storeRedactedPages>> | null = null;
       try {
         recipientLabelEncrypted = sealRecipientLabel(dek, document.id, linkId, input.recipientLabel);
+        watermarkEncrypted = sealWatermark(dek, document.id, linkId, input.watermark);
         if (input.includeFile && input.fileMode === 'redacted') {
           // The boxes are burned into fresh page images here; only those images are ever shared.
           const pages = await buildRedactedPages(deps, document, dek, input.redactions, pageImages);
@@ -159,6 +171,8 @@ export async function sharingRoutes(app: FastifyInstance) {
             includeFile: input.includeFile,
             allowDownload: input.includeFile && input.allowDownload,
             fileMode: input.includeFile ? input.fileMode : null,
+            watermarkEnabled: input.watermark.enabled,
+            watermarkEncrypted,
             expiresAt,
             createdAt: current,
           },
@@ -182,6 +196,8 @@ export async function sharingRoutes(app: FastifyInstance) {
             fileMode: input.includeFile ? input.fileMode : null,
             hiddenAreas: input.includeFile && input.fileMode === 'redacted' ? input.redactions.length : 0,
             allowDownload: input.includeFile && input.allowDownload,
+            // The style only; the stamp text stays sealed (E4).
+            watermark: input.watermark.enabled ? input.watermark.style : 'off',
             expiresAt: expiresAt.toISOString(),
             countries: input.allowedCountries,
           },
@@ -209,9 +225,62 @@ export async function sharingRoutes(app: FastifyInstance) {
       }
 
       return reply.status(201).send({
-        link: { id: link.id, expiresAt: link.expiresAt, recipientLabel: input.recipientLabel, allowDownload: link.allowDownload, fileMode: link.includeFile ? (link.fileMode ?? 'original') : null },
+        link: {
+          id: link.id,
+          expiresAt: link.expiresAt,
+          recipientLabel: input.recipientLabel,
+          allowDownload: link.allowDownload,
+          fileMode: link.includeFile ? (link.fileMode ?? 'original') : null,
+          watermark: input.watermark,
+        },
         url: shareUrl(deps, token),
       });
+    },
+  );
+
+  /**
+   * Preview: the exact copy a recipient of such a link would get (same code path as the recipient
+   * routes: redacted pages burned in by the server, or the original with its watermark), built in
+   * memory for the owner only and never stored. Nothing is created, logged as access or shared.
+   */
+  app.post(
+    '/api/documents/:id/links/preview',
+    { config: { rateLimit: { max: 30, timeWindow: '10 minutes' } } },
+    async (request, reply) => {
+      const { user } = requireUser(request);
+      const document = await getOwnedDocument(deps, parseId(request, 'Document'), user.id);
+      const { body, pageImages } = await readLinkRequest(request);
+      try {
+        const input = parse(previewLinkSchema, body);
+        if (input.fileMode === 'original' && pageImages.length > 0) throw badRequest('Page images are only used for a redacted copy');
+        const current = now();
+        const info = {
+          recipient: input.recipientLabel || 'the named recipient',
+          look: input.watermark,
+          viewedAt: current,
+          linkRef: 'PREVIEW',
+          download: input.copy === 'download' ? { copyRef: 'PREVIEW' } : undefined,
+        };
+        const dek = await loadDataKey(deps, document.id);
+        let pdf: Buffer;
+        try {
+          if (input.fileMode === 'redacted') {
+            const pages = await buildRedactedPages(deps, document, dek, input.redactions, pageImages);
+            const built = await pagesToPdf(pages);
+            for (const p of pages) p.data.fill(0);
+            pdf = await stampRecipientPdf(built, info);
+          } else {
+            const data = await readDocumentFile(deps, document, dek);
+            pdf = await watermarkDocument(data, document.mimeType, info);
+            data.fill(0);
+          }
+        } finally {
+          dek.fill(0);
+        }
+        return reply.headers({ ...fileResponseHeaders('application/pdf'), 'X-TrustPass-Preview': '1' }).send(pdf);
+      } finally {
+        for (const b of pageImages) b.fill(0);
+      }
     },
   );
 
@@ -238,7 +307,10 @@ export async function sharingRoutes(app: FastifyInstance) {
     });
     const keys = await dataKeys(deps, links.map((l) => l.documentId));
     const labels = new Map(
-      links.map((l) => [l.id, { title: openTitle(keys.get(l.documentId), l.document), recipient: openRecipientLabel(keys.get(l.documentId), l) }]),
+      links.map((l) => [
+        l.id,
+        { title: openTitle(keys.get(l.documentId), l.document), recipient: openRecipientLabel(keys.get(l.documentId), l), watermark: openWatermark(keys.get(l.documentId), l).enabled },
+      ]),
     );
     keys.zero();
     const stats = await prisma.accessLog.groupBy({
@@ -260,6 +332,7 @@ export async function sharingRoutes(app: FastifyInstance) {
           includeFile: l.includeFile,
           allowDownload: l.includeFile && l.allowDownload,
           fileMode: l.includeFile ? (l.fileMode ?? 'original') : null,
+          watermark: l.includeFile ? labels.get(l.id)!.watermark : null,
           claimCount: l._count.permissions,
           countries: l.countries.map((c) => c.countryCode),
           expiresAt: l.expiresAt,
@@ -286,6 +359,7 @@ export async function sharingRoutes(app: FastifyInstance) {
     const title = openTitle(dek, link.document);
     const recipientLabel = openRecipientLabel(dek, link);
     const fields = link.permissions.map((p) => ({ id: p.claim.id, label: openClaimLabel(dek, link.documentId, p.claim), source: p.claim.source }));
+    const watermark = openWatermark(dek, link);
     keys.zero();
     return {
       link: {
@@ -297,6 +371,7 @@ export async function sharingRoutes(app: FastifyInstance) {
         includeFile: link.includeFile,
         allowDownload: link.includeFile && link.allowDownload,
         fileMode: link.includeFile ? (link.fileMode ?? 'original') : null,
+        watermark: link.includeFile ? watermark : null,
         fields,
         countries: link.countries.map((c) => c.countryCode),
         expiresAt: link.expiresAt,
@@ -364,6 +439,36 @@ export async function sharingRoutes(app: FastifyInstance) {
       });
     });
     return { ok: true, allowDownload: input.allowDownload };
+  });
+
+  /** Change the watermark of an active link; applies to every view and download from now on. */
+  app.put('/api/links/:id/watermark', async (request) => {
+    const { user } = requireUser(request);
+    const link = await getOwnedLink(deps, parseId(request, 'Link'), user.id);
+    if (linkStatus(link, now()) !== 'active') throw new AppError(409, 'link_inactive', 'Only active links can be changed');
+    if (!link.includeFile) throw badRequest('This link shares fields only, so there is no file to watermark');
+    const input = parse(updateWatermarkSchema, request.body);
+    const dek = await loadDataKey(deps, link.documentId);
+    let before: boolean;
+    let watermarkEncrypted: Uint8Array<ArrayBuffer>;
+    try {
+      before = openWatermark(dek, link).enabled;
+      watermarkEncrypted = sealWatermark(dek, link.documentId, link.id, input.watermark);
+    } finally {
+      dek.fill(0);
+    }
+    await prisma.$transaction(async (tx) => {
+      await tx.sharingLink.update({ where: { id: link.id }, data: { watermarkEnabled: input.watermark.enabled, watermarkEncrypted } });
+      await logEvent(tx, {
+        userId: user.id,
+        actorUserId: user.id,
+        eventType: 'link_watermark_updated',
+        documentId: link.documentId,
+        linkId: link.id,
+        metadata: { before, after: input.watermark.enabled, style: input.watermark.style },
+      });
+    });
+    return { ok: true, watermark: input.watermark };
   });
 
   app.post('/api/links/:id/revoke', async (request) => {

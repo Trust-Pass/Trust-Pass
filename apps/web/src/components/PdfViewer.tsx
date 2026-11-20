@@ -11,7 +11,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
  * deterrent only: the watermark burned in on the server is what identifies a
  * leaked copy.
  */
-export function PdfViewer({ src, label }: { src: string; label: string }) {
+export function PdfViewer({ src, label }: { src: string | Blob; label: string }) {
   const container = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<{ status: 'loading' | 'ready' | 'error'; message?: string; pages?: number }>({ status: 'loading' });
 
@@ -24,7 +24,7 @@ export function PdfViewer({ src, label }: { src: string; label: string }) {
 
     (async () => {
       try {
-        const blob = await apiBlob(src);
+        const blob = typeof src === 'string' ? await apiBlob(src) : src;
         const data = new Uint8Array(await blob.arrayBuffer());
         task = pdfjs.getDocument({ data, enableXfa: false, disableAutoFetch: true });
         const pdf = await task.promise;

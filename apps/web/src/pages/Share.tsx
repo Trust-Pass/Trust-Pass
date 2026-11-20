@@ -1,13 +1,15 @@
-import { EXPIRY_LABELS, REDACTION_MAX_TOTAL_BYTES, type Redaction } from '@trustpass/shared';
+import { DEFAULT_WATERMARK, EXPIRY_LABELS, REDACTION_MAX_TOTAL_BYTES, WATERMARK_STYLE_LABELS, type Redaction, type WatermarkSettings } from '@trustpass/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { ArrowLeft, Building2, Clock, ExternalLink, FileText, Globe2, ListChecks, Send, Share2, Users, Download } from 'lucide-react';
-import { useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { ArrowLeft, Building2, Clock, Download, Eye, ExternalLink, FileText, Globe2, ListChecks, RefreshCw, Send, Share2, Stamp, Users, X } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { CountryPicker } from '../components/CountryPicker';
+import { LazyPdfViewer } from '../components/LazyPdfViewer';
 import { RedactionEditor, type RedactionEditorHandle } from '../components/RedactionEditor';
+import { WatermarkControls } from '../components/WatermarkControls';
 import { Alert, Badge, Button, ButtonLink, Card, CopyButton, Field, Input, PageHeader, Segmented, Spinner, Toggle } from '../components/ui';
-import { api, ApiError, errorMessage } from '../lib/api';
+import { api, ApiError, apiPostBlob, errorMessage } from '../lib/api';
 import { flag, formatDateTime } from '../lib/format';
 import type { DocumentDetail } from '../lib/types';
 import { Seal } from '../components/Seal';
@@ -87,9 +89,44 @@ export function SharePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ url: string; expiresAt: string } | null>(null);
+  const [watermark, setWatermark] = useState<WatermarkSettings>(DEFAULT_WATERMARK);
+  const [preview, setPreview] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; blob?: Blob; message?: string }>({ status: 'idle' });
+
+  // A preview shows one exact set of choices: any change makes it stale, so it is cleared.
+  const previewKey = JSON.stringify([includeFile, fileMode, redactions, watermark, recipientType, recipientLabel, org?.id]);
+  useEffect(() => {
+    setPreview({ status: 'idle' });
+  }, [previewKey]);
 
   if (isLoading || !data) return <Spinner />;
   const doc = data.document;
+  const recipientName = recipientType === 'organization' ? (org?.name ?? '') : recipientLabel;
+
+  /** The page renderings of a PDF for a redacted copy, checked against the size limit. */
+  const pageForm = async (json: unknown) => {
+    const form = new FormData();
+    form.append('link', JSON.stringify(json));
+    const pages = (await editor.current?.exportPages()) ?? [];
+    const total = pages.reduce((sum, p) => sum + p.size, 0);
+    if (total > REDACTION_MAX_TOTAL_BYTES) {
+      throw new Error('This document has too many detailed pages for a redacted copy. Split it into smaller documents.');
+    }
+    pages.forEach((p, i) => form.append('page', p, `page-${i + 1}.jpg`));
+    return form;
+  };
+
+  const showPreview = async () => {
+    setPreview({ status: 'loading' });
+    try {
+      const redacted = fileMode === 'redacted';
+      const json = { fileMode, redactions: redacted ? redactions : [], recipientLabel: recipientName, watermark, copy: 'view' };
+      const blob = await apiPostBlob(`/api/documents/${doc.id}/links/preview`, redacted ? { form: await pageForm(json) } : { body: json });
+      setPreview({ status: 'ready', blob });
+    } catch (err) {
+      const fields = err instanceof ApiError ? Object.values(err.fields) : [];
+      setPreview({ status: 'error', message: fields[0] ?? errorMessage(err) });
+    }
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -109,19 +146,12 @@ export function SharePage() {
         expiresIn,
         expiresAt: expiresIn === 'custom' && customDate ? new Date(customDate).toISOString() : undefined,
         allowedCountries: restrictCountries ? countries : [],
+        watermark,
       };
       let options: Parameters<typeof api>[1];
       if (redacted) {
         // The page renderings travel with the settings; the server burns the boxes in.
-        const form = new FormData();
-        form.append('link', JSON.stringify(settings));
-        const pages = (await editor.current?.exportPages()) ?? [];
-        const total = pages.reduce((sum, p) => sum + p.size, 0);
-        if (total > REDACTION_MAX_TOTAL_BYTES) {
-          throw new Error('This document has too many detailed pages for a redacted copy. Split it into smaller documents.');
-        }
-        pages.forEach((p, i) => form.append('page', p, `page-${i + 1}.jpg`));
-        options = { form };
+        options = { form: await pageForm(settings) };
       } else {
         options = { body: settings };
       }
@@ -168,9 +198,10 @@ export function SharePage() {
               )}
             </div>
             <ul className="space-y-1.5 text-sm text-slate-600">
-              <li>• {claimIds.length} field{claimIds.length === 1 ? '' : 's'}{includeFile ? ' and the watermarked file' : ' only, not the file'}</li>
-              {includeFile && <li>• {fileMode === 'redacted' ? `Redacted copy: ${redactions.length} area${redactions.length === 1 ? '' : 's'} hidden` : 'The original file, watermarked'}</li>}
-              {includeFile && <li>• {allowDownload ? 'Recipient can download a watermarked PDF copy' : 'View only: downloads are off'}</li>}
+              <li>• {claimIds.length} field{claimIds.length === 1 ? '' : 's'}{includeFile ? ' and the file' : ' only, not the file'}</li>
+              {includeFile && <li>• {fileMode === 'redacted' ? `Redacted copy: ${redactions.length} area${redactions.length === 1 ? '' : 's'} hidden` : 'The original file'}</li>}
+              {includeFile && <li>• {watermark.enabled ? `Watermark: ${WATERMARK_STYLE_LABELS[watermark.style].toLowerCase()}` : 'No watermark (views and downloads are still logged)'}</li>}
+              {includeFile && <li>• {allowDownload ? 'Recipient can download a PDF copy' : 'View only: downloads are off'}</li>}
               <li>• {restrictCountries && countries.length ? `Only from ${countries.map(flag).join(' ')}` : 'No country restriction'}</li>
               <li>• You can revoke it at any time from Shared links</li>
             </ul>
@@ -227,7 +258,7 @@ export function SharePage() {
               onChange={setIncludeFile}
               label={
                 <span className="flex items-center gap-1.5">
-                  <FileText className="size-4" /> Include the file (view only, watermarked)
+                  <FileText className="size-4" /> Include the file (view only)
                 </span>
               }
               description="The file shows everything printed on it. Leave this off to share only the fields above."
@@ -239,10 +270,10 @@ export function SharePage() {
                   onChange={setAllowDownload}
                   label={
                     <span className="flex items-center gap-1.5">
-                      <Download className="size-4" /> Allow download of a watermarked PDF
+                      <Download className="size-4" /> Allow download of a PDF copy
                     </span>
                   }
-                  description="The recipient gets a separate copy with their name, the time and a unique reference on every page. Your original stays encrypted and unchanged. Expiry, revocation and country rules are checked before every download."
+                  description="The recipient gets a separate PDF made for this download, never your stored original, which stays encrypted and unchanged. With the watermark on, their name, the time and a unique reference are on every page. Expiry, revocation and country rules are checked before every download."
                 />
               </div>
             )}
@@ -277,7 +308,50 @@ export function SharePage() {
           )}
         </Step>
 
-        <Step n={2} title="Who can open it" icon={<Users className="size-4" />}>
+        {includeFile && (
+          <Step n={2} title="Watermark and preview" icon={<Stamp className="size-4" />}>
+            <WatermarkControls value={watermark} onChange={setWatermark} recipient={recipientName} />
+            <div className="mt-5 border-t border-slate-200 pt-4" data-testid="recipient-preview">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="max-w-md text-[13px] text-slate-500">
+                  See exactly what the recipient will get: the server builds their copy with your choices above. Nothing is shared or saved.
+                </p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  loading={preview.status === 'loading'}
+                  disabled={fileMode === 'redacted' && redactions.length === 0}
+                  icon={preview.status === 'ready' ? <RefreshCw className="size-4" /> : <Eye className="size-4" />}
+                  onClick={showPreview}
+                >
+                  {preview.status === 'ready' ? 'Refresh preview' : 'Preview recipient copy'}
+                </Button>
+              </div>
+              {fileMode === 'redacted' && redactions.length === 0 && <p className="mt-2 text-[13px] text-slate-500">Mark at least one area to hide first.</p>}
+              {preview.status === 'error' && (
+                <Alert tone="error" className="mt-3">
+                  {preview.message}
+                </Alert>
+              )}
+              {preview.status === 'ready' && preview.blob && (
+                <div className="mt-3 overflow-hidden rounded-xl ring-1 ring-slate-200">
+                  <div className="flex items-center justify-between gap-2 bg-slate-50 px-3 py-2 text-[13px] text-slate-600">
+                    <span>Recipient copy preview{fileMode === 'redacted' ? ': hidden areas are burned in' : ''}</span>
+                    <button type="button" className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-slate-600 hover:bg-slate-100" onClick={() => setPreview({ status: 'idle' })}>
+                      <X className="size-3.5" /> Close
+                    </button>
+                  </div>
+                  <div className="max-h-[70vh] overflow-y-auto bg-slate-100/70 p-3" data-testid="preview-viewer">
+                    <LazyPdfViewer src={preview.blob} label="Recipient copy preview" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </Step>
+        )}
+
+        <Step n={includeFile ? 3 : 2} title="Who can open it" icon={<Users className="size-4" />}>
           <Segmented
             label="Recipient type"
             value={recipientType}
@@ -289,7 +363,7 @@ export function SharePage() {
           />
           <div className="mt-4">
             {recipientType === 'anyone' ? (
-              <Field label="Recipient name" htmlFor="recipient" hint="Shown to the recipient and burned into the watermark.">
+              <Field label="Recipient name" htmlFor="recipient" hint={includeFile && watermark.enabled ? 'Shown to the recipient and printed in the watermark.' : 'Shown to the recipient.'}>
                 <Input id="recipient" value={recipientLabel} onChange={(e) => setRecipientLabel(e.target.value)} placeholder="e.g. Example Company HR" maxLength={80} required />
               </Field>
             ) : (
@@ -301,7 +375,7 @@ export function SharePage() {
           </div>
         </Step>
 
-        <Step n={3} title="How long it works" icon={<Clock className="size-4" />}>
+        <Step n={includeFile ? 4 : 3} title="How long it works" icon={<Clock className="size-4" />}>
           <Segmented
             label="Expiry"
             value={expiresIn}
@@ -316,7 +390,7 @@ export function SharePage() {
           <p className="mt-3 text-[13px] text-slate-500">After this, the link stops working automatically. You can also revoke it earlier.</p>
         </Step>
 
-        <Step n={4} title="Where it can be opened" icon={<Globe2 className="size-4" />}>
+        <Step n={includeFile ? 5 : 4} title="Where it can be opened" icon={<Globe2 className="size-4" />}>
           <Toggle checked={restrictCountries} onChange={setRestrictCountries} label="Restrict by country" description="Checked on the server from the visitor's IP address. Location is approximate: VPNs and mobile networks can change it." />
           {restrictCountries && (
             <div className="mt-4">

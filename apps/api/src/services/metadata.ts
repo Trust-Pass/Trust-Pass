@@ -1,4 +1,5 @@
-import { claimLabelAad, open, recipientLabelAad, seal, sha256Aad, titleAad, unwrapDataKey } from '../lib/crypto';
+import { DEFAULT_WATERMARK, watermarkSchema, type WatermarkSettings } from '@trustpass/shared';
+import { claimLabelAad, open, recipientLabelAad, seal, sha256Aad, titleAad, unwrapDataKey, watermarkAad } from '../lib/crypto';
 import { UnknownKeyVersionError } from '../lib/keyset';
 import type { AppDeps } from '../types';
 
@@ -78,6 +79,36 @@ export function openClaimLabel(dek: Buffer | undefined, documentId: string, clai
 
 export function openRecipientLabel(dek: Buffer | undefined, link: RecipientSource): string {
   return openText(dek, link.recipientLabelEncrypted, recipientLabelAad(link.documentId, link.id)) ?? link.recipientLabel ?? 'Recipient';
+}
+
+export function sealWatermark(dek: Buffer, documentId: string, linkId: string, settings: WatermarkSettings) {
+  return seal(dek, JSON.stringify(settings), watermarkAad(documentId, linkId));
+}
+
+export interface WatermarkSource {
+  id: string;
+  documentId: string;
+  watermarkEnabled: boolean;
+  watermarkEncrypted: Bytes;
+}
+
+/**
+ * A link's watermark. Fails toward a watermark: it is off only when the clear flag AND the sealed
+ * settings both say so. Missing or unreadable settings mean the standard watermark (every link
+ * created before watermark control has none).
+ */
+export function openWatermark(dek: Buffer | undefined, link: WatermarkSource): WatermarkSettings {
+  const raw = openText(dek, link.watermarkEncrypted, watermarkAad(link.documentId, link.id));
+  let settings: WatermarkSettings = DEFAULT_WATERMARK;
+  if (raw) {
+    try {
+      const parsed = watermarkSchema.safeParse(JSON.parse(raw));
+      if (parsed.success) settings = parsed.data;
+    } catch {
+      /* standard watermark */
+    }
+  }
+  return { ...settings, enabled: settings.enabled || link.watermarkEnabled };
 }
 
 /**

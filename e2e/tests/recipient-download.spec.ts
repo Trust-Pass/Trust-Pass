@@ -9,7 +9,7 @@ test('a recipient downloads a watermarked copy only while the owner allows it', 
   await register(page, { name: 'Download Owner', email: uniqueEmail('dl') });
   const docId = await issueCredential(page, 'Download Owner');
   const url = await shareFields(page, docId, { fields: ['Program'], includeFile: true, allowDownload: true, recipient: 'Example Company HR' });
-  await expect(page.getByText('Recipient can download a watermarked PDF copy')).toBeVisible();
+  await expect(page.getByText('Recipient can download a PDF copy')).toBeVisible();
 
   const recipient = await newPhone(browser);
   await recipient.goto(url);
@@ -25,7 +25,7 @@ test('a recipient downloads a watermarked copy only while the owner allows it', 
   // The owner turns downloads off; the very next request is refused.
   await page.goto('/app/links');
   await page.getByRole('button', { name: 'Activity' }).first().click();
-  await expect(page.getByTestId('link-download')).toContainText('Recipient can download a watermarked PDF');
+  await expect(page.getByTestId('link-download')).toContainText('Recipient can download a PDF copy');
   await page.getByRole('button', { name: 'Turn off downloads' }).click();
   await expect(page.getByTestId('link-download')).toContainText('View only: downloads are off');
 

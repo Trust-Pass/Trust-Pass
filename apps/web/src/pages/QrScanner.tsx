@@ -51,7 +51,7 @@ const KIND_LABEL: Record<QrAnalysis['kind'], string> = {
 };
 
 const VERDICT_UI = {
-  safe: { label: 'Safe', hint: 'No warning signs found', icon: ShieldCheck, box: 'bg-gradient-to-br from-[#22e3d0]/18 via-[#10b981]/8 to-transparent ring-[#2ee6d6]/40 text-teal-950 shadow-[0_30px_70px_-34px_rgb(34_227_208/0.55)]', iconBox: 'bg-[linear-gradient(135deg,#7af7ea,#0ea594)] text-[#021412]', bar: 'bg-[#2ee6d6]' },
+  safe: { label: 'Safe', hint: 'No warning signs found. Not a guarantee.', icon: ShieldCheck, box: 'bg-gradient-to-br from-[#22e3d0]/18 via-[#10b981]/8 to-transparent ring-[#2ee6d6]/40 text-teal-950 shadow-[0_30px_70px_-34px_rgb(34_227_208/0.55)]', iconBox: 'bg-[linear-gradient(135deg,#7af7ea,#0ea594)] text-[#021412]', bar: 'bg-[#2ee6d6]' },
   caution: { label: 'Suspicious', hint: 'Check the warnings before you continue', icon: ShieldAlert, box: 'bg-gradient-to-br from-amber-500/18 via-amber-500/6 to-transparent ring-amber-400/40 text-amber-950 shadow-[0_30px_70px_-34px_rgb(245_158_11/0.45)]', iconBox: 'bg-amber-500 text-white', bar: 'bg-amber-500' },
   danger: { label: 'Dangerous', hint: 'Do not open this', icon: ShieldX, box: 'bg-gradient-to-br from-[#e11d48]/32 via-[#7f1d2d]/16 to-transparent ring-[#fb7185]/45 text-red-950 shadow-[0_30px_70px_-30px_rgb(225_29_72/0.6)]', iconBox: 'bg-[linear-gradient(135deg,#fb7185,#e11d48)] text-white shadow-[0_0_24px_-4px_rgb(251_113_133/0.8)]', bar: 'bg-[#fb7185]' },
 } as const;
@@ -192,7 +192,7 @@ function CameraScanner({ onDecoded, analyzing, ignore }: { onDecoded: (text: str
       {state === 'scanning' && (
         <p className="flex items-center justify-center gap-2 text-sm font-medium text-accent" role="status">
           <span className="size-2 animate-pulse rounded-full bg-accent shadow-[0_0_8px_rgb(var(--glow))]" aria-hidden />
-          Point the camera at a QR code. It is read on this device; no photo is uploaded.
+          Scanning…
         </p>
       )}
       {problem && (
@@ -453,9 +453,9 @@ export function QrScannerPage() {
     <div className="space-y-5">
       <PageHeader
         title="QR Security Scanner"
-        description="Point your camera at a QR code to check it before you open it. Codes are read on this device, and the address is checked without visiting it."
+        description="Analyze QR codes to detect phishing, suspicious links, and unsafe destinations before opening them."
       />
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div className={clsx('grid grid-cols-1 gap-5', result ? 'lg:grid-cols-2' : 'max-w-xl')}>
         <Card className="p-4 sm:p-5">
           <Tabs
             value={mode}
@@ -490,7 +490,7 @@ export function QrScannerPage() {
                 >
                   <ImagePlus className="size-8 text-accent" />
                   <span className="mt-2 font-semibold text-ink">{imageName ?? 'Choose a photo or screenshot'}</span>
-                  <span className="mt-1 text-sm text-slate-500">PNG, JPEG or WebP. The image stays on this device; only the decoded text is checked.</span>
+                  <span className="mt-1 text-sm text-slate-500">PNG, JPEG or WebP</span>
                 </button>
                 <input
                   ref={fileInput}
@@ -538,33 +538,9 @@ export function QrScannerPage() {
           </div>
         </Card>
 
-        <div ref={resultRef} className="scroll-mt-20">
-          {result ? (
-            <ResultPanel result={result} onAgain={scanAgain} againLabel={mode === 'camera' ? 'Scan another QR code' : 'Check another'} />
-          ) : (
-            <Card className="p-5">
-              <h2 className="font-semibold text-ink">What TrustPass checks</h2>
-              <ul className="mt-3 space-y-2.5 text-sm text-slate-600">
-                {[
-                  'Fake names that imitate banks, government services, delivery companies and TrustPass itself',
-                  'Disguised addresses: raw IP numbers, look-alike international letters, text before "@"',
-                  'Hidden destinations: short links and addresses that forward you elsewhere',
-                  'Unencrypted sites, unusual ports and domain endings common in scams',
-                  'Downloads of apps or programs from outside the app store',
-                  'Codes that run scripts, send texts, request crypto payments or join Wi-Fi networks',
-                  'TrustPass share links: whether the link is genuine and still active',
-                ].map((t) => (
-                  <li key={t} className="flex gap-2.5">
-                    <ShieldCheck className="mt-0.5 size-4 shrink-0 text-accent" />
-                    {t}
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-4 text-[13px] text-slate-500">
-                Safe means no warning signs were found, not that a site is guaranteed safe. When in doubt, type the address of the organization yourself.
-              </p>
-            </Card>
-          )}
+        {/* Results take the second column; before a scan the scanner stands alone. */}
+        <div ref={resultRef} className={clsx('scroll-mt-20', !result && 'hidden')}>
+          {result && <ResultPanel result={result} onAgain={scanAgain} againLabel={mode === 'camera' ? 'Scan another QR code' : 'Check another'} />}
         </div>
       </div>
     </div>
