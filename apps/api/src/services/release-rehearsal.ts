@@ -385,6 +385,8 @@ export async function probeDocuments(deps: AppDeps, app: FastifyInstance, clock:
       payload: {
         claimIds: doc.claims.map((c) => c.id),
         includeFile: true,
+        // Watermarks are optional (off by default); the probe checks the watermarked download path.
+        watermark: { enabled: true },
         allowDownload: true,
         recipientType: 'anyone',
         recipientLabel: 'Rehearsal check',

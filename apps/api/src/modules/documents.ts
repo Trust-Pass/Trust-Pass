@@ -356,7 +356,7 @@ export async function documentRoutes(app: FastifyInstance) {
     const dek = await loadDataKey(deps, document.id);
     try {
       const raw = open(dek, toBytes(document.redactionPlanEncrypted), redactionPlanAad(document.id)).toString('utf8');
-      const parsed = redactionPlanSchema.safeParse(JSON.parse(raw));
+      const parsed = redactionPlanSchema.safeParse({ redactions: JSON.parse(raw) });
       return { redactions: parsed.success ? parsed.data.redactions : [] };
     } catch {
       return { redactions: [] };
