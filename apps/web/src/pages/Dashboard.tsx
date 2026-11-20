@@ -26,7 +26,7 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="hero-grid relative flex animate-rise flex-col gap-5 overflow-hidden rounded-3xl px-5 py-7 shadow-lift sm:flex-row sm:items-end sm:justify-between sm:px-8 sm:py-9">
+      <div className="hero-grid relative flex flex-col gap-5 overflow-hidden rounded-3xl px-5 py-7 shadow-lift sm:flex-row sm:items-end sm:justify-between sm:px-8 sm:py-9">
         <Seal size={260} emblem={false} className="pointer-events-none absolute -top-16 -right-14 text-navy-200 opacity-30" />
         <div className="relative">
           <h1 className="text-[28px] leading-tight font-semibold text-white sm:text-[34px]">Hello, {firstName}</h1>
