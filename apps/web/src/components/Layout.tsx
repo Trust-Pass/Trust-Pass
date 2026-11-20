@@ -15,6 +15,7 @@ import {
   ScrollText,
   Settings,
   Shield,
+  Upload,
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
@@ -35,50 +36,76 @@ interface NavItem {
   threat?: boolean;
 }
 
-function useNavItems(): NavItem[] {
+interface NavGroup {
+  label?: string;
+  items: NavItem[];
+}
+
+/** Main tasks first, in the order people need them; insights and account below. */
+function useNavGroups(): NavGroup[] {
   const me = useMe();
-  const items: NavItem[] = [
-    { to: '/app', label: 'Dashboard', icon: <LayoutDashboard className="size-5" />, end: true },
-    { to: '/app/documents', label: 'My documents', icon: <FileText className="size-5" /> },
-    { to: '/app/links', label: 'Sharing links', icon: <Link2 className="size-5" /> },
-    { to: '/app/analytics', label: 'Access analytics', icon: <BarChart3 className="size-5" /> },
-    { to: '/app/verify', label: 'Verify a document', icon: <BadgeCheck className="size-5" /> },
-    { to: '/app/scan', label: 'QR Security', icon: <QrCode className="size-5" />, threat: true },
-    { to: '/app/activity', label: 'Activity log', icon: <ScrollText className="size-5" /> },
-    { to: '/app/credentials', label: 'Demo University', icon: <GraduationCap className="size-5" /> },
+  const account: NavItem[] = [{ to: '/app/credentials', label: 'Demo certificate', icon: <GraduationCap className="size-5" /> }];
+  if (me.organizations.length > 0) account.push({ to: '/app/org', label: 'Organization', icon: <Building2 className="size-5" /> });
+  if (me.user.role === 'admin') account.push({ to: '/app/admin', label: 'Admin', icon: <Shield className="size-5" /> });
+  account.push({ to: '/app/settings', label: 'Settings', icon: <Settings className="size-5" /> });
+  return [
+    {
+      items: [
+        { to: '/app', label: 'Dashboard', icon: <LayoutDashboard className="size-5" />, end: true },
+        { to: '/app/documents/upload', label: 'Upload document', icon: <Upload className="size-5" /> },
+        { to: '/app/documents', label: 'My documents', icon: <FileText className="size-5" /> },
+        { to: '/app/links', label: 'Shared links', icon: <Link2 className="size-5" /> },
+        { to: '/app/verify', label: 'Verify document', icon: <BadgeCheck className="size-5" /> },
+        { to: '/app/scan', label: 'QR Security', icon: <QrCode className="size-5" />, threat: true },
+      ],
+    },
+    {
+      label: 'Insights',
+      items: [
+        { to: '/app/analytics', label: 'Access analytics', icon: <BarChart3 className="size-5" /> },
+        { to: '/app/activity', label: 'Activity log', icon: <ScrollText className="size-5" /> },
+      ],
+    },
+    { label: 'Account', items: account },
   ];
-  if (me.organizations.length > 0) items.push({ to: '/app/org', label: 'Organization', icon: <Building2 className="size-5" /> });
-  if (me.user.role === 'admin') items.push({ to: '/app/admin', label: 'Admin', icon: <Shield className="size-5" /> });
-  items.push({ to: '/app/settings', label: 'Settings', icon: <Settings className="size-5" /> });
-  return items;
 }
 
 function SideNav({ onNavigate }: { onNavigate?: () => void }) {
-  const items = useNavItems();
+  const groups = useNavGroups();
+  const { pathname } = useLocation();
   return (
-    <nav className="space-y-1" aria-label="Main">
-      {items.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          end={item.end}
-          onClick={onNavigate}
-          className={({ isActive }) =>
-            clsx(
-              'flex h-11 items-center gap-3 rounded-xl px-3 text-[15px] font-medium transition-colors',
-              item.threat
-                ? isActive
-                  ? 'bg-gradient-to-r from-[#e11d48]/30 to-[#e11d48]/0 text-[#ffe4e9] shadow-[inset_2px_0_0_#fb7185]'
-                  : 'text-[#fda4af]/85 hover:bg-[#e11d48]/10 hover:text-[#ffe4e9]'
-                : isActive
-                  ? 'bg-gradient-to-r from-[#22e3d0]/20 to-[#22e3d0]/0 text-white shadow-[inset_2px_0_0_#2ee6d6]'
-                  : 'text-navy-200 hover:bg-white/[0.045] hover:text-white',
-            )
-          }
-        >
-          {item.icon}
-          {item.label}
-        </NavLink>
+    <nav aria-label="Main">
+      {groups.map((group, gi) => (
+        <div key={group.label ?? 'main'} className={clsx(gi > 0 && 'mt-6')}>
+          {group.label && <p className="mb-1.5 px-3 text-xs font-medium text-navy-400">{group.label}</p>}
+          <div className="space-y-1">
+            {group.items.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                onClick={onNavigate}
+                className={({ isActive: matched }) => {
+                  // "My documents" stays unlit while "Upload document" (a sub-path) is the open page.
+                  const isActive = matched && !(item.to === '/app/documents' && pathname.startsWith('/app/documents/upload'));
+                  return clsx(
+                    'flex h-11 items-center gap-3 rounded-xl px-3 text-[15px] font-medium transition-colors',
+                    item.threat
+                      ? isActive
+                        ? 'bg-gradient-to-r from-[#e11d48]/30 to-[#e11d48]/0 text-[#ffe4e9] shadow-[inset_2px_0_0_#fb7185]'
+                        : 'text-[#fda4af]/85 hover:bg-[#e11d48]/10 hover:text-[#ffe4e9]'
+                      : isActive
+                        ? 'bg-gradient-to-r from-[#22e3d0]/20 to-[#22e3d0]/0 text-white shadow-[inset_2px_0_0_#2ee6d6]'
+                        : 'text-navy-200 hover:bg-white/[0.045] hover:text-white',
+                  );
+                }}
+              >
+                {item.icon}
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
+        </div>
       ))}
     </nav>
   );

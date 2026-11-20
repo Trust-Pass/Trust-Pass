@@ -93,7 +93,7 @@ export function DocumentDetailPage() {
         }
         actions={
           <ButtonLink to={`/app/documents/${doc.id}/share`} variant="teal" icon={<Share2 className="size-4" />}>
-            Share securely
+            Share document
           </ButtonLink>
         }
       />
@@ -149,7 +149,7 @@ export function DocumentDetailPage() {
           </Card>
 
           <Card>
-            <CardHeader title="Sharing links" icon={<Link2 className="size-5" />} action={<Link to="/app/links" className="text-sm font-medium text-accent hover:underline">Manage</Link>} />
+            <CardHeader title="Shared links" icon={<Link2 className="size-5" />} action={<Link to="/app/links" className="text-sm font-medium text-accent hover:underline">Manage</Link>} />
             {doc.links.length === 0 ? (
               <EmptyState icon={<Share2 className="size-6" />} title="Not shared yet" action={<ButtonLink to={`/app/documents/${doc.id}/share`} size="sm">Create a link</ButtonLink>} />
             ) : (

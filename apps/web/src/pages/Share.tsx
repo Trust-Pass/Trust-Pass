@@ -172,7 +172,7 @@ export function SharePage() {
               {includeFile && <li>• {fileMode === 'redacted' ? `Redacted copy: ${redactions.length} area${redactions.length === 1 ? '' : 's'} hidden` : 'The original file, watermarked'}</li>}
               {includeFile && <li>• {allowDownload ? 'Recipient can download a watermarked PDF copy' : 'View only: downloads are off'}</li>}
               <li>• {restrictCountries && countries.length ? `Only from ${countries.map(flag).join(' ')}` : 'No country restriction'}</li>
-              <li>• You can revoke it at any time from Sharing links</li>
+              <li>• You can revoke it at any time from Shared links</li>
             </ul>
             <div className="flex flex-col gap-2 sm:flex-row">
               <ButtonLink to="/app/links" variant="secondary" className="flex-1">
@@ -198,7 +198,7 @@ export function SharePage() {
             <ArrowLeft className="size-4" /> {doc.title}
           </Link>
         }
-        title="Share securely"
+        title="Share document"
         description="Choose exactly what the recipient can see. Every rule below is enforced by the server, on every request."
       />
       <form onSubmit={submit} className="space-y-4">

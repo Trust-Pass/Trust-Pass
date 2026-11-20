@@ -115,7 +115,7 @@ export function LinksPage() {
   return (
     <div>
       <PageHeader
-        title="Sharing links"
+        title="Shared links"
         description="Every link you created, who it is for, what it reveals and what happened to it. Changes apply on the very next request."
         actions={<ButtonLink to="/app/documents">Share a document</ButtonLink>}
       />
@@ -136,7 +136,7 @@ export function LinksPage() {
         <Spinner />
       ) : shown.length === 0 ? (
         <Card>
-          <EmptyState icon={<Link2 className="size-6" />} title="No links here" body="Open a document and choose Share securely to create one." />
+          <EmptyState icon={<Link2 className="size-6" />} title="No links here" body="Open a document and choose Share document to create one." />
         </Card>
       ) : (
         <ul className="space-y-3">

@@ -5,10 +5,10 @@ import { GraduationCap, KeyRound, QrCode, Share2, Upload } from 'lucide-react';
 import { Link } from 'react-router';
 import { AccessChart, type DayPoint } from '../components/AccessChart';
 import { Seal } from '../components/Seal';
-import { ButtonLink, Card, CardHeader, EmptyState, OutcomeBadge, Spinner } from '../components/ui';
+import { ButtonLink, Card, CardHeader, EmptyState, Spinner } from '../components/ui';
 import { api } from '../lib/api';
 import { useMe } from '../lib/auth';
-import { country, relativeTime } from '../lib/format';
+import { relativeTime } from '../lib/format';
 import type { AccessOutcome } from '../lib/types';
 
 interface DashboardData {
@@ -171,26 +171,6 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader title="Recent views of your links" action={<Link to="/app/analytics" className="text-sm font-medium text-accent hover:underline">Analytics</Link>} />
-        {data.recentAccess.length === 0 ? (
-          <EmptyState icon={<Share2 className="size-6" />} title="No views yet" body="When someone opens one of your links, it shows up here." />
-        ) : (
-          <ul className="divide-y divide-slate-100">
-            {data.recentAccess.map((a) => (
-              <li key={a.id} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-ink">{a.document}</p>
-                  <p className="truncate text-xs text-slate-500">
-                    {a.recipient} · {country(a.country)} · {relativeTime(a.at)}
-                  </p>
-                </div>
-                <OutcomeBadge outcome={a.outcome} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
     </div>
   );
 }
