@@ -292,7 +292,7 @@ export const RedactionEditor = forwardRef<RedactionEditorHandle, {
                   key={k}
                   type="button"
                   onClick={() => findAndHide(k, FIND_LABELS[k].toLowerCase())}
-                  className="inline-flex h-9 items-center rounded-xl px-3 text-sm text-ink ring-1 ring-inset ring-slate-300 hover:bg-white"
+                  className="inline-flex h-9 items-center rounded-xl px-3 text-sm text-ink ring-1 ring-inset ring-slate-300 hover:bg-accent/10"
                 >
                   {FIND_LABELS[k]}
                 </button>
@@ -316,7 +316,7 @@ export const RedactionEditor = forwardRef<RedactionEditorHandle, {
                 type="button"
                 onClick={hideCustom}
                 disabled={custom.trim().length < 2}
-                className="inline-flex h-9 shrink-0 items-center rounded-xl px-3 text-sm font-medium text-ink ring-1 ring-inset ring-slate-300 hover:bg-white disabled:opacity-40"
+                className="inline-flex h-9 shrink-0 items-center rounded-xl px-3 text-sm font-medium text-ink ring-1 ring-inset ring-slate-300 hover:bg-accent/10 disabled:opacity-40"
               >
                 Hide
               </button>
