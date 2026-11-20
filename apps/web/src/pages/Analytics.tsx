@@ -145,8 +145,8 @@ export function AnalyticsPage() {
                       <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#8aa8aa' }} tickLine={false} axisLine={false} />
                       <Tooltip cursor={{ fill: 'rgba(34,227,208,0.06)' }} contentStyle={{ background: 'rgba(4,13,15,0.92)', border: '1px solid rgba(34,227,208,0.25)', borderRadius: 12, color: '#e6f7f6' }} labelStyle={{ color: '#e6f7f6' }} />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="granted" name="Granted" stackId="a" fill="#22e3d0" radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="denied" name="Denied" stackId="a" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="granted" name="Granted" stackId="a" fill="#22e3d0" maxBarSize={22} radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="denied" name="Denied" stackId="a" fill="#f43f5e" maxBarSize={22} radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
