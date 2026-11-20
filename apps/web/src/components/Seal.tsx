@@ -25,7 +25,7 @@ function band(R: number, amp: number, lobes: number, copies: number, steps: numb
 export function Seal({ size = 160, className, draw = false, emblem = true, label }: { size?: number; className?: string; draw?: boolean; emblem?: boolean; label?: string }) {
   const rings = useMemo(() => [band(86, 9, 24, 10, 540, 2), band(60, 10, 16, 10, 400), band(34, 12, 8, 10, 260)], []);
   return (
-    <span className={clsx('relative inline-flex shrink-0 items-center justify-center', className)} style={{ width: size, height: size }}>
+    <span className={clsx('inline-flex shrink-0 items-center justify-center', !/\b(absolute|fixed)\b/.test(className ?? '') && 'relative', className)} style={{ width: size, height: size }}>
       <svg viewBox="0 0 200 200" width={size} height={size} className={clsx('absolute inset-0', draw && 'seal-draw')} role={label ? 'img' : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
         <g fill="none" stroke="currentColor" strokeWidth={0.35}>
           {rings.map((d, i) => (

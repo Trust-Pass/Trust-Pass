@@ -114,7 +114,9 @@ export function LandingPage() {
               )}
             </div>
           </div>
-          <Seal size={340} draw className="hidden text-navy-200 lg:inline-flex" />
+          <div className="hidden lg:block">
+            <Seal size={340} draw className="text-navy-200" />
+          </div>
         </div>
       </section>
 
