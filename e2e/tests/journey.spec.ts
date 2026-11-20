@@ -3,7 +3,7 @@ import { issueCredential, newPhone, register, shareFields, uniqueEmail } from '.
 
 test('share one verified field, open it elsewhere, then revoke it', async ({ page, browser }) => {
   await register(page, { name: 'Reham Alkhamees', email: uniqueEmail('reham') });
-  await expect(page.getByText('Hello, Reham')).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Good (morning|afternoon|evening), Reham$/ })).toBeVisible();
 
   const docId = await issueCredential(page);
   const claims = (await (await page.request.get(`/api/documents/${docId}`)).json()).document.claims as Array<{ key: string; value: string }>;
