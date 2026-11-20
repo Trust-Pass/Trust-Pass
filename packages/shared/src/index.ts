@@ -155,6 +155,8 @@ export type FileMode = (typeof FILE_MODES)[number];
 export const MAX_REDACTIONS = 200;
 /** Page images of a redacted copy: at most this many pixels on the long side (about 200 dpi on A4). */
 export const REDACTION_MAX_EDGE = 2400;
+/** Most bytes of rendered page images one redacted-copy request may carry (all pages together). */
+export const REDACTION_MAX_TOTAL_BYTES = 40 * 1024 * 1024;
 
 const unit = z.number().min(0).max(1);
 export const redactionSchema = z

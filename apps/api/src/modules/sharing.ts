@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
-import { createLinkSchema, EXPIRY_PRESETS, updateCountriesSchema, updateDownloadSchema } from '@trustpass/shared';
+import { createLinkSchema, EXPIRY_PRESETS, REDACTION_MAX_TOTAL_BYTES, updateCountriesSchema, updateDownloadSchema } from '@trustpass/shared';
 import { z } from 'zod';
 import { hashToken, linkTokenAad, open, randomToken, seal } from '../lib/crypto';
 import { AppError, badRequest, notFound, parse } from '../lib/errors';
@@ -74,11 +74,20 @@ export async function sharingRoutes(app: FastifyInstance) {
       // redacted copy: one "link" field (the same JSON) and one "page" file per page, in order.
       let body: unknown = request.body;
       const pageImages: Buffer[] = [];
+      let pageBytes = 0;
       if (request.isMultipart()) {
         for await (const part of request.parts({ limits: { fileSize: 12 * 1024 * 1024, files: 50, fields: 1, fieldSize: 65_536 } })) {
           if (part.type === 'file') {
             if (part.fieldname !== 'page') throw badRequest('Unexpected file');
-            pageImages.push(await part.toBuffer());
+            const page = await part.toBuffer();
+            pageBytes += page.length;
+            // One request may not hold more than REDACTION_MAX_TOTAL_BYTES of page images, so a
+            // single owner cannot exhaust the server's memory with 50 large files.
+            if (pageBytes > REDACTION_MAX_TOTAL_BYTES) {
+              for (const b of pageImages) b.fill(0);
+              throw new AppError(413, 'payload_too_large', 'The page images are too large in total. Try a document with fewer pages.');
+            }
+            pageImages.push(page);
           } else if (part.fieldname === 'link') {
             try {
               body = JSON.parse(String(part.value));

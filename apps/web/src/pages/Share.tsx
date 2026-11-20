@@ -1,4 +1,4 @@
-import { EXPIRY_LABELS, type Redaction } from '@trustpass/shared';
+import { EXPIRY_LABELS, REDACTION_MAX_TOTAL_BYTES, type Redaction } from '@trustpass/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { ArrowLeft, Building2, CheckCircle2, Clock, ExternalLink, FileText, Globe2, ListChecks, Send, Share2, Users, Download } from 'lucide-react';
@@ -115,7 +115,11 @@ export function SharePage() {
         const form = new FormData();
         form.append('link', JSON.stringify(settings));
         const pages = (await editor.current?.exportPages()) ?? [];
-        pages.forEach((p, i) => form.append('page', p, `page-${i + 1}.png`));
+        const total = pages.reduce((sum, p) => sum + p.size, 0);
+        if (total > REDACTION_MAX_TOTAL_BYTES) {
+          throw new Error('This document has too many detailed pages for a redacted copy. Split it into smaller documents.');
+        }
+        pages.forEach((p, i) => form.append('page', p, `page-${i + 1}.jpg`));
         options = { form };
       } else {
         options = { body: settings };

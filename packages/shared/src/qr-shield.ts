@@ -504,6 +504,11 @@ export function analyzeQrContent(input: string, options: QrAnalyzeOptions): QrAn
       return finish();
     }
     findings.push({ id: 'malformed', severity: 'medium', title: 'Broken web address', detail: 'It looks like a link but is not a valid address.' });
+    // A link broken by invisible direction or zero-width characters is a spoofing attempt
+    // (e.g. "example.com<RLO>gpj.exe"), not an accident.
+    if (BIDI_OR_INVISIBLE.test(content)) {
+      findings.push({ id: 'hidden_chars', severity: 'high', title: 'Hidden or direction-reversing characters', detail: 'The link contains invisible characters that make it look different from what it is.' });
+    }
     return finish();
   }
 

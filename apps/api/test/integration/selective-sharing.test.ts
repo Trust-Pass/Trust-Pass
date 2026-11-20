@@ -278,6 +278,18 @@ describe('Smart Selective Encryption: redacted copies', () => {
     expect(await ctx.prisma.redactedPage.count()).toBe(0);
   });
 
+  it('caps the total size of page images in one request (memory protection), and stores nothing', async () => {
+    const owner = await registerUser(ctx);
+    const id = (await uploadDocument(ctx, owner, { file: await secretPdf() })).json().document.id as string;
+    // Four 11 MB files: each is under the 12 MB per-file limit, together they pass the 40 MB cap.
+    const big = Array.from({ length: 4 }, (_, i) => Buffer.alloc(11 * 1024 * 1024, i + 1));
+    const res = await createRedactedLink(owner, id, { redactions: REDACTIONS }, big);
+    expect(res.statusCode).toBe(413);
+    expect(res.json().error.code).toBe('payload_too_large');
+    expect(await ctx.prisma.sharingLink.count()).toBe(0);
+    expect(await ctx.prisma.redactedPage.count()).toBe(0);
+  });
+
   it('deleting the document destroys its redacted copies too', async () => {
     const owner = await registerUser(ctx);
     const id = (await uploadDocument(ctx, owner, { file: await secretPdf() })).json().document.id as string;

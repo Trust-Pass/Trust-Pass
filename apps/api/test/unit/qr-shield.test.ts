@@ -90,6 +90,19 @@ describe('QR Shield: phishing and malware signs', () => {
   it('hidden direction-reversing characters are flagged', () => {
     expect(ids(check('https://example.com/‮gpj.exe'))).toContain('hidden_chars');
   });
+
+  it('a link broken by a direction override in the host is dangerous, not just "broken"', () => {
+    const a = check('https://example.com\u202Egnp.exe');
+    expect(ids(a)).toEqual(expect.arrayContaining(['hidden_chars', 'malformed']));
+    expect(a.verdict).toBe('danger');
+    expect(a.canOpen).toBe(false);
+  });
+
+  it.each(['http://3232235777/login', 'http://0xC0A80101/login'])('numeric IP disguise %s is dangerous', (content) => {
+    const a = check(content);
+    expect(a.verdict).toBe('danger');
+    expect(ids(a)).toContain('private_ip');
+  });
 });
 
 describe('QR Shield: caution signs', () => {

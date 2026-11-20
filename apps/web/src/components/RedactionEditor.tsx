@@ -41,9 +41,11 @@ export const RedactionEditor = forwardRef<RedactionEditorHandle, {
   useImperativeHandle(ref, () => ({
     exportPages: async () => {
       if (mimeType !== 'application/pdf') return [];
+      // JPEG keeps a page around 0.2–0.6 MB. The server burns the boxes into these pixels and
+      // re-encodes the result, so no compression artefact can carry hidden content.
       return Promise.all(
         pagesRef.current.map(
-          (p) => new Promise<Blob>((resolve, reject) => p.canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not prepare a page'))), 'image/png')),
+          (p) => new Promise<Blob>((resolve, reject) => p.canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not prepare a page'))), 'image/jpeg', 0.92)),
         ),
       );
     },
