@@ -61,7 +61,14 @@ const PATTERNS: Record<TextKind, Rule[]> = {
   phone: [
     {
       re: new RegExp(`(?:\\+|00)?${D}[${DIG}\\s().-]{6,}${D}`, 'g'),
-      accept: (m) => digitCount(m) >= 8 && digitCount(m) <= 15 && !luhn(m),
+      // A phone number has a country prefix, a local mobile prefix (05…), or separators; a bare run
+      // of digits is left to "ID numbers".
+      accept: (m) => {
+        const n = digitCount(m);
+        if (n < 8 || n > 15 || luhn(m)) return false;
+        const t = m.trim();
+        return /^(?:\+|00)/.test(t) || /^(?:05|٠٥)[0-9\u0660-\u0669]{8}$/.test(t) || /[\s().-]/.test(t);
+      },
     },
   ],
   id: [
@@ -154,6 +161,9 @@ function signatureBoxes(page: number, runs: TextRun[], style: RedactionStyle): R
   for (const run of runs) {
     const m = SIGNATURE_LABEL.exec(run.str);
     if (!m || Math.abs(run.along.y) > 0.01) continue; // horizontal labels only
+    // A field label ("Signature:", "التوقيع ____"), not the word inside a sentence.
+    const after = run.str.slice(m.index + m[0].length);
+    if (run.str.trim().length > 40 || !/^[\s:：._\-–—]*$/.test(after)) continue;
     const n = run.str.length;
     const labelEnd = run.origin.x + run.along.x * ((m.index + m[0].length) / n);
     const height = Math.abs(run.up.y);

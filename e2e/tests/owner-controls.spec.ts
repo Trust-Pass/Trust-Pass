@@ -33,6 +33,9 @@ test('owner checks encryption, finds and hides private details, previews, and sh
   p.drawText(`Email: ${EMAIL}`, { x: 60, y: 600, size: 16, font });
   p.drawText(`Phone: ${PHONE}`, { x: 60, y: 560, size: 16, font });
   p.drawText(SALARY, { x: 60, y: 520, size: 16, font });
+  p.drawText('National ID: 1029384756', { x: 60, y: 480, size: 16, font });
+  p.drawText('This letter is valid without a signature from the bank.', { x: 60, y: 440, size: 12, font });
+  p.drawText('Signature:', { x: 60, y: 200, size: 16, font });
   const bytes = Buffer.from(await pdf.save());
 
   await page.goto('/app/documents/upload');
@@ -50,6 +53,8 @@ test('owner checks encryption, finds and hides private details, previews, and sh
   await expect(kinds.getByRole('button', { name: 'Email addresses: hidden' })).toBeVisible();
   await expect(kinds.getByRole('button', { name: 'Phone numbers: hidden' })).toBeVisible();
   await expect(kinds.getByRole('button', { name: 'Financial details: hidden' })).toBeVisible();
+  await expect(kinds.getByRole('button', { name: 'ID numbers: hidden' })).toBeVisible();
+  await expect(kinds.getByRole('button', { name: 'Signatures: hidden' })).toBeVisible();
   // The owner lets recipients see the phone number, then changes their mind.
   await kinds.getByRole('button', { name: 'Phone numbers: hidden' }).click();
   await expect(kinds.getByRole('button', { name: 'Phone numbers: visible' })).toBeVisible();
@@ -59,7 +64,11 @@ test('owner checks encryption, finds and hides private details, previews, and sh
   await page.waitForURL(/\/app\/documents\/[0-9a-f-]{36}$/);
   const docId = page.url().split('/').pop()!;
   const plan = (await (await page.request.get(`/api/documents/${docId}/redaction-plan`)).json()).redactions as Array<{ kind: string; style: string }>;
-  expect(new Set(plan.map((r) => r.kind))).toEqual(new Set(['email', 'phone', 'financial']));
+  expect(new Set(plan.map((r) => r.kind))).toEqual(new Set(['email', 'phone', 'financial', 'id', 'signature']));
+  // One signature field: the word inside a sentence is not one.
+  expect(plan.filter((r) => r.kind === 'signature')).toHaveLength(1);
+  // The 10-digit ID is an ID number, not a phone number.
+  expect(plan.filter((r) => r.kind === 'phone')).toHaveLength(1);
   expect(plan.every((r) => r.style === 'pixelate')).toBe(true);
 
   await page.getByRole('button', { name: 'Check encryption now' }).click();
@@ -93,7 +102,7 @@ test('owner checks encryption, finds and hides private details, previews, and sh
     const res = await recipient.request.get(`/api/share/${token}${path}`);
     expect(res.status()).toBe(200);
     const text = pdfText(Buffer.from(await res.body()));
-    for (const secret of [EMAIL, PHONE, '25,000', 'Employment letter']) {
+    for (const secret of [EMAIL, PHONE, '25,000', '1029384756', 'Employment letter']) {
       expect(text).not.toContain(secret);
       expect(text).not.toContain(hex(secret));
     }
