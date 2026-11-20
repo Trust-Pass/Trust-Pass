@@ -14,7 +14,16 @@ test('visual tour of the main screens', async ({ page, browser }, info) => {
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   await shot('01-landing');
   await page.goto('/login');
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
   await shot('02-login');
+  // The password field's show/hide control really toggles the input.
+  const password = page.getByLabel('Password', { exact: true });
+  await password.fill('not-a-real-password');
+  await expect(password).toHaveAttribute('type', 'password');
+  await page.getByRole('button', { name: 'Show password' }).click();
+  await expect(password).toHaveAttribute('type', 'text');
+  await page.getByRole('button', { name: 'Hide password' }).click();
+  await expect(password).toHaveAttribute('type', 'password');
 
   await register(page, { name: 'Reham Alkhamees', email: uniqueEmail('tour') });
   await shot('03-dashboard-empty');

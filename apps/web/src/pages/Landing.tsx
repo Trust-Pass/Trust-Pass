@@ -1,5 +1,6 @@
 import { BarChart3, Clock, FileLock2, Globe2, ListChecks, QrCode, ShieldAlert, Stamp } from 'lucide-react';
-import { Link } from 'react-router';
+import { useEffect } from 'react';
+import { Link, useLocation } from 'react-router';
 import { Logo } from '../components/Logo';
 import { Seal } from '../components/Seal';
 import { ButtonLink } from '../components/ui';
@@ -78,6 +79,11 @@ function Specimen() {
 
 export function LandingPage() {
   const { me } = useAuth();
+  const { hash } = useLocation();
+  // Links like /#security from the sign-in page land on the right section.
+  useEffect(() => {
+    if (hash) document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start' });
+  }, [hash]);
   return (
     <div className="min-h-dvh overflow-x-clip">
       <header className="page-pad mx-auto flex h-20 max-w-6xl items-center justify-between">
@@ -139,7 +145,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="page-pad mx-auto max-w-6xl py-16 sm:py-24">
+      <section id="features" className="page-pad mx-auto max-w-6xl scroll-mt-6 py-16 sm:py-24">
         <h2 className="max-w-xl text-[28px] leading-tight font-semibold text-ink sm:text-[36px]">Built for the moments you hand over personal data</h2>
         <p className="mt-3 max-w-2xl text-slate-500">Job applications, admissions, renting an apartment, proving employment. You stay in charge every time.</p>
         <div className="mt-12 grid gap-x-12 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
@@ -172,7 +178,7 @@ export function LandingPage() {
       </section>
 
       {/* QR Security: the crimson zone, introduced where it lives. */}
-      <section className="page-pad mx-auto max-w-6xl py-16 sm:py-24">
+      <section id="security" className="page-pad mx-auto max-w-6xl scroll-mt-6 py-16 sm:py-24">
         <div className="zone-threat surface-card card-lit relative overflow-hidden rounded-[28px] px-6 py-10 sm:px-12 sm:py-12">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(40rem_20rem_at_90%_0%,rgb(225_29_72/0.25),transparent_60%)]" aria-hidden />
           <div className="relative grid items-center gap-8 lg:grid-cols-[1.2fr_1fr]">
@@ -194,7 +200,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="page-pad mx-auto max-w-6xl pb-20 sm:pb-28">
+      <section id="about" className="page-pad mx-auto max-w-6xl scroll-mt-6 pb-20 sm:pb-28">
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_1.4fr] lg:gap-16">
           <div>
             <h2 className="text-[28px] leading-tight font-semibold text-ink sm:text-[36px]">The fine print</h2>

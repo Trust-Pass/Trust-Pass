@@ -1,8 +1,9 @@
 import { ORGANIZATION_TYPES, PASSWORD_MIN_LENGTH } from '@trustpass/shared';
 import clsx from 'clsx';
-import { Building2, Eye, EyeOff, Lock, User } from 'lucide-react';
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { Building2, Eye, EyeOff, Lock, Mail, Scan, ShieldCheck, User } from 'lucide-react';
+import { useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
+import { GuillocheRing } from '../components/GuillocheRing';
 import { Logo } from '../components/Logo';
 import { Alert, Button, Field, Input, Select } from '../components/ui';
 import { api, ApiError, errorMessage } from '../lib/api';
@@ -11,22 +12,86 @@ import type { Me } from '../lib/types';
 
 function AuthShell({ title, subtitle, children, footer }: { title: string; subtitle?: ReactNode; children: ReactNode; footer?: ReactNode }) {
   return (
-    <div className="flex min-h-dvh flex-col">
-      <div className="hero-grid px-4 pt-6 pb-24 sm:pb-28">
-        <div className="mx-auto max-w-md">
-          <Link to="/">
-            <Logo light />
+    <div className="relative min-h-dvh overflow-x-clip">
+      {/* A soft turquoise light behind the ring. */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(54rem_40rem_at_50%_46%,rgb(34_227_208/0.15),transparent_62%)]" aria-hidden />
+
+      <header className="page-pad relative mx-auto flex h-20 max-w-6xl items-center justify-between">
+        <Link to="/" aria-label="TrustPass home">
+          <Logo />
+        </Link>
+        <nav className="flex items-center gap-5 text-sm font-medium text-slate-700 sm:gap-10 sm:text-[15px]" aria-label="Site">
+          <Link to="/#security" className="hover:text-white">
+            Security
           </Link>
-        </div>
-      </div>
-      <div className="-mt-16 flex-1 px-4 pb-10 sm:-mt-20">
-        <div className="mx-auto max-w-md surface-card glass rounded-3xl p-6 shadow-lift sm:p-8">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{title}</h1>
-          {subtitle && <p className="mt-1.5 text-sm text-slate-600">{subtitle}</p>}
-          <div className="mt-6">{children}</div>
-        </div>
-        {footer && <div className="mx-auto mt-5 max-w-md text-center text-sm text-slate-600">{footer}</div>}
-      </div>
+          <Link to="/#features" className="hidden hover:text-white sm:inline">
+            Features
+          </Link>
+          <Link to="/#about" className="hover:text-white">
+            About
+          </Link>
+        </nav>
+      </header>
+
+      <main className="relative">
+        <section className="page-pad mx-auto max-w-3xl pt-4 text-center sm:pt-8">
+          <p className="text-[30px] leading-tight font-semibold tracking-[-0.03em] text-white sm:text-[46px]">
+            Your documents. <span className="text-glow">Your control.</span>
+          </p>
+          <p className="mt-3 text-[15px] text-slate-600 sm:text-lg">A secure and simple way to encrypt, share, and verify your documents.</p>
+        </section>
+
+        <section className="relative grid place-items-center px-4 py-12 sm:py-20">
+          <div className="pointer-events-none absolute inset-0 grid place-items-center" aria-hidden>
+            <GuillocheRing draw className="aspect-square w-[min(800px,165vw)] max-w-none" />
+          </div>
+          <div className="glass-card relative w-full max-w-[35rem] rounded-[28px] px-6 py-8 sm:px-10 sm:py-10">
+            <h1 className="text-center text-[28px] font-semibold text-white sm:text-[32px]">{title}</h1>
+            {subtitle && <p className="mt-2 text-center text-[15px] text-slate-600 sm:text-base">{subtitle}</p>}
+            <div className="mt-7">{children}</div>
+            {footer && <div className="mt-6 text-center text-[15px] text-slate-600">{footer}</div>}
+          </div>
+        </section>
+
+        <section className="page-pad mx-auto max-w-3xl pb-14" aria-labelledby="powered-by">
+          <div className="flex items-center gap-5">
+            <span className="h-px flex-1 bg-gradient-to-r from-transparent to-accent/50" aria-hidden />
+            <h2 id="powered-by" className="text-[13px] font-medium tracking-[0.32em] text-slate-600 uppercase">
+              Powered by
+            </h2>
+            <span className="h-px flex-1 bg-gradient-to-l from-transparent to-accent/50" aria-hidden />
+          </div>
+          <ul className="mt-8 grid grid-cols-3 gap-4 text-center">
+            {[
+              { icon: Lock, title: 'AES-256-GCM', body: 'Encryption' },
+              { icon: Scan, title: 'QR Security', body: 'Secure access' },
+              { icon: ShieldCheck, title: 'Verification', body: 'Integrity & trust' },
+            ].map(({ icon: Icon, title: t, body }) => (
+              <li key={t} className="flex flex-col items-center">
+                <Icon className="size-8 text-accent drop-shadow-[0_0_10px_rgb(34_227_208/0.7)]" strokeWidth={1.6} aria-hidden />
+                <p className="mt-3 text-[15px] font-semibold text-white sm:text-[17px]">{t}</p>
+                <p className="text-[13px] text-slate-600 sm:text-[15px]">{body}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </main>
+    </div>
+  );
+}
+
+/** A field in the sign-in card: icon inside, placeholder as the visible hint, label for screen readers. */
+function GateInput({ id, label, icon, trailing, ...rest }: InputHTMLAttributes<HTMLInputElement> & { id: string; label: string; icon: ReactNode; trailing?: ReactNode }) {
+  return (
+    <div className="gate-input flex h-14 items-center gap-3 rounded-2xl px-4 transition-[border-color,box-shadow]">
+      <label htmlFor={id} className="sr-only">
+        {label}
+      </label>
+      <span className="text-slate-600" aria-hidden>
+        {icon}
+      </span>
+      <input id={id} className="h-full min-w-0 flex-1 bg-transparent text-[16px] text-white placeholder:text-slate-500 focus:outline-none" {...rest} />
+      {trailing}
     </div>
   );
 }
@@ -54,6 +119,7 @@ export function LoginPage() {
   const [params] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -75,31 +141,42 @@ export function LoginPage() {
   return (
     <AuthShell
       title="Welcome back"
-      subtitle="Sign in to manage and share your documents."
+      subtitle="Sign in to access your secure vault."
       footer={
         <>
-          New to TrustPass?{' '}
-          <Link to={`/register${params.get('next') ? `?next=${encodeURIComponent(params.get('next')!)}` : ''}`} className="font-semibold text-ink underline">
-            Create an account
+          Don’t have an account?{' '}
+          <Link to={`/register${params.get('next') ? `?next=${encodeURIComponent(params.get('next')!)}` : ''}`} className="font-semibold text-glow hover:underline">
+            Create one
           </Link>
         </>
       }
     >
       <form onSubmit={submit} className="space-y-4" noValidate>
         {error && <Alert tone="error">{error}</Alert>}
-        <Field label="Email" htmlFor="email">
-          <Input id="email" type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </Field>
-        <Field label="Password" htmlFor="password">
-          <PasswordInput id="password" value={password} onChange={setPassword} autoComplete="current-password" />
-        </Field>
+        <GateInput id="email" label="Email" icon={<Mail className="size-5" />} type="email" inputMode="email" autoComplete="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <GateInput
+          id="password"
+          label="Password"
+          icon={<Lock className="size-5" />}
+          type={showPassword ? 'text' : 'password'}
+          autoComplete="current-password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          trailing={
+            <button type="button" onClick={() => setShowPassword((v) => !v)} className="-mr-1 rounded-lg p-1.5 text-slate-600 hover:text-white" aria-label={showPassword ? 'Hide password' : 'Show password'}>
+              {showPassword ? <Eye className="size-5" /> : <EyeOff className="size-5" />}
+            </button>
+          }
+        />
         <div className="text-right">
-          <Link to="/forgot-password" className="text-sm font-medium text-accent hover:underline">
-            Forgot your password?
+          <Link to="/forgot-password" className="text-[15px] font-semibold text-glow hover:underline">
+            Forgot password?
           </Link>
         </div>
-        <Button type="submit" className="w-full" size="lg" loading={loading} icon={<Lock className="size-4" />}>
-          Sign in
+        <Button type="submit" size="xl" className="w-full" loading={loading}>
+          Sign In
         </Button>
       </form>
     </AuthShell>
@@ -162,7 +239,7 @@ export function RegisterPage() {
       footer={
         <>
           Already registered?{' '}
-          <Link to="/login" className="font-semibold text-ink underline">
+          <Link to="/login" className="font-semibold text-glow hover:underline">
             Sign in
           </Link>
         </>
@@ -226,7 +303,7 @@ export function ForgotPasswordPage() {
     }
   };
   return (
-    <AuthShell title="Reset your password" subtitle="We will email you a link that works for 30 minutes." footer={<Link to="/login" className="font-semibold text-ink underline">Back to sign in</Link>}>
+    <AuthShell title="Reset your password" subtitle="We will email you a link that works for 30 minutes." footer={<Link to="/login" className="font-semibold text-glow hover:underline">Back to sign in</Link>}>
       {done ? (
         <Alert tone="success" title="Check your inbox">
           {done}

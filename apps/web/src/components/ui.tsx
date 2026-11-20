@@ -32,7 +32,7 @@ import type { AccessOutcome, LinkStatus, TrustStatus } from '../lib/types';
 // ---------------------------------------------------------------------------
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'teal' | 'band';
-type Size = 'sm' | 'md' | 'lg';
+type Size = 'sm' | 'md' | 'lg' | 'xl';
 
 const variants: Record<Variant, string> = {
   primary: 'btn-primary font-semibold shadow-glow',
@@ -44,14 +44,15 @@ const variants: Record<Variant, string> = {
   danger: 'bg-red-600 text-white hover:bg-red-500 active:bg-red-600 shadow-sm',
 };
 const sizes: Record<Size, string> = {
-  sm: 'h-9 px-3 text-sm gap-1.5',
-  md: 'h-11 px-4 text-sm gap-2',
-  lg: 'h-12 px-6 text-base gap-2',
+  sm: 'h-9 px-3 text-sm gap-1.5 rounded-xl',
+  md: 'h-11 px-4 text-sm gap-2 rounded-xl',
+  lg: 'h-12 px-6 text-base gap-2 rounded-xl',
+  xl: 'h-14 px-6 text-[17px] gap-2 rounded-2xl',
 };
 
 export function buttonClass(variant: Variant = 'primary', size: Size = 'md', extra?: string) {
   return clsx(
-    'inline-flex items-center justify-center rounded-xl font-medium transition-[background,box-shadow,transform,color] duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 select-none whitespace-nowrap',
+    'inline-flex items-center justify-center font-medium transition-[background,box-shadow,transform,color] duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 select-none whitespace-nowrap',
     variants[variant],
     sizes[size],
     extra,
