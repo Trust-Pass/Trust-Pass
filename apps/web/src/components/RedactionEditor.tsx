@@ -1,9 +1,12 @@
 import { Eye, EyeOff, Loader2, ScanSearch, Trash2, Undo2 } from 'lucide-react';
 import clsx from 'clsx';
-import { pdfjs } from '../lib/pdfjs';
+import * as pdfjs from 'pdfjs-dist';
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { REDACTION_STYLE_LABELS, REDACTION_STYLES, SENSITIVE_KIND_LABELS, type Redaction, type RedactionStyle, type SensitiveKind } from '@trustpass/shared';
 import { apiBlob, errorMessage } from '../lib/api';
+
+pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 /** Long edge of the page images sent for a redacted copy (the server allows up to 2400). */
 const RENDER_EDGE = 1600;

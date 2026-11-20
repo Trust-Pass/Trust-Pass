@@ -1,7 +1,10 @@
 import { FileWarning, Loader2 } from 'lucide-react';
-import { pdfjs } from '../lib/pdfjs';
+import * as pdfjs from 'pdfjs-dist';
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { useEffect, useRef, useState } from 'react';
 import { apiBlob, errorMessage } from '../lib/api';
+
+pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 /**
  * Renders a PDF to canvases (no download button, no text layer). This is a
