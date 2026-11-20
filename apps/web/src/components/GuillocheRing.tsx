@@ -50,7 +50,7 @@ export const GuillocheRing = memo(function GuillocheRing({ className, draw = fal
   return (
     <svg viewBox="-1 -1 202 202" className={clsx('guilloche-ring', draw && 'seal-draw', className)} aria-hidden focusable="false">
       <g fill="none" stroke="currentColor" strokeLinejoin="round">
-        <path d={rings.lace} strokeWidth={0.38} pathLength={1} />
+        <path d={rings.lace} strokeWidth={0.3} pathLength={1} />
         <path d={rings.fine} strokeWidth={0.22} opacity={0.8} pathLength={1} />
         <path d={rings.mesh} strokeWidth={0.22} opacity={0.7} pathLength={1} />
         <path d={rings.core} strokeWidth={0.2} opacity={0.5} pathLength={1} />

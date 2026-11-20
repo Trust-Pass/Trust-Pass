@@ -41,9 +41,10 @@ function AuthShell({ title, subtitle, children, footer }: { title: string; subti
           <p className="mt-3 text-[15px] text-slate-600 sm:text-lg">A secure and simple way to encrypt, share, and verify your documents.</p>
         </section>
 
-        <section className="relative grid place-items-center px-4 py-12 sm:py-20">
-          <div className="pointer-events-none absolute inset-0 grid place-items-center" aria-hidden>
-            <GuillocheRing draw className="aspect-square w-[min(800px,165vw)] max-w-none" />
+        {/* The ring section is as tall as the ring, so the ring never runs into the text above or below. */}
+        <section className="relative flex min-h-[min(820px,128vw)] items-center justify-center px-4 py-8">
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
+            <GuillocheRing draw className="aspect-square w-[min(790px,125vw)] max-w-none shrink-0" />
           </div>
           <div className="glass-card relative w-full max-w-[35rem] rounded-[28px] px-6 py-8 sm:px-10 sm:py-10">
             <h1 className="text-center text-[28px] font-semibold text-white sm:text-[32px]">{title}</h1>
@@ -53,7 +54,7 @@ function AuthShell({ title, subtitle, children, footer }: { title: string; subti
           </div>
         </section>
 
-        <section className="page-pad mx-auto max-w-3xl pb-14" aria-labelledby="powered-by">
+        <section className="page-pad mx-auto max-w-3xl pt-2 pb-14" aria-labelledby="powered-by">
           <div className="flex items-center gap-5">
             <span className="h-px flex-1 bg-gradient-to-r from-transparent to-accent/50" aria-hidden />
             <h2 id="powered-by" className="text-[13px] font-medium tracking-[0.32em] text-slate-600 uppercase">
