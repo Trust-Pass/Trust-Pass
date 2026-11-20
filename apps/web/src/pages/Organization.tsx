@@ -203,7 +203,7 @@ export function OrganizationPage() {
                       </Badge>
                     )}
                     {canManage && m.userId !== me.user.id && (
-                      <Button size="sm" variant="ghost" className="text-red-600" onClick={() => removeMember.mutate(m.userId)}>
+                      <Button size="sm" variant="ghost" className="text-red-400" onClick={() => removeMember.mutate(m.userId)}>
                         Remove
                       </Button>
                     )}
@@ -211,7 +211,7 @@ export function OrganizationPage() {
                 </li>
               ))}
             </ul>
-            {(updateRole.error || removeMember.error) && <p className="px-5 pb-3 text-sm text-red-600">{errorMessage(updateRole.error ?? removeMember.error)}</p>}
+            {(updateRole.error || removeMember.error) && <p className="px-5 pb-3 text-sm text-red-400">{errorMessage(updateRole.error ?? removeMember.error)}</p>}
           </Card>
         </div>
       )}

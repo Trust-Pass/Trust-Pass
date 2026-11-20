@@ -41,7 +41,7 @@ export function CountryPicker({ value, onChange }: { value: string[]; onChange: 
               onClick={() => toggle(code)}
               className={clsx(
                 'h-9 rounded-full px-3 text-sm ring-1 ring-inset transition-colors',
-                value.includes(code) ? 'bg-blue-600 text-white ring-blue-400/60 shadow-glow' : 'bg-surface text-ink ring-slate-300 hover:bg-slate-50',
+                value.includes(code) ? 'bg-accent/15 text-ink ring-accent/60 shadow-glow-teal' : 'bg-surface text-ink ring-slate-300 hover:bg-slate-50',
               )}
             >
               {flag(code)} {countryName(code)}

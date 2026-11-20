@@ -28,7 +28,7 @@ function resolveRange(input: { from?: string; to?: string }, now: Date) {
 
 export async function insightRoutes(app: FastifyInstance) {
   const deps = app.deps;
-  const { prisma, now } = deps;
+  const { prisma, now, config } = deps;
 
   app.get('/api/analytics', async (request) => {
     const { user } = requireUser(request);
@@ -279,11 +279,23 @@ export async function insightRoutes(app: FastifyInstance) {
       prisma.accessLog.findMany({ where: { ownerId: user.id, resource: 'details' }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 5 }),
       prisma.securityEvent.findMany({ where: { userId: user.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 6 }),
     ]);
+    // Daily granted/blocked attempts for the last 14 days (UTC days), for the dashboard chart.
+    const DAYS = 14;
+    const since = new Date(Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), current.getUTCDate() - (DAYS - 1)));
+    const recent = await prisma.accessLog.findMany({ where: { ownerId: user.id, createdAt: { gte: since }, ...attemptFilter }, select: { createdAt: true, outcome: true } });
+    const daily = Array.from({ length: DAYS }, (_, i) => ({ date: new Date(since.getTime() + i * 86_400_000).toISOString().slice(0, 10), granted: 0, denied: 0 }));
+    for (const r of recent) {
+      const day = daily[Math.floor((r.createdAt.getTime() - since.getTime()) / 86_400_000)];
+      if (day) day[r.outcome === 'granted' ? 'granted' : 'denied']++;
+    }
     const labels = await ownerLabels(deps, user.id, [], recentAccess.map((r) => r.linkId));
     const granted = attempts.find((a) => a.outcome === 'granted')?._count._all ?? 0;
     const total = attempts.reduce((n, a) => n + a._count._all, 0);
     return {
       counts: { documents, verifiedCredentials: credentials, activeLinks, attempts7d: total, granted7d: granted, denied7d: total - granted },
+      daily,
+      // Which service protects the document keys (provider name only, never key material).
+      protection: { keyProvider: config.env.KEY_PROVIDER, kms: config.env.KEY_PROVIDER === 'gcp-kms' },
       recentAccess: recentAccess.map((r) => {
         return { id: r.id.toString(), at: r.createdAt, outcome: r.outcome, country: r.countryCode, document: labels.linkTitle(r.linkId) ?? 'Document', recipient: labels.recipient(r.linkId) };
       }),

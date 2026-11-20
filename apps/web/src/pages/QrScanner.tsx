@@ -51,15 +51,15 @@ const KIND_LABEL: Record<QrAnalysis['kind'], string> = {
 };
 
 const VERDICT_UI = {
-  safe: { label: 'Safe', hint: 'No warning signs found', icon: ShieldCheck, box: 'bg-teal-50 ring-teal-200 text-teal-950', iconBox: 'bg-teal-600', bar: 'bg-teal-500' },
-  caution: { label: 'Suspicious', hint: 'Check the warnings before you continue', icon: ShieldAlert, box: 'bg-amber-50 ring-amber-200 text-amber-950', iconBox: 'bg-amber-500', bar: 'bg-amber-500' },
-  danger: { label: 'Dangerous', hint: 'Do not open this', icon: ShieldX, box: 'bg-red-50 ring-red-200 text-red-950', iconBox: 'bg-red-600', bar: 'bg-red-600' },
+  safe: { label: 'Safe', hint: 'No warning signs found', icon: ShieldCheck, box: 'bg-gradient-to-br from-[#22e3d0]/18 via-[#10b981]/8 to-transparent ring-[#2ee6d6]/40 text-teal-950 shadow-[0_30px_70px_-34px_rgb(34_227_208/0.55)]', iconBox: 'bg-[linear-gradient(135deg,#7af7ea,#0ea594)] text-[#021412]', bar: 'bg-[#2ee6d6]' },
+  caution: { label: 'Suspicious', hint: 'Check the warnings before you continue', icon: ShieldAlert, box: 'bg-gradient-to-br from-amber-500/18 via-amber-500/6 to-transparent ring-amber-400/40 text-amber-950 shadow-[0_30px_70px_-34px_rgb(245_158_11/0.45)]', iconBox: 'bg-amber-500 text-white', bar: 'bg-amber-500' },
+  danger: { label: 'Dangerous', hint: 'Do not open this', icon: ShieldX, box: 'bg-gradient-to-br from-[#e11d48]/32 via-[#7f1d2d]/16 to-transparent ring-[#fb7185]/45 text-red-950 shadow-[0_30px_70px_-30px_rgb(225_29_72/0.6)]', iconBox: 'bg-[linear-gradient(135deg,#fb7185,#e11d48)] text-white shadow-[0_0_24px_-4px_rgb(251_113_133/0.8)]', bar: 'bg-[#fb7185]' },
 } as const;
 
 const SEVERITY_UI: Record<QrSeverity, { label: string; tone: 'red' | 'amber' | 'slate' | 'navy'; icon: ReactNode }> = {
-  critical: { label: 'Critical', tone: 'red', icon: <ShieldX className="size-4 text-red-600" /> },
-  high: { label: 'High', tone: 'red', icon: <AlertTriangle className="size-4 text-red-600" /> },
-  medium: { label: 'Medium', tone: 'amber', icon: <AlertTriangle className="size-4 text-amber-600" /> },
+  critical: { label: 'Critical', tone: 'red', icon: <ShieldX className="size-4 text-red-400" /> },
+  high: { label: 'High', tone: 'red', icon: <AlertTriangle className="size-4 text-red-400" /> },
+  medium: { label: 'Medium', tone: 'amber', icon: <AlertTriangle className="size-4 text-amber-400" /> },
   low: { label: 'Low', tone: 'slate', icon: <Info className="size-4 text-slate-500" /> },
   info: { label: 'Info', tone: 'navy', icon: <Info className="size-4 text-accent" /> },
 };
@@ -173,25 +173,25 @@ function CameraScanner({ onDecoded, analyzing, ignore }: { onDecoded: (text: str
 
   return (
     <div className="space-y-3" data-testid="camera-scanner" data-state={analyzing ? 'analyzing' : state}>
-      <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-navy-950">
+      <div className="relative aspect-[4/3] overflow-hidden rounded-[18px] bg-[radial-gradient(circle_at_50%_45%,#2a0f15,#0b0406_72%)] ring-1 ring-accent/15">
         <video ref={videoRef} className={clsx('size-full object-cover', state !== 'scanning' && 'invisible')} playsInline muted autoPlay aria-label="Camera preview" />
         {state === 'scanning' && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
-            <div className="relative size-3/5 max-w-64 rounded-2xl border-2 border-white/80 shadow-[0_0_0_9999px_rgba(2,6,23,0.45)]">
-              <ScanLine className="absolute left-1/2 top-1/2 size-10 -translate-x-1/2 -translate-y-1/2 animate-pulse text-teal-300" />
+            <div className="relative size-3/5 max-w-64 rounded-2xl border-2 border-accent/90 shadow-[0_0_0_9999px_rgba(10,4,6,0.55),0_0_28px_rgb(var(--glow)/0.45),inset_0_0_28px_rgb(var(--glow)/0.2)]">
+              <ScanLine className="absolute left-1/2 top-1/2 size-10 -translate-x-1/2 -translate-y-1/2 animate-pulse text-accent drop-shadow-[0_0_10px_rgb(var(--glow)/0.9)]" />
             </div>
           </div>
         )}
         {state !== 'scanning' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center text-navy-100">
-            {problem ? <CameraOff className="size-9 text-navy-300" /> : <QrCode className={clsx('size-10 text-navy-300', (analyzing || state === 'starting') && 'animate-pulse')} />}
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center text-slate-600">
+            {problem ? <CameraOff className="size-9 text-slate-500" /> : <QrCode className={clsx('size-10 text-slate-500', (analyzing || state === 'starting') && 'animate-pulse')} />}
             <p className="text-sm">{problem ? 'Camera unavailable' : overlay}</p>
           </div>
         )}
       </div>
       {state === 'scanning' && (
         <p className="flex items-center justify-center gap-2 text-sm font-medium text-accent" role="status">
-          <span className="size-2 animate-pulse rounded-full bg-teal-500" aria-hidden />
+          <span className="size-2 animate-pulse rounded-full bg-accent shadow-[0_0_8px_rgb(var(--glow))]" aria-hidden />
           Point the camera at a QR code. It is read on this device; no photo is uploaded.
         </p>
       )}
@@ -240,9 +240,9 @@ function ResultPanel({ result, onAgain, againLabel }: { result: CheckResponse; o
 
   return (
     <div className="space-y-4" data-testid="qr-result">
-      <div className={clsx('rounded-2xl p-4 ring-1 ring-inset sm:p-5', ui.box)} data-testid="qr-verdict" data-verdict={analysis.verdict}>
+      <div className={clsx('rounded-[22px] p-4 ring-1 ring-inset sm:p-5', ui.box)} data-testid="qr-verdict" data-verdict={analysis.verdict}>
         <div className="flex items-start gap-3">
-          <span className={clsx('flex size-12 shrink-0 items-center justify-center rounded-xl text-white', ui.iconBox)}>
+          <span className={clsx('flex size-12 shrink-0 items-center justify-center rounded-xl', ui.iconBox)}>
             <Icon className="size-7" />
           </span>
           <div className="min-w-0 flex-1">
@@ -331,7 +331,7 @@ function ResultPanel({ result, onAgain, againLabel }: { result: CheckResponse; o
               </dd>
               <dt className="text-slate-500">Connection</dt>
               <dd className="flex items-center gap-1.5 text-ink">
-                {analysis.url.scheme === 'https' ? <Lock className="size-4 text-teal-600" /> : <LockOpen className="size-4 text-amber-600" />}
+                {analysis.url.scheme === 'https' ? <Lock className="size-4 text-teal-700" /> : <LockOpen className="size-4 text-amber-700" />}
                 {analysis.url.scheme === 'https' ? 'Encrypted (https)' : `Not encrypted (${analysis.url.scheme})`}
               </dd>
             </dl>
@@ -555,7 +555,7 @@ export function QrScannerPage() {
                   'TrustPass share links: whether the link is genuine and still active',
                 ].map((t) => (
                   <li key={t} className="flex gap-2.5">
-                    <ShieldCheck className="mt-0.5 size-4 shrink-0 text-teal-600" />
+                    <ShieldCheck className="mt-0.5 size-4 shrink-0 text-accent" />
                     {t}
                   </li>
                 ))}

@@ -53,7 +53,7 @@ export function SharedDocument({ view, fileUrl }: { view: SharedView; fileUrl: s
   return (
     <div className="space-y-5">
       <Card className="overflow-hidden">
-        <div className="hero-grid px-4 py-5 text-white sm:px-6">
+        <div className="hero-grid border-b border-white/[0.06] px-4 py-5 text-white sm:px-6">
           <p className="text-sm text-navy-200">
             Shared by <span className="font-semibold text-white">{view.link.sharedBy}</span> with{' '}
             <span className="font-semibold text-white">{view.link.recipientOrg ?? view.link.recipientLabel}</span>
@@ -83,7 +83,7 @@ export function SharedDocument({ view, fileUrl }: { view: SharedView; fileUrl: s
                     <dd className="flex items-center gap-2 font-semibold text-ink">
                       {f.value}
                       {f.source === 'issuer' ? (
-                        <ShieldCheck className="size-4 text-teal-600" aria-label="Signed by the issuer" />
+                        <ShieldCheck className="size-4 text-teal-400" aria-label="Signed by the issuer" />
                       ) : (
                         <Badge tone="amber">Self-declared</Badge>
                       )}
@@ -146,7 +146,7 @@ export function SharedDocument({ view, fileUrl }: { view: SharedView; fileUrl: s
               <p className="text-[13px] text-slate-500">
                 Your name, the time and a unique copy reference are printed on every page. The download is logged for the owner.
               </p>
-              {lastCopy && <p className="text-[13px] text-teal-600" data-testid="download-done">Downloaded copy {lastCopy}.</p>}
+              {lastCopy && <p className="text-[13px] text-teal-400" data-testid="download-done">Downloaded copy {lastCopy}.</p>}
               {downloadError && <p className="text-[13px] text-red-500" role="alert" data-testid="download-error">{downloadError}</p>}
             </div>
           )}

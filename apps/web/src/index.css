@@ -1,59 +1,108 @@
 @import 'tailwindcss';
 
 /*
- * TrustPass "Security paper" theme.
+ * TrustPass design system: "Turquoise vault" with a crimson threat zone.
  *
- * The interface borrows from the things people already trust with their identity: passports,
- * banknotes and certificates. Pages are a cool, pale security paper; bands (page heroes, the
- * sidebar, the success moment of a share) are the deep green of a passport cover, printed with a
- * fine guilloché line pattern; the one signature element is the rosette seal (components/Seal.tsx).
+ * Main platform: deep teal-black backgrounds, luminous turquoise as the dominant accent, emerald
+ * blended into the deep end of gradients. QR Security (`.zone-threat`) re-maps the same tokens to
+ * burgundy and crimson, so every component keeps its shape, spacing, borders and shadows and only
+ * the light changes: one product, two moods.
  *
- * The slate scale is a green-tinted neutral for a light UI. The "navy" scale name is kept for
- * compatibility and now holds the passport-green band colours (light tints for text on bands).
- * Status colours (red, amber, emerald, teal) use Tailwind's own light-mode scales.
+ * The neutral (slate) scale is mirrored for a dark UI: low numbers are dark surfaces, high numbers
+ * are light text, so `bg-slate-50` is a sunken panel and `text-slate-500` is muted text. Pale tints
+ * of the status colours (50–200) are deep tints and their dark shades (700–950) are light, so
+ * alerts, badges and verdicts read correctly on the dark surfaces. "blue" and "sky" are re-mapped
+ * to turquoise so no electric blue remains anywhere; "navy" holds the deepest teal-black surfaces.
  */
 @theme {
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Segoe UI Mono', Menlo, Consolas, monospace;
 
-  /* Passport-cover greens: 950–700 are band backgrounds, 300–50 are text and lines on bands. */
-  --color-navy-50: #eef6f2;
-  --color-navy-100: #dcede5;
-  --color-navy-200: #b7dacb;
-  --color-navy-300: #86bfa8;
-  --color-navy-400: #4c9a7f;
-  --color-navy-500: #227a5e;
-  --color-navy-600: #176049;
-  --color-navy-700: #11483a;
-  --color-navy-800: #0d3a2d;
-  --color-navy-900: #0a2d23;
-  --color-navy-950: #06201a;
+  /* Deep surfaces (950–700) and soft text tones (300–50) */
+  --color-navy-50: #ecfdfb;
+  --color-navy-100: #d3f5f1;
+  --color-navy-200: #a9e3dd;
+  --color-navy-300: #7cc4bd;
+  --color-navy-400: #4f9993;
+  --color-navy-500: #2d6f6a;
+  --color-navy-600: #1d4f4c;
+  --color-navy-700: #143a39;
+  --color-navy-800: #0e2a2b;
+  --color-navy-900: #091c1e;
+  --color-navy-950: #040d0f;
 
-  /* Paper, ink and the seal green */
-  --color-canvas: #edf1ec;
-  --color-surface: #fafbf9;
-  --color-surface-raised: #ffffff;
-  --color-ink: #0e241d;
-  --color-accent: #0a6a4e;
-  --color-accent-soft: #ddede5;
-  --color-accent-line: #a7cdbb;
+  /* Luminous turquoise (blue and sky are mapped onto it, so no electric blue remains) */
+  --color-blue-200: #b5fbf3;
+  --color-blue-300: #7af7ea;
+  --color-blue-400: #2ee6d6;
+  --color-blue-500: #14cfc0;
+  --color-blue-600: #0ea594;
+  --color-blue-700: #0b7f73;
+  --color-blue-950: #062320;
+  --color-sky-300: #7af7ea;
 
-  /* Green-grey neutrals */
-  --color-slate-50: #f4f7f3;
-  --color-slate-100: #e8eee8;
-  --color-slate-200: #d5ded7;
-  --color-slate-300: #b7c5bc;
-  --color-slate-400: #8a9c91;
-  --color-slate-500: #5f7166;
-  --color-slate-600: #485950;
-  --color-slate-700: #35443c;
-  --color-slate-800: #23312a;
-  --color-slate-900: #16211c;
-  --color-slate-950: #0b130f;
+  /* Surfaces and text */
+  --color-canvas: #03080a;
+  --color-surface: #0a171a;
+  --color-surface-raised: #0e1f23;
+  --color-ink: #e6f7f6;
+  --color-accent: #2ee6d6;
+  --color-accent-soft: #0b2a2b;
+  --color-accent-line: #17504c;
+  --color-on-accent: #021412;
 
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.9) inset, 0 1px 2px rgb(14 36 29 / 0.06), 0 8px 24px -16px rgb(14 36 29 / 0.18);
-  --shadow-lift: 0 28px 60px -24px rgb(6 32 26 / 0.45), 0 0 0 1px rgb(14 36 29 / 0.06);
-  --shadow-glow: 0 6px 16px -8px rgb(10 106 78 / 0.55);
-  --shadow-glow-teal: 0 6px 16px -8px rgb(14 36 29 / 0.5);
+  --color-slate-50: #071214;
+  --color-slate-100: #0d1d20;
+  --color-slate-200: #15292c;
+  --color-slate-300: #213a3d;
+  --color-slate-400: #5a7577;
+  --color-slate-500: #8aa8aa;
+  --color-slate-600: #a9c2c3;
+  --color-slate-700: #c5d9d9;
+  --color-slate-800: #dceaea;
+  --color-slate-900: #ecf6f5;
+  --color-slate-950: #f6fbfb;
+
+  --color-teal-50: #062624;
+  --color-teal-100: #0a3533;
+  --color-teal-200: #0f514c;
+  --color-teal-300: #7af7ea;
+  --color-teal-400: #2ee6d6;
+  --color-teal-500: #14cfc0;
+  --color-teal-700: #5ff5e6;
+  --color-teal-800: #99f6e4;
+  --color-teal-900: #ccfbf1;
+  --color-teal-950: #e6fffa;
+
+  --color-emerald-50: #052a20;
+  --color-emerald-100: #073a2c;
+  --color-emerald-200: #0c5640;
+  --color-emerald-700: #6ee7b7;
+  --color-emerald-800: #a7f3d0;
+  --color-emerald-900: #d1fae5;
+  --color-emerald-950: #ecfdf5;
+
+  --color-red-50: #2a0b14;
+  --color-red-100: #3a0f1b;
+  --color-red-200: #5f1729;
+  --color-red-700: #fda4af;
+  --color-red-800: #fecdd3;
+  --color-red-900: #ffe4e9;
+  --color-red-950: #fff1f3;
+
+  --color-amber-50: #2a1d0a;
+  --color-amber-100: #3a280d;
+  --color-amber-200: #5a3d12;
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fde68a;
+  --color-amber-900: #fef3c7;
+  --color-amber-950: #fffbeb;
+
+  /* Depth: a lit top edge, a hairline and a long soft shadow */
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.045) inset, 0 0 0 1px rgb(0 0 0 / 0.35), 0 28px 56px -30px rgb(0 0 0 / 0.85);
+  --shadow-lift: 0 40px 80px -30px rgb(0 0 0 / 0.9), 0 0 0 1px rgb(var(--glow) / 0.1);
+  --shadow-glow: 0 1px 0 rgb(255 255 255 / 0.45) inset, 0 10px 28px -8px rgb(var(--glow) / 0.6), 0 0 0 1px rgb(var(--glow) / 0.35);
+  --shadow-glow-teal: 0 10px 28px -10px rgb(var(--glow) / 0.55);
 
   --animate-rise: rise 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   @keyframes rise {
@@ -68,9 +117,55 @@
   }
 }
 
+/* The light of the current zone, as RGB channels so it can be used at any opacity. */
+:root {
+  --glow: 34 227 208; /* turquoise */
+  --glow-deep: 16 185 129; /* emerald */
+  --grad-primary: linear-gradient(135deg, #7af7ea 0%, #22e3d0 45%, #10b981 100%);
+  --grad-primary-hover: linear-gradient(135deg, #a6fbf2 0%, #3eecdb 45%, #19c48d 100%);
+  --grad-text: linear-gradient(180deg, #f0fdfa 0%, #7af7ea 55%, #2ee6d6 100%);
+  --zone-halo: rgb(34 227 208 / 0.15);
+  --zone-halo-2: rgb(16 185 129 / 0.08);
+}
+
+/*
+ * QR Security: the same components under a crimson light. Every token the components use is
+ * re-mapped here, so the zone needs no per-component overrides.
+ */
+.zone-threat {
+  --glow: 251 113 133; /* rose */
+  --glow-deep: 225 29 72; /* crimson */
+  --grad-primary: linear-gradient(135deg, #fda4af 0%, #fb7185 40%, #e11d48 100%);
+  --grad-primary-hover: linear-gradient(135deg, #fecdd3 0%, #fda4af 40%, #f43f5e 100%);
+  --grad-text: linear-gradient(180deg, #fff1f3 0%, #fda4af 60%, #fb7185 100%);
+  --zone-halo: rgb(225 29 72 / 0.22);
+  --zone-halo-2: rgb(127 29 45 / 0.25);
+  --color-canvas: #0a0406;
+  --color-surface: #160a0d;
+  --color-surface-raised: #1d0d11;
+  --color-ink: #fff1f3;
+  --color-accent: #fb7185;
+  --color-accent-soft: #2e0f17;
+  --color-accent-line: #5f1d2c;
+  --color-on-accent: #ffffff;
+  --color-slate-50: #12070a;
+  --color-slate-100: #1d0c11;
+  --color-slate-200: #2a1218;
+  --color-slate-300: #3f1c24;
+  --color-slate-400: #7a5e65;
+  --color-slate-500: #b39aa0;
+  --color-slate-600: #cdb6bb;
+  --color-slate-700: #e2cfd3;
+  --color-slate-800: #f0e3e6;
+  --color-slate-900: #f8eff1;
+  --color-blue-400: #fb7185;
+  --color-blue-500: #f43f5e;
+  --color-blue-600: #e11d48;
+}
+
 @layer base {
   :root {
-    color-scheme: light;
+    color-scheme: dark;
   }
   html {
     -webkit-tap-highlight-color: transparent;
@@ -80,24 +175,25 @@
   body {
     @apply font-sans text-slate-800 antialiased;
     background-color: var(--color-canvas);
-    /* Inter: single-storey "a" for a calmer, document-like texture. */
-    font-feature-settings: 'cv11';
+    font-feature-settings: 'cv11', 'ss03';
+    /* A turquoise halo above, a faint emerald one below; fixed so long pages keep it. */
+    background-image:
+      radial-gradient(70rem 36rem at 80% -12%, var(--zone-halo), transparent 62%),
+      radial-gradient(56rem 34rem at -12% 112%, var(--zone-halo-2), transparent 60%);
+    background-attachment: fixed;
   }
   h1,
   h2,
   h3 {
-    letter-spacing: -0.021em;
+    letter-spacing: -0.022em;
     text-wrap: balance;
   }
-  p {
-    text-wrap: pretty;
-  }
   ::selection {
-    background: rgb(10 106 78 / 0.22);
-    color: var(--color-ink);
+    background: rgb(var(--glow) / 0.35);
+    color: #fff;
   }
   :focus-visible {
-    outline: 2px solid var(--color-accent);
+    outline: 2px solid rgb(var(--glow));
     outline-offset: 2px;
   }
   input,
@@ -113,6 +209,10 @@
       font-size: 0.9375rem;
     }
   }
+  select option {
+    background-color: var(--color-surface-raised);
+    color: var(--color-ink);
+  }
   * {
     scrollbar-color: var(--color-slate-300) transparent;
   }
@@ -125,74 +225,107 @@
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
-  /* Cards: a sheet of paper lying on the desk, with a crisp edge and a soft shadow. */
-  .surface-card {
-    background: var(--color-surface);
-    box-shadow: var(--shadow-card);
-    border: 1px solid rgb(14 36 29 / 0.08);
-  }
-  /* Primary: the seal green, slightly embossed. */
-  .btn-primary {
-    background: linear-gradient(180deg, #0d7656, #0a6a4e);
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.16),
-      inset 0 -1px 0 rgb(0 0 0 / 0.12);
-  }
-  .btn-primary:hover:not(:disabled) {
-    background: linear-gradient(180deg, #0b6b4f, #085a42);
-  }
-  /* The "teal" variant is now the ink button: for the one decisive action on a band or a page. */
-  .btn-teal {
-    background: var(--color-ink);
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.12),
-      0 0 0 1px rgb(255 255 255 / 0.06);
-  }
-  .btn-teal:hover:not(:disabled) {
-    background: #17362c;
-  }
-  /* Kept for compatibility: headings are set in solid ink, not gradients. */
-  .text-gradient {
-    color: var(--color-ink);
-  }
-  /* Bands: passport-cover green printed with a guilloché line pattern. */
-  .hero-grid {
-    background-color: var(--color-navy-900);
+  .zone-backdrop {
+    background-color: var(--color-canvas);
     background-image:
-      radial-gradient(60rem 30rem at 85% -20%, rgb(134 191 168 / 0.18), transparent 60%),
-      url('/guilloche.svg');
-    background-size:
-      auto,
-      240px 120px;
-    color: #fff;
+      radial-gradient(70rem 36rem at 80% -12%, var(--zone-halo), transparent 62%),
+      radial-gradient(56rem 34rem at -12% 112%, var(--zone-halo-2), transparent 60%);
+    transition: background-color 0.4s ease;
   }
-  .glass {
-    background: rgb(250 251 249 / 0.84);
-    -webkit-backdrop-filter: blur(12px) saturate(140%);
-    backdrop-filter: blur(12px) saturate(140%);
+  /* Cards: a dark plate with a lit top edge, a fine border tinted by the zone's light, deep shadow. */
+  .surface-card {
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.035), rgb(255 255 255 / 0) 120px),
+      var(--color-surface);
+    box-shadow: var(--shadow-card);
+    border: 1px solid rgb(var(--glow) / 0.09);
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
   }
-  .sidebar-panel {
+  /* The one hero card on a page: a luminous gradient edge. */
+  .card-lit {
+    position: relative;
+    isolation: isolate;
+  }
+  .card-lit::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    background: linear-gradient(140deg, rgb(var(--glow) / 0.7), rgb(var(--glow) / 0) 35%, rgb(var(--glow) / 0) 68%, rgb(var(--glow-deep) / 0.45));
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+  /* Interactive cards brighten their edge on hover; no movement. */
+  .card-hover:hover {
+    border-color: rgb(var(--glow) / 0.28);
+  }
+  .btn-primary,
+  .btn-teal {
+    background: var(--grad-primary);
+    color: var(--color-on-accent);
+  }
+  .btn-primary:hover:not(:disabled),
+  .btn-teal:hover:not(:disabled) {
+    background: var(--grad-primary-hover);
+  }
+  .text-gradient {
+    background: var(--grad-text);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .text-glow {
+    color: rgb(var(--glow));
+  }
+  .hero-grid {
     background-color: var(--color-navy-950);
     background-image:
-      linear-gradient(180deg, rgb(6 32 26 / 0) 0%, rgb(6 32 26 / 0.9) 70%),
-      url('/guilloche.svg');
+      radial-gradient(circle at 85% 0%, rgb(var(--glow) / 0.22), transparent 45%),
+      radial-gradient(circle at 10% 100%, rgb(var(--glow-deep) / 0.14), transparent 45%),
+      linear-gradient(rgb(var(--glow) / 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--glow) / 0.035) 1px, transparent 1px);
     background-size:
       auto,
-      240px 120px;
-    border-right: 1px solid rgb(0 0 0 / 0.2);
+      auto,
+      44px 44px,
+      44px 44px;
   }
-  /* Thin perforation line, like the tear-off edge of a ticket or a cheque. */
-  .perforation {
-    background-image: radial-gradient(circle, var(--color-slate-300) 1px, transparent 1.5px);
-    background-size: 8px 4px;
-    background-repeat: repeat-x;
-    height: 4px;
+  .glass {
+    background: rgb(4 13 15 / 0.72);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    backdrop-filter: blur(16px) saturate(150%);
+  }
+  .zone-threat .glass,
+  .glass.zone-threat {
+    background: rgb(14 5 8 / 0.75);
+  }
+  .sidebar-panel {
+    background:
+      radial-gradient(26rem 18rem at 0% 0%, rgb(34 227 208 / 0.1), transparent 60%),
+      linear-gradient(180deg, #071416 0%, #03090b 100%);
+    border-right: 1px solid rgb(34 227 208 / 0.08);
+  }
+  /* The seam: a thin turquoise-to-crimson line where the threat zone begins. */
+  .zone-seam {
+    height: 1px;
+    background: linear-gradient(90deg, rgb(34 227 208 / 0), rgb(34 227 208 / 0.6) 30%, rgb(251 113 133 / 0.8) 70%, rgb(251 113 133 / 0));
+  }
+  .num {
+    font-feature-settings: 'tnum', 'cv11';
+    letter-spacing: -0.02em;
   }
   /* The seal draws its lines once when it first appears. */
   .seal-draw path {
     stroke-dasharray: 1;
     stroke-dashoffset: 1;
-    animation: seal-draw 2.4s cubic-bezier(0.6, 0, 0.2, 1) forwards;
+    animation: seal-draw 2.6s cubic-bezier(0.6, 0, 0.2, 1) forwards;
   }
   .seal-draw path:nth-child(2) {
     animation-delay: 0.25s;

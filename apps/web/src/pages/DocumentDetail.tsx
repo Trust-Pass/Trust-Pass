@@ -175,7 +175,7 @@ export function DocumentDetailPage() {
         <aside className="space-y-5">
           <Card className="p-4 sm:p-5">
             <h2 className="flex items-center gap-2 font-semibold text-ink">
-              <KeyRound className="size-4 text-teal-600" /> Protection
+              <KeyRound className="size-4 text-teal-400" /> Protection
             </h2>
             <dl className="mt-3 space-y-2.5 text-sm">
               <div className="flex justify-between gap-2"><dt className="text-slate-500">Encryption</dt><dd className="font-medium text-ink">{doc.encryption.algorithm}</dd></div>
@@ -210,7 +210,7 @@ export function DocumentDetailPage() {
             <Button variant="secondary" className="w-full" icon={<Download className="size-4" />} onClick={downloadOriginal}>
               Download original
             </Button>
-            <Button variant="ghost" className="w-full text-red-600 hover:bg-red-50" icon={<Trash2 className="size-4" />} onClick={() => setConfirmDelete(true)}>
+            <Button variant="ghost" className="w-full text-red-400 hover:bg-red-50" icon={<Trash2 className="size-4" />} onClick={() => setConfirmDelete(true)}>
               Delete permanently
             </Button>
           </Card>
@@ -227,7 +227,7 @@ export function DocumentDetailPage() {
         body={
           <>
             <p>All sharing links stop working immediately. The encryption key is destroyed, so the file can never be decrypted again, even from a backup.</p>
-            {remove.error && <p className="mt-2 text-red-600">{errorMessage(remove.error)}</p>}
+            {remove.error && <p className="mt-2 text-red-400">{errorMessage(remove.error)}</p>}
           </>
         }
       />

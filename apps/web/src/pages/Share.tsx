@@ -18,7 +18,7 @@ function Step({ n, title, icon, children }: { n: number; title: string; icon: Re
   return (
     <Card className="p-4 sm:p-5">
       <div className="mb-4 flex items-center gap-2.5">
-        <span className="flex size-7 items-center justify-center rounded-full bg-accent text-xs font-semibold text-white tabular-nums">{n}</span>
+        <span className="flex size-7 items-center justify-center rounded-full btn-primary text-xs font-bold shadow-glow">{n}</span>
         <h2 className="flex items-center gap-2 font-semibold text-ink">
           {icon}
           {title}
@@ -143,8 +143,8 @@ export function SharePage() {
       <div className="mx-auto max-w-xl">
         <Card className="overflow-hidden">
           <div className="hero-grid px-5 py-8 text-center text-white">
-            <Seal size={96} draw className="mx-auto text-navy-200" />
-            <h1 className="mt-3 text-xl font-semibold">Your secure link is ready</h1>
+            <Seal size={104} draw className="text-accent drop-shadow-[0_0_20px_rgb(34_227_208/0.45)]" />
+            <h1 className="mt-4 text-xl font-semibold">Your secure link is ready</h1>
             <p className="mt-1 text-sm text-navy-100">Send it to {recipientType === 'organization' ? org?.name : recipientLabel}. It stops working on {formatDateTime(result.expiresAt)}.</p>
           </div>
           <div className="space-y-4 p-5">

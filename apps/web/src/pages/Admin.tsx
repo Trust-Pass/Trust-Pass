@@ -232,7 +232,7 @@ function HealthTab() {
         <ul className="divide-y divide-slate-100">
           {data?.checks.map((c) => (
             <li key={c.name} className="flex items-start gap-3 px-5 py-3">
-              {c.ok ? <CheckCircle2 className="mt-0.5 size-5 text-teal-600" /> : <XCircle className="mt-0.5 size-5 text-red-600" />}
+              {c.ok ? <CheckCircle2 className="mt-0.5 size-5 text-teal-400" /> : <XCircle className="mt-0.5 size-5 text-red-400" />}
               <div>
                 <p className="text-sm font-medium text-ink">{c.name}</p>
                 <p className="text-[13px] text-slate-600">{c.detail}</p>

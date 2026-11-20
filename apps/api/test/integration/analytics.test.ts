@@ -55,6 +55,20 @@ describe('access analytics', () => {
     expect(daily.reduce((n: number, d: { granted: number; denied: number }) => n + d.granted + d.denied, 0)).toBe(6);
   });
 
+  it('dashboard: 14-day series matches the attempts, and key protection is reported without secrets', async () => {
+    const { owner } = await scenario();
+    const res = await as(ctx, owner, { method: 'GET', url: '/api/dashboard' });
+    expect(res.statusCode).toBe(200);
+    const { daily, protection, counts } = res.json();
+    expect(daily).toHaveLength(14);
+    expect(daily.reduce((n: number, d: { granted: number; denied: number }) => n + d.granted + d.denied, 0)).toBe(6);
+    expect(daily.reduce((n: number, d: { granted: number }) => n + d.granted, 0)).toBe(3);
+    expect(daily.at(-1).date).toBe(new Date(ctx.clock.now).toISOString().slice(0, 10));
+    expect(counts.attempts7d).toBe(6);
+    expect(Object.keys(protection).sort()).toEqual(['keyProvider', 'kms']);
+    expect(protection.kms).toBe(protection.keyProvider === 'gcp-kms');
+  });
+
   it('filters by document and by date', async () => {
     const { owner, docId } = await scenario();
     const other = (await uploadDocument(ctx, owner, { title: 'Other' })).json().document.id;

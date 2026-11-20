@@ -31,6 +31,8 @@ interface NavItem {
   label: string;
   icon: ReactNode;
   end?: boolean;
+  /** Opens the crimson threat zone (QR Security). */
+  threat?: boolean;
 }
 
 function useNavItems(): NavItem[] {
@@ -41,7 +43,7 @@ function useNavItems(): NavItem[] {
     { to: '/app/links', label: 'Sharing links', icon: <Link2 className="size-5" /> },
     { to: '/app/analytics', label: 'Access analytics', icon: <BarChart3 className="size-5" /> },
     { to: '/app/verify', label: 'Verify a document', icon: <BadgeCheck className="size-5" /> },
-    { to: '/app/scan', label: 'QR Scanner', icon: <QrCode className="size-5" /> },
+    { to: '/app/scan', label: 'QR Security', icon: <QrCode className="size-5" />, threat: true },
     { to: '/app/activity', label: 'Activity log', icon: <ScrollText className="size-5" /> },
     { to: '/app/credentials', label: 'Demo University', icon: <GraduationCap className="size-5" /> },
   ];
@@ -64,9 +66,13 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
           className={({ isActive }) =>
             clsx(
               'flex h-11 items-center gap-3 rounded-xl px-3 text-[15px] font-medium transition-colors',
-              isActive
-                ? 'bg-white/[0.09] text-white shadow-[inset_3px_0_0_#86bfa8]'
-                : 'text-navy-200 hover:bg-white/5 hover:text-white',
+              item.threat
+                ? isActive
+                  ? 'bg-gradient-to-r from-[#e11d48]/30 to-[#e11d48]/0 text-[#ffe4e9] shadow-[inset_2px_0_0_#fb7185]'
+                  : 'text-[#fda4af]/85 hover:bg-[#e11d48]/10 hover:text-[#ffe4e9]'
+                : isActive
+                  ? 'bg-gradient-to-r from-[#22e3d0]/20 to-[#22e3d0]/0 text-white shadow-[inset_2px_0_0_#2ee6d6]'
+                  : 'text-navy-200 hover:bg-white/[0.045] hover:text-white',
             )
           }
         >
@@ -232,8 +238,8 @@ export function AppLayout() {
   };
 
   const userBlock = (
-    <div className="flex items-center gap-3 rounded-xl bg-white/[0.04] p-3 ring-1 ring-white/[0.06]">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-navy-200 text-sm font-semibold text-navy-950 ring-2 ring-navy-300/40 ring-offset-2 ring-offset-navy-950">{initials(me.user.fullName)}</div>
+    <div className="flex items-center gap-3 rounded-2xl bg-white/[0.035] p-3 ring-1 ring-[#22e3d0]/10">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#7af7ea,#0ea594)] text-sm font-bold text-[#021412] shadow-[0_0_16px_-4px_rgb(34_227_208/0.7)]">{initials(me.user.fullName)}</div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-white">{me.user.fullName}</p>
         <p className="truncate text-xs text-navy-300">{me.organizations[0]?.name ?? me.user.email}</p>
@@ -253,12 +259,17 @@ export function AppLayout() {
     </>
   );
 
+  // QR Security is the crimson threat zone; everything else is the turquoise vault.
+  const threat = location.pathname.startsWith('/app/scan');
+
   // The docked sidebar only exists on desktop; on smaller screens only the drawer counts.
   const isDesktop = useIsDesktop();
   const menuExpanded = isDesktop ? dockedOpen : drawerOpen;
 
   return (
-    <div className={clsx('min-h-dvh transition-[padding] duration-200', dockedOpen && 'lg:pl-72')}>
+    <div className={clsx('min-h-dvh transition-[padding] duration-200', dockedOpen && 'lg:pl-72', threat && 'zone-threat')} data-zone={threat ? 'threat' : 'vault'}>
+      {/* The zone's own light behind the page: turquoise in the vault, crimson in QR Security. */}
+      <div className="zone-backdrop pointer-events-none fixed inset-0 -z-10" aria-hidden />
       {/* Desktop sidebar (docked). Hidden on smaller screens, where the drawer below is used. */}
       <aside
         id="app-sidebar"
@@ -276,7 +287,7 @@ export function AppLayout() {
       </aside>
 
       {/* Top bar: the only navigation bar, on every screen size. */}
-      <header className="glass sticky top-0 z-30 border-b border-slate-200">
+      <header className={clsx('glass sticky top-0 z-30', threat ? 'border-b border-transparent' : 'border-b border-white/[0.06]')}>
         <div className="page-pad flex h-14 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <button
@@ -296,7 +307,7 @@ export function AppLayout() {
           <div className="flex min-w-0 items-center gap-3">
             <p className="hidden min-w-0 truncate text-sm text-slate-500 lg:block">
               Signed in as <span className="font-medium text-ink">{me.user.email}</span>
-              {me.user.role === 'admin' && <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent ring-1 ring-accent-line">Admin</span>}
+              {me.user.role === 'admin' && <span className="ml-2 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent ring-1 ring-accent/30">Admin</span>}
             </p>
             <button
               type="button"
@@ -313,6 +324,7 @@ export function AppLayout() {
             </button>
           </div>
         </div>
+        {threat && <div className="zone-seam" aria-hidden />}
       </header>
 
       <main key={location.pathname} className="page-pad mx-auto max-w-6xl pt-5 pb-12 sm:pt-7">
@@ -324,7 +336,7 @@ export function AppLayout() {
         <button
           type="button"
           tabIndex={-1}
-          className={clsx('absolute inset-0 bg-navy-950/55 backdrop-blur-[2px] transition-opacity duration-200', drawerOpen ? 'opacity-100' : 'opacity-0')}
+          className={clsx('absolute inset-0 bg-navy-950/70 backdrop-blur-[2px] transition-opacity duration-200', drawerOpen ? 'opacity-100' : 'opacity-0')}
           onClick={closeDrawer}
           aria-label="Close menu"
         />
