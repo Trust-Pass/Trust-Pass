@@ -1,0 +1,29 @@
+name: deps-update (one-off)
+on:
+  push:
+    branches: ['claude/pre-redesign-hardening']
+permissions:
+  contents: write
+jobs:
+  update:
+    if: ${{ !contains(github.event.head_commit.message, '[deps-bot]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply the effect override (GHSA-7589-6fvf-x4pw) to the lockfile
+        run: |
+          pnpm install --no-frozen-lockfile
+          pnpm why effect || true
+          pnpm audit --prod --audit-level high
+      - name: Commit the lockfile
+        run: |
+          git config user.name "deps-bot"
+          git config user.email "deps-bot@users.noreply.github.com"
+          git rm -q .github/workflows/deps-update.yml
+          git add -A
+          git commit -m "Deps: effect >=3.22.1 via override (GHSA-7589-6fvf-x4pw, ReDoS; prisma config) [deps-bot]"
+          git push origin HEAD:claude/pre-redesign-hardening
