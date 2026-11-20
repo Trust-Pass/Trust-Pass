@@ -20,17 +20,6 @@ function AuthShell({ title, subtitle, children, footer }: { title: string; subti
         <Link to="/" aria-label="TrustPass home">
           <Logo />
         </Link>
-        <nav className="flex items-center gap-5 text-sm font-medium text-slate-700 sm:gap-10 sm:text-[15px]" aria-label="Site">
-          <Link to="/#security" className="hover:text-white">
-            Security
-          </Link>
-          <Link to="/#features" className="hidden hover:text-white sm:inline">
-            Features
-          </Link>
-          <Link to="/#about" className="hover:text-white">
-            About
-          </Link>
-        </nav>
       </header>
 
       <main className="relative">
