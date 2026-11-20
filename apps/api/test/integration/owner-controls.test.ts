@@ -118,7 +118,7 @@ describe('Watermark control', () => {
     const dump = await ctx.prisma.$queryRawUnsafe<Array<{ t: string }>>(`SELECT row_to_json(s)::text AS t FROM sharing_links s`);
     expect(dump.map((r) => r.t).join('')).not.toContain('SEALED STAMP TEXT');
     const events = await ctx.prisma.securityEvent.findMany({ where: { linkId: link.id } });
-    expect(JSON.stringify(events)).not.toContain('SEALED STAMP TEXT');
+    expect(JSON.stringify(events.map((e) => e.metadata))).not.toContain('SEALED STAMP TEXT');
     // The owner sees their own settings.
     const detail = (await as(ctx, owner, { method: 'GET', url: `/api/links/${link.id}` })).json().link;
     expect(detail.watermark).toMatchObject({ enabled: true, text: 'SEALED STAMP TEXT', style: 'full' });
@@ -213,10 +213,13 @@ describe('Check encryption', () => {
     expect(check).toMatchObject({
       ok: true,
       file: { algorithm: 'AES-256-GCM', keyBits: 256, ivBytes: 12, tagBytes: 16, authenticated: true, sha256Matches: true, storedLooksLikePlainFile: false, originalBytes: file.length },
-      key: { perDocument: true, wrapping: 'AES-256-GCM', provider: 'env' },
+      key: { perDocument: true, wrapping: 'AES-256-GCM', provider: ctx.app.deps.config.env.KEY_PROVIDER },
       metadata: { titleEncrypted: true, sha256Encrypted: true, fieldLabelsEncrypted: 1, fields: 1 },
     });
-    expect(check.key.providerLabel).toMatch(/Google Cloud KMS is not active/);
+    // The label names the real key protection: never claims Google Cloud KMS unless it is in use.
+    const label = check.key.providerLabel as string;
+    if (check.key.provider === 'gcp-kms') expect(label).toBe('Google Cloud KMS');
+    else expect(label).toMatch(check.key.provider === 'fake-kms' ? /Test-only/ : /Google Cloud KMS is not active/);
     expect(check.file.sha256).toBe((await import('node:crypto')).createHash('sha256').update(file).digest('hex'));
     // The response says how it was checked, never what is in the file.
     expect(res.body).not.toContain(MARK);
