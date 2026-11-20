@@ -72,7 +72,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @trustpass/api db:generate
       - run: pnpm --filter @trustpass/web build
-      - run: pnpm --filter @trustpass/e2e exec playwright install --with-deps chromium
+      - run: pnpm --filter @trustpass/e2e exec playwright install --with-deps chromium webkit
       - name: End-to-end tests (phone and desktop)
         run: pnpm e2e
       - name: Upload UI screenshots
