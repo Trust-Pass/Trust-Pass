@@ -65,7 +65,7 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
             clsx(
               'flex h-11 items-center gap-3 rounded-xl px-3 text-[15px] font-medium transition-colors',
               isActive
-                ? 'bg-gradient-to-r from-blue-500/25 to-blue-500/5 text-white shadow-[inset_2px_0_0_#60a5fa]'
+                ? 'bg-white/[0.09] text-white shadow-[inset_3px_0_0_#86bfa8]'
                 : 'text-navy-200 hover:bg-white/5 hover:text-white',
             )
           }
@@ -233,7 +233,7 @@ export function AppLayout() {
 
   const userBlock = (
     <div className="flex items-center gap-3 rounded-xl bg-white/[0.04] p-3 ring-1 ring-white/[0.06]">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-300 to-blue-500 text-sm font-bold text-navy-950">{initials(me.user.fullName)}</div>
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-navy-200 text-sm font-semibold text-navy-950 ring-2 ring-navy-300/40 ring-offset-2 ring-offset-navy-950">{initials(me.user.fullName)}</div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-white">{me.user.fullName}</p>
         <p className="truncate text-xs text-navy-300">{me.organizations[0]?.name ?? me.user.email}</p>
@@ -276,7 +276,7 @@ export function AppLayout() {
       </aside>
 
       {/* Top bar: the only navigation bar, on every screen size. */}
-      <header className="glass sticky top-0 z-30 border-b border-white/[0.06]">
+      <header className="glass sticky top-0 z-30 border-b border-slate-200">
         <div className="page-pad flex h-14 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <button
@@ -296,7 +296,7 @@ export function AppLayout() {
           <div className="flex min-w-0 items-center gap-3">
             <p className="hidden min-w-0 truncate text-sm text-slate-500 lg:block">
               Signed in as <span className="font-medium text-ink">{me.user.email}</span>
-              {me.user.role === 'admin' && <span className="ml-2 rounded-full bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-200 ring-1 ring-blue-400/30">Admin</span>}
+              {me.user.role === 'admin' && <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent ring-1 ring-accent-line">Admin</span>}
             </p>
             <button
               type="button"
@@ -324,7 +324,7 @@ export function AppLayout() {
         <button
           type="button"
           tabIndex={-1}
-          className={clsx('absolute inset-0 bg-navy-950/70 backdrop-blur-[2px] transition-opacity duration-200', drawerOpen ? 'opacity-100' : 'opacity-0')}
+          className={clsx('absolute inset-0 bg-navy-950/55 backdrop-blur-[2px] transition-opacity duration-200', drawerOpen ? 'opacity-100' : 'opacity-0')}
           onClick={closeDrawer}
           aria-label="Close menu"
         />

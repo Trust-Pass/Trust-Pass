@@ -59,7 +59,7 @@ export function CredentialsPage() {
       <Card className="overflow-hidden">
         <div className="hero-grid flex items-center gap-3 px-5 py-5 text-white">
           <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/20">
-            <GraduationCap className="size-7 text-teal-300" />
+            <GraduationCap className="size-7 text-navy-100" />
           </div>
           <div>
             <p className="font-bold">Request an enrollment certificate</p>
@@ -89,7 +89,7 @@ export function CredentialsPage() {
 
       <Card className="mt-5 p-5">
         <h2 className="flex items-center gap-2 font-semibold text-ink">
-          <KeyRound className="size-4 text-teal-400" /> What you get
+          <KeyRound className="size-4 text-teal-600" /> What you get
         </h2>
         <ul className="mt-3 space-y-2 text-sm text-slate-600">
           <li>• A PDF certificate whose SHA-256 fingerprint is signed by the issuer. Change one byte and it verifies as Invalid.</li>

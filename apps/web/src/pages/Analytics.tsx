@@ -140,13 +140,13 @@ export function AnalyticsPage() {
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData} margin={{ left: -20, right: 8 }}>
-                      <CartesianGrid vertical={false} stroke="#1b2c57" />
-                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#93a5cb' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#93a5cb' }} tickLine={false} axisLine={false} />
-                      <Tooltip cursor={{ fill: 'rgba(59,130,246,0.08)' }} contentStyle={{ background: '#0f1d3d', border: '1px solid #24407a', borderRadius: 12, color: '#f1f5ff' }} labelStyle={{ color: '#f1f5ff' }} />
+                      <CartesianGrid vertical={false} stroke="#d5ded7" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#5f7166' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#5f7166' }} tickLine={false} axisLine={false} />
+                      <Tooltip cursor={{ fill: 'rgba(10,106,78,0.06)' }} contentStyle={{ background: '#ffffff', border: '1px solid #d5ded7', borderRadius: 12, color: '#0e241d' }} labelStyle={{ color: '#0e241d' }} />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="granted" name="Granted" stackId="a" fill="#2dd4bf" radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="denied" name="Denied" stackId="a" fill="#f87171" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="granted" name="Granted" stackId="a" fill="#0a6a4e" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="denied" name="Denied" stackId="a" fill="#dc2626" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -190,7 +190,7 @@ export function AnalyticsPage() {
                         {d.title}
                       </button>
                       <span className="shrink-0 text-sm text-slate-600">
-                        <span className="text-teal-700">{d.granted}</span> / <span className="text-red-400">{d.denied}</span>
+                        <span className="text-teal-700">{d.granted}</span> / <span className="text-red-600">{d.denied}</span>
                       </span>
                     </li>
                   ))}

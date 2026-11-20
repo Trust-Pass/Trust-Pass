@@ -35,7 +35,7 @@ export function RecipientPage() {
 
   return (
     <div className="min-h-dvh">
-      <header className="glass border-b border-white/[0.06]">
+      <header className="glass border-b border-slate-200">
         <div className="page-pad mx-auto flex h-14 max-w-3xl items-center justify-between">
           <Link to="/">
             <Logo />

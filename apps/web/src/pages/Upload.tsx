@@ -86,7 +86,7 @@ export function UploadPage() {
               dragging ? 'border-teal-500 bg-teal-50' : 'border-slate-300 hover:border-accent hover:bg-slate-50',
             )}
           >
-            <div className="rounded-2xl bg-gradient-to-br from-blue-500/30 to-teal-400/10 p-3 text-teal-300 ring-1 ring-inset ring-white/10">
+            <div className="rounded-2xl bg-accent-soft p-3 text-accent ring-1 ring-inset ring-accent-line">
               <FileUp className="size-6" />
             </div>
             {file ? (
@@ -130,7 +130,7 @@ export function UploadPage() {
             <div key={i} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
               <Input aria-label={`Field ${i + 1} name`} placeholder="Field" value={c.label} maxLength={60} onChange={(e) => setClaims((cs) => cs.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} />
               <Input aria-label={`Field ${i + 1} value`} placeholder="Value" value={c.value} maxLength={200} onChange={(e) => setClaims((cs) => cs.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} />
-              <button type="button" onClick={() => setClaims((cs) => cs.filter((_, j) => j !== i))} className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-400" aria-label={`Remove field ${i + 1}`}>
+              <button type="button" onClick={() => setClaims((cs) => cs.filter((_, j) => j !== i))} className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600" aria-label={`Remove field ${i + 1}`}>
                 <Trash2 className="size-4" />
               </button>
             </div>
@@ -146,7 +146,7 @@ export function UploadPage() {
           <div className="rounded-xl bg-surface p-4 ring-1 ring-slate-200">
             <div className="flex items-center justify-between text-sm">
               <span className="flex items-center gap-1.5 font-medium text-ink">
-                <Lock className="size-4 text-teal-400" />
+                <Lock className="size-4 text-teal-600" />
                 {progress < 1 ? 'Uploading over HTTPS…' : 'Validating and encrypting…'}
               </span>
               <span className="text-slate-500">{Math.round(progress * 100)}%</span>

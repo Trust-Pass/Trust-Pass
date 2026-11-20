@@ -7,6 +7,7 @@ import { api } from '../lib/api';
 import { useMe } from '../lib/auth';
 import { country, relativeTime } from '../lib/format';
 import type { AccessOutcome } from '../lib/types';
+import { Seal } from '../components/Seal';
 
 interface DashboardData {
   counts: { documents: number; verifiedCredentials: number; activeLinks: number; attempts7d: number; granted7d: number; denied7d: number };
@@ -25,20 +26,17 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="hero-grid relative flex animate-rise flex-col gap-4 overflow-hidden rounded-3xl border border-white/[0.08] px-5 py-6 shadow-lift sm:flex-row sm:items-end sm:justify-between sm:px-7 sm:py-8">
-        <div className="pointer-events-none absolute -top-24 -right-16 size-64 rounded-full bg-blue-500/20 blur-3xl" aria-hidden />
+      <div className="hero-grid relative flex animate-rise flex-col gap-5 overflow-hidden rounded-3xl px-5 py-7 shadow-lift sm:flex-row sm:items-end sm:justify-between sm:px-8 sm:py-9">
+        <Seal size={260} emblem={false} className="pointer-events-none absolute -top-16 -right-14 text-navy-200 opacity-30" />
         <div className="relative">
-          <p className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-0.5 text-xs font-medium text-teal-300 ring-1 ring-white/10">
-            <span className="size-1.5 rounded-full bg-teal-300 shadow-[0_0_8px_#5eead4]" aria-hidden /> Dashboard
-          </p>
-          <h1 className="text-gradient mt-2 text-2xl font-bold tracking-tight sm:text-[32px]">Hello, {firstName}</h1>
-          <p className="mt-1 text-[15px] text-slate-600">Here is what happened with your documents.</p>
+          <h1 className="text-[28px] leading-tight font-semibold text-white sm:text-[34px]">Hello, {firstName}</h1>
+          <p className="mt-1.5 text-[15px] text-navy-100">Here is what happened with your documents.</p>
         </div>
         <div className="relative flex flex-wrap gap-2">
-          <ButtonLink to="/app/documents/upload" icon={<Upload className="size-4" />}>
+          <ButtonLink to="/app/documents/upload" variant="secondary" icon={<Upload className="size-4" />}>
             Upload
           </ButtonLink>
-          <ButtonLink to="/app/credentials" variant="secondary" icon={<GraduationCap className="size-4" />}>
+          <ButtonLink to="/app/credentials" variant="band" icon={<GraduationCap className="size-4" />}>
             Demo credential
           </ButtonLink>
         </div>
@@ -46,9 +44,9 @@ export function DashboardPage() {
 
       {onboarding && (
         <Card className="overflow-hidden">
-          <div className="px-5 py-6 text-white sm:px-6">
-            <h2 className="text-lg font-bold">Try the full TrustPass flow in 2 minutes</h2>
-            <p className="mt-1 text-sm text-navy-100">Works best with a second phone or a friend nearby.</p>
+          <div className="px-5 py-6 sm:px-6">
+            <h2 className="text-lg font-semibold text-ink">Try the full TrustPass flow in 2 minutes</h2>
+            <p className="mt-1 text-sm text-slate-600">Works best with a second phone or a friend nearby.</p>
             <ol className="mt-4 space-y-3 text-sm">
               {[
                 ['Get a signed demo credential', '/app/credentials', 'Demo University issues you an enrollment certificate with an Ed25519 signature.'],
@@ -56,12 +54,12 @@ export function DashboardPage() {
                 ['Open the link on another device', '/app/links', 'Then revoke it and watch it stop working, live.'],
               ].map(([title, to, body], i) => (
                 <li key={title} className="flex gap-3">
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-teal-500 text-xs font-bold text-navy-950">{i + 1}</span>
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-white tabular-nums">{i + 1}</span>
                   <span>
-                    <Link to={to!} className="font-semibold underline decoration-teal-400 underline-offset-2">
+                    <Link to={to!} className="font-semibold text-ink underline decoration-accent-line underline-offset-4 hover:decoration-accent">
                       {title}
                     </Link>
-                    <span className="block text-navy-200">{body}</span>
+                    <span className="block text-slate-600">{body}</span>
                   </span>
                 </li>
               ))}

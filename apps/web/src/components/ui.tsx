@@ -31,15 +31,17 @@ import type { AccessOutcome, LinkStatus, TrustStatus } from '../lib/types';
 // Buttons
 // ---------------------------------------------------------------------------
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'teal';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'teal' | 'band';
 type Size = 'sm' | 'md' | 'lg';
 
 const variants: Record<Variant, string> = {
   primary: 'btn-primary text-white shadow-glow',
-  teal: 'btn-teal text-navy-950 font-semibold shadow-glow-teal',
-  secondary: 'bg-white/[0.04] text-ink ring-1 ring-inset ring-slate-300 hover:bg-white/[0.08] hover:ring-slate-400/60 active:bg-white/[0.02]',
-  ghost: 'text-ink hover:bg-white/[0.06] active:bg-white/[0.03]',
+  teal: 'btn-teal text-white font-semibold shadow-glow-teal',
+  secondary: 'bg-white text-ink ring-1 ring-inset ring-slate-300 shadow-[0_1px_0_rgb(14_36_29/0.04)] hover:bg-slate-50 hover:ring-slate-400 active:bg-slate-100',
+  ghost: 'text-ink hover:bg-ink/[0.05] active:bg-ink/[0.08]',
   danger: 'bg-red-600 text-white hover:bg-red-500 active:bg-red-600 shadow-sm',
+  /** Outline button for the dark green bands. */
+  band: 'text-white ring-1 ring-inset ring-white/30 hover:bg-white/10 active:bg-white/5',
 };
 const sizes: Record<Size, string> = {
   sm: 'h-9 px-3 text-sm gap-1.5',
@@ -113,7 +115,7 @@ export function PageHeader({ title, description, actions, back }: { title: React
       {back}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-gradient text-2xl font-bold tracking-tight sm:text-[30px]">{title}</h1>
+          <h1 className="text-2xl font-semibold text-ink sm:text-[30px] sm:leading-[1.15]">{title}</h1>
           {description && <p className="mt-1.5 max-w-2xl text-[15px] text-slate-600">{description}</p>}
         </div>
         {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
@@ -126,16 +128,15 @@ export function StatCard({ label, value, hint, icon, tone = 'navy' }: { label: s
   const tones = {
     navy: 'bg-accent-soft text-accent',
     teal: 'bg-teal-50 text-teal-700',
-    red: 'bg-red-50 text-red-400',
+    red: 'bg-red-50 text-red-600',
     amber: 'bg-amber-50 text-amber-700',
     slate: 'bg-slate-100 text-slate-600',
   };
   return (
     <Card className="relative overflow-hidden p-4">
-      <div className="pointer-events-none absolute -top-10 -right-10 size-28 rounded-full bg-blue-500/10 blur-2xl" aria-hidden />
       <div className="flex items-start justify-between gap-2">
         <p className="text-[13px] font-medium text-slate-500">{label}</p>
-        {icon && <div className={clsx('rounded-lg p-1.5 ring-1 ring-inset ring-white/5', tones[tone])}>{icon}</div>}
+        {icon && <div className={clsx('rounded-lg p-1.5 ring-1 ring-inset ring-black/5', tones[tone])}>{icon}</div>}
       </div>
       <p className="mt-1.5 text-[26px] font-bold tracking-tight text-ink tabular-nums">{value}</p>
       {hint && <p className="mt-0.5 text-xs text-slate-500">{hint}</p>}
@@ -157,7 +158,7 @@ export function EmptyState({ icon, title, body, action }: { icon: ReactNode; tit
 export function Spinner({ label = 'Loading' }: { label?: string }) {
   return (
     <div role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-slate-500">
-      <Loader2 className="size-5 animate-spin text-teal-400" aria-hidden />
+      <Loader2 className="size-5 animate-spin text-accent" aria-hidden />
       {label}…
     </div>
   );
@@ -170,9 +171,9 @@ export function Spinner({ label = 'Loading' }: { label?: string }) {
 type AlertTone = 'info' | 'success' | 'warning' | 'error';
 const alertStyles: Record<AlertTone, { box: string; icon: ReactNode }> = {
   info: { box: 'bg-accent-soft text-ink ring-accent-line', icon: <Info className="size-5 text-accent" /> },
-  success: { box: 'bg-teal-50 text-teal-950 ring-teal-100', icon: <CheckCircle2 className="size-5 text-teal-400" /> },
-  warning: { box: 'bg-amber-50 text-amber-950 ring-amber-100', icon: <AlertTriangle className="size-5 text-amber-400" /> },
-  error: { box: 'bg-red-50 text-red-900 ring-red-100', icon: <XCircle className="size-5 text-red-400" /> },
+  success: { box: 'bg-teal-50 text-teal-950 ring-teal-100', icon: <CheckCircle2 className="size-5 text-teal-600" /> },
+  warning: { box: 'bg-amber-50 text-amber-950 ring-amber-100', icon: <AlertTriangle className="size-5 text-amber-600" /> },
+  error: { box: 'bg-red-50 text-red-900 ring-red-100', icon: <XCircle className="size-5 text-red-600" /> },
 };
 
 export function Alert({ tone = 'info', title, children, className }: { tone?: AlertTone; title?: ReactNode; children?: ReactNode; className?: string }) {
@@ -250,19 +251,19 @@ export function Field({ label, error, hint, children, htmlFor }: { label: ReactN
         {label}
       </label>
       {children}
-      {error ? <p className="text-sm text-red-400">{error}</p> : hint ? <p className="text-[13px] text-slate-500">{hint}</p> : null}
+      {error ? <p className="text-sm text-red-600">{error}</p> : hint ? <p className="text-[13px] text-slate-500">{hint}</p> : null}
     </div>
   );
 }
 
 const inputBase =
-  'block w-full rounded-xl border-0 bg-slate-50/80 px-3.5 py-2.5 text-ink shadow-sm ring-1 ring-inset ring-slate-300 transition-shadow placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-blue-400 focus:shadow-[0_0_0_4px_rgb(59_130_246/0.15)] focus:outline-none disabled:bg-slate-50 disabled:text-slate-500';
+  'block w-full rounded-xl border-0 bg-white px-3.5 py-2.5 text-ink shadow-[inset_0_1px_2px_rgb(14_36_29/0.05)] ring-1 ring-inset ring-slate-300 transition-shadow placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-accent focus:shadow-[0_0_0_4px_rgb(10_106_78/0.12)] focus:outline-none disabled:bg-slate-50 disabled:text-slate-500';
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean }>(function Input(
   { className, invalid, ...rest },
   ref,
 ) {
-  return <input ref={ref} className={clsx(inputBase, invalid && 'ring-red-400', className)} aria-invalid={invalid || undefined} {...rest} />;
+  return <input ref={ref} className={clsx(inputBase, invalid && 'ring-red-500', className)} aria-invalid={invalid || undefined} {...rest} />;
 });
 
 export function Select({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
@@ -287,7 +288,7 @@ export function Toggle({ checked, onChange, label, description }: { checked: boo
       </span>
       <span className="relative mt-0.5 inline-flex shrink-0">
         <input id={id} type="checkbox" className="peer sr-only" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-        <span className="h-6 w-11 rounded-full bg-slate-300 transition-colors peer-checked:bg-teal-500 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-teal-500" />
+        <span className="h-6 w-11 rounded-full bg-slate-300 transition-colors peer-checked:bg-accent peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent" />
         <span className="absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
       </span>
     </label>
@@ -306,7 +307,7 @@ export function Segmented<T extends string>({ value, onChange, options, label }:
           onClick={() => onChange(o.value)}
           className={clsx(
             'h-10 rounded-xl px-3.5 text-sm font-medium ring-1 ring-inset transition-colors',
-            value === o.value ? 'bg-blue-600 text-white ring-blue-400/60 shadow-glow' : 'bg-surface text-ink ring-slate-300 hover:bg-slate-50',
+            value === o.value ? 'bg-accent text-white ring-accent shadow-glow' : 'bg-white text-ink ring-slate-300 hover:bg-slate-50',
           )}
         >
           {o.label}
@@ -319,7 +320,7 @@ export function Segmented<T extends string>({ value, onChange, options, label }:
 export function Tabs<T extends string>({ value, onChange, tabs }: { value: T; onChange: (v: T) => void; tabs: Array<{ value: T; label: ReactNode; count?: number }> }) {
   return (
     <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <div role="tablist" className="inline-flex gap-1 rounded-xl bg-slate-50/80 p-1 ring-1 ring-inset ring-slate-200">
+      <div role="tablist" className="inline-flex gap-1 rounded-xl bg-slate-100 p-1 ring-1 ring-inset ring-slate-200">
         {tabs.map((t) => (
           <button
             key={t.value}
@@ -329,7 +330,7 @@ export function Tabs<T extends string>({ value, onChange, tabs }: { value: T; on
             onClick={() => onChange(t.value)}
             className={clsx(
               'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium whitespace-nowrap transition-colors',
-              value === t.value ? 'bg-blue-500/20 text-white shadow-sm ring-1 ring-inset ring-blue-400/30' : 'text-slate-600 hover:text-ink',
+              value === t.value ? 'bg-white text-ink shadow-sm ring-1 ring-inset ring-slate-200' : 'text-slate-600 hover:text-ink',
             )}
           >
             {t.label}
@@ -360,7 +361,7 @@ export function Modal({ open, onClose, title, children, footer }: { open: boolea
       onClick={(e) => {
         if (e.target === ref.current) onClose();
       }}
-      className="m-0 mt-auto w-full max-w-none rounded-t-3xl bg-surface-raised p-0 text-slate-800 shadow-lift ring-1 ring-slate-200 backdrop:bg-navy-950/70 backdrop:backdrop-blur-sm sm:m-auto sm:max-w-lg sm:rounded-2xl"
+      className="m-0 mt-auto w-full max-w-none rounded-t-3xl bg-surface-raised p-0 text-slate-800 shadow-lift ring-1 ring-slate-200 backdrop:bg-navy-950/55 backdrop:backdrop-blur-sm sm:m-auto sm:max-w-lg sm:rounded-2xl"
     >
       <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
         <h2 className="text-base font-semibold text-ink">{title}</h2>

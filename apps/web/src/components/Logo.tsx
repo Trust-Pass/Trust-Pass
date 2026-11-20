@@ -1,31 +1,27 @@
 import clsx from 'clsx';
-import { useId } from 'react';
 
-export function ShieldMark({ className }: { className?: string }) {
-  // Unique per instance: a gradient defined inside a hidden copy (e.g. the closed drawer) would not paint.
-  const gradientId = `tp-shield-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+/** The TrustPass mark: a shield engraved with the rings of the seal, and a check. */
+export function ShieldMark({ className, light = false }: { className?: string; light?: boolean }) {
+  const fill = light ? '#b7dacb' : '#0a6a4e';
+  const line = light ? '#0a2d23' : '#ffffff';
   return (
     <svg viewBox="0 0 64 64" className={className} aria-hidden>
-      <defs>
-        <linearGradient id={gradientId} x1="12" y1="6" x2="52" y2="58" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#5eead4" />
-          <stop offset="1" stopColor="#3b82f6" />
-        </linearGradient>
-      </defs>
-      <path d="M32 6 52 14v15c0 13-8.5 23.8-20 27-11.5-3.2-20-14-20-27V14z" fill={`url(#${gradientId})`} />
-      <path d="M32 6 52 14v15c0 13-8.5 23.8-20 27V6z" fill="#ffffff" fillOpacity="0.12" />
-      <path d="m23 32 6.5 6.5L42 26" fill="none" stroke="#06102a" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M32 5 53 13v16c0 13.5-8.8 24.6-21 28-12.2-3.4-21-14.5-21-28V13z" fill={fill} />
+      <g fill="none" stroke={line} strokeOpacity="0.22" strokeWidth="0.9">
+        <circle cx="32" cy="30" r="17" />
+        <circle cx="32" cy="30" r="12.5" />
+      </g>
+      <path d="m23.5 30.5 6 6L41 25" fill="none" stroke={line} strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-export function Logo({ className }: { /** Kept for callers; the logo is light on every background now. */ light?: boolean; className?: string }) {
+/** `light`: for use on the dark green bands (pale mark, white name). */
+export function Logo({ light = false, className }: { light?: boolean; className?: string }) {
   return (
     <span className={clsx('inline-flex items-center gap-2', className)}>
-      <ShieldMark className="size-8" />
-      <span className={clsx('text-lg font-bold tracking-tight', 'text-white')}>
-        Trust<span className="bg-gradient-to-r from-teal-300 to-blue-400 bg-clip-text text-transparent">Pass</span>
-      </span>
+      <ShieldMark className="size-8" light={light} />
+      <span className={clsx('text-lg font-semibold tracking-[-0.02em]', light ? 'text-white' : 'text-ink')}>TrustPass</span>
     </span>
   );
 }

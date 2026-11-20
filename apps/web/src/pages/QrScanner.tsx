@@ -57,9 +57,9 @@ const VERDICT_UI = {
 } as const;
 
 const SEVERITY_UI: Record<QrSeverity, { label: string; tone: 'red' | 'amber' | 'slate' | 'navy'; icon: ReactNode }> = {
-  critical: { label: 'Critical', tone: 'red', icon: <ShieldX className="size-4 text-red-400" /> },
-  high: { label: 'High', tone: 'red', icon: <AlertTriangle className="size-4 text-red-400" /> },
-  medium: { label: 'Medium', tone: 'amber', icon: <AlertTriangle className="size-4 text-amber-400" /> },
+  critical: { label: 'Critical', tone: 'red', icon: <ShieldX className="size-4 text-red-600" /> },
+  high: { label: 'High', tone: 'red', icon: <AlertTriangle className="size-4 text-red-600" /> },
+  medium: { label: 'Medium', tone: 'amber', icon: <AlertTriangle className="size-4 text-amber-600" /> },
   low: { label: 'Low', tone: 'slate', icon: <Info className="size-4 text-slate-500" /> },
   info: { label: 'Info', tone: 'navy', icon: <Info className="size-4 text-accent" /> },
 };
@@ -331,7 +331,7 @@ function ResultPanel({ result, onAgain, againLabel }: { result: CheckResponse; o
               </dd>
               <dt className="text-slate-500">Connection</dt>
               <dd className="flex items-center gap-1.5 text-ink">
-                {analysis.url.scheme === 'https' ? <Lock className="size-4 text-teal-400" /> : <LockOpen className="size-4 text-amber-400" />}
+                {analysis.url.scheme === 'https' ? <Lock className="size-4 text-teal-600" /> : <LockOpen className="size-4 text-amber-600" />}
                 {analysis.url.scheme === 'https' ? 'Encrypted (https)' : `Not encrypted (${analysis.url.scheme})`}
               </dd>
             </dl>
@@ -555,7 +555,7 @@ export function QrScannerPage() {
                   'TrustPass share links: whether the link is genuine and still active',
                 ].map((t) => (
                   <li key={t} className="flex gap-2.5">
-                    <ShieldCheck className="mt-0.5 size-4 shrink-0 text-teal-400" />
+                    <ShieldCheck className="mt-0.5 size-4 shrink-0 text-teal-600" />
                     {t}
                   </li>
                 ))}

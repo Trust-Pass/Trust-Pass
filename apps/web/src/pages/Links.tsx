@@ -169,7 +169,7 @@ export function LinksPage() {
                       <Globe2 className="size-3.5" /> {l.countries.length ? l.countries.map(flag).join(' ') : 'Any country'}
                     </span>
                     <span>
-                      {l.attempts.granted} views · <span className={l.attempts.denied ? 'font-medium text-red-400' : ''}>{l.attempts.denied} blocked</span>
+                      {l.attempts.granted} views · <span className={l.attempts.denied ? 'font-medium text-red-600' : ''}>{l.attempts.denied} blocked</span>
                     </span>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -187,7 +187,7 @@ export function LinksPage() {
                         >
                           Countries
                         </Button>
-                        <Button size="sm" variant="secondary" className="text-red-400" icon={<Ban className="size-4" />} onClick={() => setRevoking(l)}>
+                        <Button size="sm" variant="secondary" className="text-red-600" icon={<Ban className="size-4" />} onClick={() => setRevoking(l)}>
                           Revoke
                         </Button>
                       </>
@@ -216,7 +216,7 @@ export function LinksPage() {
             <p>
               {revoking?.recipientOrg ?? revoking?.recipientLabel} will no longer be able to open "{revoking?.document.title}". This takes effect on the next request and cannot be undone.
             </p>
-            {revoke.error && <p className="mt-2 text-red-400">{errorMessage(revoke.error)}</p>}
+            {revoke.error && <p className="mt-2 text-red-600">{errorMessage(revoke.error)}</p>}
           </>
         }
       />
@@ -238,7 +238,7 @@ export function LinksPage() {
       >
         <p className="mb-4 text-sm text-slate-600">Leave empty to allow any country. Location is approximate (IP-based).</p>
         <CountryPicker value={countries} onChange={setCountries} />
-        {saveCountries.error && <p className="mt-3 text-sm text-red-400">{errorMessage(saveCountries.error)}</p>}
+        {saveCountries.error && <p className="mt-3 text-sm text-red-600">{errorMessage(saveCountries.error)}</p>}
       </Modal>
     </div>
   );

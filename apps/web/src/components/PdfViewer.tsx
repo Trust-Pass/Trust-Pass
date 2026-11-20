@@ -65,7 +65,7 @@ export function PdfViewer({ src, label }: { src: string; label: string }) {
     <div>
       {state.status === 'loading' && (
         <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-500">
-          <Loader2 className="size-5 animate-spin text-teal-400" /> Decrypting and rendering…
+          <Loader2 className="size-5 animate-spin text-teal-600" /> Decrypting and rendering…
         </div>
       )}
       {state.status === 'error' && (

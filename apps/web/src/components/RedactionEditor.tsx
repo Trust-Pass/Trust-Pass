@@ -134,7 +134,7 @@ export const RedactionEditor = forwardRef<RedactionEditorHandle, {
       </p>
     );
   }
-  if (state.status === 'error') return <p className="py-4 text-sm text-red-400">The pages could not be prepared: {state.message}</p>;
+  if (state.status === 'error') return <p className="py-4 text-sm text-red-600">The pages could not be prepared: {state.message}</p>;
 
   return (
     <div className="space-y-3" data-testid="redaction-editor">

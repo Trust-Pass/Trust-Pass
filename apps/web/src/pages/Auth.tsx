@@ -20,8 +20,8 @@ function AuthShell({ title, subtitle, children, footer }: { title: string; subti
         </div>
       </div>
       <div className="-mt-16 flex-1 px-4 pb-10 sm:-mt-20">
-        <div className="mx-auto max-w-md surface-card glass rounded-3xl p-6 shadow-lift sm:p-8">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{title}</h1>
+        <div className="surface-card mx-auto max-w-md rounded-3xl p-6 shadow-lift sm:p-8">
+          <h1 className="text-2xl font-semibold text-ink">{title}</h1>
           {subtitle && <p className="mt-1.5 text-sm text-slate-600">{subtitle}</p>}
           <div className="mt-6">{children}</div>
         </div>
@@ -146,12 +146,12 @@ export function RegisterPage() {
       onClick={() => setAccountType(value)}
       className={clsx(
         'flex flex-1 flex-col items-start gap-1 rounded-2xl p-3.5 text-left ring-1 ring-inset transition-colors',
-        accountType === value ? 'bg-blue-600 text-white ring-blue-400/60 shadow-glow' : 'bg-surface text-ink ring-slate-300 hover:bg-slate-50',
+        accountType === value ? 'bg-accent text-white ring-accent shadow-glow' : 'bg-white text-ink ring-slate-300 hover:bg-slate-50',
       )}
     >
       {icon}
       <span className="text-sm font-semibold">{label}</span>
-      <span className={clsx('text-xs', accountType === value ? 'text-navy-200' : 'text-slate-500')}>{hint}</span>
+      <span className={clsx('text-xs', accountType === value ? 'text-navy-100' : 'text-slate-500')}>{hint}</span>
     </button>
   );
 

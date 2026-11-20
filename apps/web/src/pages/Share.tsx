@@ -1,7 +1,7 @@
 import { EXPIRY_LABELS, REDACTION_MAX_TOTAL_BYTES, type Redaction } from '@trustpass/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { ArrowLeft, Building2, CheckCircle2, Clock, ExternalLink, FileText, Globe2, ListChecks, Send, Share2, Users, Download } from 'lucide-react';
+import { ArrowLeft, Building2, Clock, ExternalLink, FileText, Globe2, ListChecks, Send, Share2, Users, Download } from 'lucide-react';
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { CountryPicker } from '../components/CountryPicker';
@@ -10,6 +10,7 @@ import { Alert, Badge, Button, ButtonLink, Card, CopyButton, Field, Input, PageH
 import { api, ApiError, errorMessage } from '../lib/api';
 import { flag, formatDateTime } from '../lib/format';
 import type { DocumentDetail } from '../lib/types';
+import { Seal } from '../components/Seal';
 
 type Expiry = '1h' | '24h' | '3d' | '7d' | 'custom';
 
@@ -17,7 +18,7 @@ function Step({ n, title, icon, children }: { n: number; title: string; icon: Re
   return (
     <Card className="p-4 sm:p-5">
       <div className="mb-4 flex items-center gap-2.5">
-        <span className="flex size-7 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-xs font-bold text-white shadow-glow">{n}</span>
+        <span className="flex size-7 items-center justify-center rounded-full bg-accent text-xs font-semibold text-white tabular-nums">{n}</span>
         <h2 className="flex items-center gap-2 font-semibold text-ink">
           {icon}
           {title}
@@ -142,8 +143,8 @@ export function SharePage() {
       <div className="mx-auto max-w-xl">
         <Card className="overflow-hidden">
           <div className="hero-grid px-5 py-8 text-center text-white">
-            <CheckCircle2 className="mx-auto size-12 text-teal-400" />
-            <h1 className="mt-3 text-xl font-bold">Your secure link is ready</h1>
+            <Seal size={96} draw className="mx-auto text-navy-200" />
+            <h1 className="mt-3 text-xl font-semibold">Your secure link is ready</h1>
             <p className="mt-1 text-sm text-navy-100">Send it to {recipientType === 'organization' ? org?.name : recipientLabel}. It stops working on {formatDateTime(result.expiresAt)}.</p>
           </div>
           <div className="space-y-4 p-5">

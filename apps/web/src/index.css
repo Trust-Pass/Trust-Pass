@@ -1,85 +1,59 @@
 @import 'tailwindcss';
 
 /*
- * TrustPass "Midnight" theme: a dark navy and electric-blue interface.
+ * TrustPass "Security paper" theme.
  *
- * The neutral (slate) scale is mirrored for a dark UI: low numbers are dark surfaces, high numbers
- * are light text, so `bg-slate-50` is a sunken panel and `text-slate-500` is muted text. Pale tints
- * of the status colours (50–200) become deep tints and their dark shades (700–950) become light,
- * so alerts, badges and verdict boxes read correctly on navy without per-page overrides.
+ * The interface borrows from the things people already trust with their identity: passports,
+ * banknotes and certificates. Pages are a cool, pale security paper; bands (page heroes, the
+ * sidebar, the success moment of a share) are the deep green of a passport cover, printed with a
+ * fine guilloché line pattern; the one signature element is the rosette seal (components/Seal.tsx).
+ *
+ * The slate scale is a green-tinted neutral for a light UI. The "navy" scale name is kept for
+ * compatibility and now holds the passport-green band colours (light tints for text on bands).
+ * Status colours (red, amber, emerald, teal) use Tailwind's own light-mode scales.
  */
 @theme {
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
-  --color-navy-50: #eef3fb;
-  --color-navy-100: #d9e3f5;
-  --color-navy-200: #b3c6ea;
-  --color-navy-300: #7f9fd8;
-  --color-navy-400: #4f76c0;
-  --color-navy-500: #2f56a3;
-  --color-navy-600: #213f82;
-  --color-navy-700: #1a3268;
-  --color-navy-800: #132650;
-  --color-navy-900: #0b1b3b;
-  --color-navy-950: #060f24;
+  /* Passport-cover greens: 950–700 are band backgrounds, 300–50 are text and lines on bands. */
+  --color-navy-50: #eef6f2;
+  --color-navy-100: #dcede5;
+  --color-navy-200: #b7dacb;
+  --color-navy-300: #86bfa8;
+  --color-navy-400: #4c9a7f;
+  --color-navy-500: #227a5e;
+  --color-navy-600: #176049;
+  --color-navy-700: #11483a;
+  --color-navy-800: #0d3a2d;
+  --color-navy-900: #0a2d23;
+  --color-navy-950: #06201a;
 
-  /* Surfaces and text */
-  --color-canvas: #050b1c;
-  --color-surface: #0b1631;
-  --color-surface-raised: #0f1d3d;
-  --color-ink: #f1f5ff;
-  --color-accent: #8fb4ff;
-  --color-accent-soft: #13254d;
-  --color-accent-line: #24407a;
+  /* Paper, ink and the seal green */
+  --color-canvas: #edf1ec;
+  --color-surface: #fafbf9;
+  --color-surface-raised: #ffffff;
+  --color-ink: #0e241d;
+  --color-accent: #0a6a4e;
+  --color-accent-soft: #ddede5;
+  --color-accent-line: #a7cdbb;
 
-  --color-slate-50: #08122a;
-  --color-slate-100: #11204a;
-  --color-slate-200: #1b2c57;
-  --color-slate-300: #2a3f72;
-  --color-slate-400: #6b80ad;
-  --color-slate-500: #93a5cb;
-  --color-slate-600: #aebcdc;
-  --color-slate-700: #c7d2ea;
-  --color-slate-800: #dde4f4;
-  --color-slate-900: #edf1fa;
-  --color-slate-950: #f7f9fe;
+  /* Green-grey neutrals */
+  --color-slate-50: #f4f7f3;
+  --color-slate-100: #e8eee8;
+  --color-slate-200: #d5ded7;
+  --color-slate-300: #b7c5bc;
+  --color-slate-400: #8a9c91;
+  --color-slate-500: #5f7166;
+  --color-slate-600: #485950;
+  --color-slate-700: #35443c;
+  --color-slate-800: #23312a;
+  --color-slate-900: #16211c;
+  --color-slate-950: #0b130f;
 
-  --color-teal-50: #072b33;
-  --color-teal-100: #0a3a43;
-  --color-teal-200: #0f5a63;
-  --color-teal-700: #5eead4;
-  --color-teal-800: #99f6e4;
-  --color-teal-900: #ccfbf1;
-  --color-teal-950: #e6fffa;
-
-  --color-emerald-50: #062b22;
-  --color-emerald-100: #083a2d;
-  --color-emerald-200: #0d5641;
-  --color-emerald-700: #6ee7b7;
-  --color-emerald-800: #a7f3d0;
-  --color-emerald-900: #d1fae5;
-  --color-emerald-950: #ecfdf5;
-
-  --color-red-50: #2a0f1d;
-  --color-red-100: #3a1424;
-  --color-red-200: #5c1d33;
-  --color-red-700: #fca5a5;
-  --color-red-800: #fecaca;
-  --color-red-900: #fee2e2;
-  --color-red-950: #fff1f1;
-
-  --color-amber-50: #2a1d0a;
-  --color-amber-100: #3a280d;
-  --color-amber-200: #5a3d12;
-  --color-amber-700: #fcd34d;
-  --color-amber-800: #fde68a;
-  --color-amber-900: #fef3c7;
-  --color-amber-950: #fffbeb;
-
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 32px -18px rgb(0 0 0 / 0.8);
-  --shadow-lift: 0 24px 60px -20px rgb(0 0 0 / 0.85), 0 0 0 1px rgb(143 180 255 / 0.08);
-  --shadow-glow: 0 8px 24px -10px rgb(59 130 246 / 0.75);
-  --shadow-glow-teal: 0 8px 24px -10px rgb(45 212 191 / 0.7);
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.9) inset, 0 1px 2px rgb(14 36 29 / 0.06), 0 8px 24px -16px rgb(14 36 29 / 0.18);
+  --shadow-lift: 0 28px 60px -24px rgb(6 32 26 / 0.45), 0 0 0 1px rgb(14 36 29 / 0.06);
+  --shadow-glow: 0 6px 16px -8px rgb(10 106 78 / 0.55);
+  --shadow-glow-teal: 0 6px 16px -8px rgb(14 36 29 / 0.5);
 
   --animate-rise: rise 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   @keyframes rise {
@@ -96,7 +70,7 @@
 
 @layer base {
   :root {
-    color-scheme: dark;
+    color-scheme: light;
   }
   html {
     -webkit-tap-highlight-color: transparent;
@@ -106,19 +80,25 @@
   body {
     @apply font-sans text-slate-800 antialiased;
     background-color: var(--color-canvas);
-    /* Soft aurora behind every page; fixed so it doesn't scroll with long lists. */
-    background-image:
-      radial-gradient(60rem 40rem at 110% -10%, rgb(37 99 235 / 0.18), transparent 60%),
-      radial-gradient(50rem 36rem at -20% 0%, rgb(20 184 166 / 0.1), transparent 60%),
-      radial-gradient(70rem 50rem at 50% 120%, rgb(30 64 175 / 0.16), transparent 60%);
-    background-attachment: fixed;
+    /* Inter: single-storey "a" for a calmer, document-like texture. */
+    font-feature-settings: 'cv11';
+  }
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.021em;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
   }
   ::selection {
-    background: rgb(59 130 246 / 0.45);
-    color: #fff;
+    background: rgb(10 106 78 / 0.22);
+    color: var(--color-ink);
   }
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-blue-400;
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
   }
   input,
   select,
@@ -133,10 +113,6 @@
       font-size: 0.9375rem;
     }
   }
-  select option {
-    background-color: var(--color-surface-raised);
-    color: var(--color-ink);
-  }
   * {
     scrollbar-color: var(--color-slate-300) transparent;
   }
@@ -149,52 +125,85 @@
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
-  /* Cards: a deep panel with a faint top light and a hairline border that brightens toward the top. */
+  /* Cards: a sheet of paper lying on the desk, with a crisp edge and a soft shadow. */
   .surface-card {
-    background:
-      linear-gradient(180deg, rgb(143 180 255 / 0.05), transparent 120px),
-      var(--color-surface);
+    background: var(--color-surface);
     box-shadow: var(--shadow-card);
-    border: 1px solid rgb(143 180 255 / 0.1);
+    border: 1px solid rgb(14 36 29 / 0.08);
   }
+  /* Primary: the seal green, slightly embossed. */
   .btn-primary {
-    background: linear-gradient(180deg, #3b82f6, #2563eb);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18);
+    background: linear-gradient(180deg, #0d7656, #0a6a4e);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.16),
+      inset 0 -1px 0 rgb(0 0 0 / 0.12);
   }
   .btn-primary:hover:not(:disabled) {
-    background: linear-gradient(180deg, #60a5fa, #3b82f6);
+    background: linear-gradient(180deg, #0b6b4f, #085a42);
   }
+  /* The "teal" variant is now the ink button: for the one decisive action on a band or a page. */
   .btn-teal {
-    background: linear-gradient(180deg, #5eead4, #2dd4bf);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35);
+    background: var(--color-ink);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.12),
+      0 0 0 1px rgb(255 255 255 / 0.06);
   }
   .btn-teal:hover:not(:disabled) {
-    background: linear-gradient(180deg, #99f6e4, #5eead4);
+    background: #17362c;
   }
+  /* Kept for compatibility: headings are set in solid ink, not gradients. */
   .text-gradient {
-    background: linear-gradient(90deg, #ffffff 0%, #a5c4ff 55%, #5eead4 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: var(--color-ink);
   }
+  /* Bands: passport-cover green printed with a guilloché line pattern. */
   .hero-grid {
+    background-color: var(--color-navy-900);
     background-image:
-      linear-gradient(rgb(143 180 255 / 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgb(143 180 255 / 0.05) 1px, transparent 1px),
-      radial-gradient(circle at 20% 10%, rgb(20 184 166 / 0.25), transparent 40%),
-      radial-gradient(circle at 85% 30%, rgb(59 130 246 / 0.4), transparent 45%),
-      linear-gradient(180deg, var(--color-navy-900), var(--color-canvas));
+      radial-gradient(60rem 30rem at 85% -20%, rgb(134 191 168 / 0.18), transparent 60%),
+      url('/guilloche.svg');
     background-size:
-      44px 44px,
-      44px 44px,
       auto,
-      auto,
-      auto;
+      240px 120px;
+    color: #fff;
   }
   .glass {
-    background: rgb(8 18 42 / 0.72);
-    -webkit-backdrop-filter: blur(14px) saturate(140%);
-    backdrop-filter: blur(14px) saturate(140%);
+    background: rgb(250 251 249 / 0.84);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    backdrop-filter: blur(12px) saturate(140%);
+  }
+  .sidebar-panel {
+    background-color: var(--color-navy-950);
+    background-image:
+      linear-gradient(180deg, rgb(6 32 26 / 0) 0%, rgb(6 32 26 / 0.9) 70%),
+      url('/guilloche.svg');
+    background-size:
+      auto,
+      240px 120px;
+    border-right: 1px solid rgb(0 0 0 / 0.2);
+  }
+  /* Thin perforation line, like the tear-off edge of a ticket or a cheque. */
+  .perforation {
+    background-image: radial-gradient(circle, var(--color-slate-300) 1px, transparent 1.5px);
+    background-size: 8px 4px;
+    background-repeat: repeat-x;
+    height: 4px;
+  }
+  /* The seal draws its lines once when it first appears. */
+  .seal-draw path {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: seal-draw 2.4s cubic-bezier(0.6, 0, 0.2, 1) forwards;
+  }
+  .seal-draw path:nth-child(2) {
+    animation-delay: 0.25s;
+  }
+  .seal-draw path:nth-child(3) {
+    animation-delay: 0.5s;
+  }
+  @keyframes seal-draw {
+    to {
+      stroke-dashoffset: 0;
+    }
   }
 }
 
@@ -203,6 +212,7 @@
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
     transition-duration: 0.01ms !important;
   }
 }
@@ -211,13 +221,4 @@
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
-}
-
-@layer components {
-  .sidebar-panel {
-    background:
-      radial-gradient(28rem 20rem at 0% 0%, rgb(59 130 246 / 0.16), transparent 60%),
-      linear-gradient(180deg, #0a1734 0%, #060d22 100%);
-    border-right: 1px solid rgb(143 180 255 / 0.08);
-  }
 }
