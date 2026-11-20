@@ -40,6 +40,11 @@ test('visual tour of the main screens', async ({ page, browser }, info) => {
   await expect(viewer.getByTestId('verification-result')).toBeVisible();
   await viewer.screenshot({ path: `test-results/tour/${info.project.name}-10-recipient.jpg`, fullPage: true, animations: 'disabled', type: 'jpeg', quality: 60 });
 
+  // Back on the dashboard after the recipient's view: the access chart has data now.
+  await page.goto('/app');
+  await expect(page.getByTestId('key-protection')).toBeVisible();
+  await shot('12-dashboard-with-activity');
+
   if (info.project.name === 'mobile') {
     await page.getByRole('button', { name: 'Open menu' }).click();
     await expect(page.getByRole('dialog', { name: 'Menu' })).toBeVisible();

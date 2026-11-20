@@ -26,7 +26,7 @@ function greeting(date = new Date()) {
 
 function Metric({ label, value, note, tone = 'calm' }: { label: string; value: number; note: string; tone?: 'calm' | 'alert' }) {
   return (
-    <div className="min-w-0 border-l border-accent/10 pl-4 first:border-l-0 first:pl-0 sm:pl-5">
+    <div className="min-w-0 border-accent/10 sm:border-l sm:pl-5 sm:first:border-l-0 sm:first:pl-0">
       <p className="text-[12.5px] text-slate-500">{label}</p>
       <p className={clsx('num mt-1.5 text-[32px] leading-none font-semibold', tone === 'alert' && value > 0 ? 'text-red-700' : 'text-ink')}>{value}</p>
       <p className={clsx('mt-2 text-xs', tone === 'alert' && value > 0 ? 'text-red-700' : 'text-glow')}>{note}</p>
@@ -68,27 +68,31 @@ export function DashboardPage() {
 
       {/* The vault: the one lit card on the page. */}
       <Card as="section" className="card-lit overflow-hidden">
-        <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8">
+        <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[auto_1fr] lg:items-center lg:gap-9">
           <div className="hidden lg:block">
             <Seal size={140} className="text-accent drop-shadow-[0_0_22px_rgb(34_227_208/0.35)]" />
           </div>
           <div className="min-w-0">
-            <p className="text-[12.5px] text-slate-500">Vault integrity</p>
-            <h2 className="mt-1 text-[20px] font-semibold text-ink sm:text-[22px]">
-              {onboarding ? 'Your vault is empty and ready' : `All ${counts.documents} ${counts.documents === 1 ? 'document' : 'documents'} encrypted`}
-            </h2>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-[12.5px] text-slate-500">Vault integrity</p>
+                <h2 className="mt-1 text-[20px] font-semibold text-ink sm:text-[22px]">
+                  {onboarding ? 'Your vault is empty and ready' : `All ${counts.documents} ${counts.documents === 1 ? 'document' : 'documents'} encrypted`}
+                </h2>
+              </div>
+            <div className="sm:text-right" data-testid="key-protection">
+              <span className={clsx('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset', kms ? 'bg-teal-50 text-teal-800 ring-teal-200' : 'bg-amber-50 text-amber-800 ring-amber-200')}>
+                <KeyRound className="size-3.5" aria-hidden /> {kms ? 'Keys protected by Google Cloud KMS' : 'Keys protected by the server master key'}
+              </span>
+              {!kms && <p className="mt-2 max-w-64 text-xs text-slate-500 sm:ml-auto">Google Cloud KMS is not active yet. Files are still encrypted with AES-256-GCM.</p>}
+            </div>
+            </div>
             <div className="mt-5 grid grid-cols-2 gap-y-5 sm:grid-cols-4">
               <Metric label="Documents" value={counts.documents} note="AES-256-GCM, own key" />
               <Metric label="Live links" value={counts.activeLinks} note="working right now" />
               <Metric label="Views, 7 days" value={counts.granted7d} note={`${counts.verifiedCredentials} signed credential${counts.verifiedCredentials === 1 ? '' : 's'}`} />
               <Metric label="Blocked, 7 days" value={counts.denied7d} note={counts.denied7d > 0 ? 'see security activity' : 'nothing blocked'} tone="alert" />
             </div>
-          </div>
-          <div className="self-start lg:text-right" data-testid="key-protection">
-            <span className={clsx('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset', kms ? 'bg-teal-50 text-teal-800 ring-teal-200' : 'bg-amber-50 text-amber-800 ring-amber-200')}>
-              <KeyRound className="size-3.5" aria-hidden /> {kms ? 'Keys protected by Google Cloud KMS' : 'Keys protected by the server master key'}
-            </span>
-            {!kms && <p className="mt-2 max-w-56 text-xs text-slate-500 lg:ml-auto">Google Cloud KMS is not active yet. Files are still encrypted with AES-256-GCM.</p>}
           </div>
         </div>
       </Card>

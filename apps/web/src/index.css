@@ -135,8 +135,8 @@
 .zone-threat {
   --glow: 251 113 133; /* rose */
   --glow-deep: 225 29 72; /* crimson */
-  --grad-primary: linear-gradient(135deg, #fda4af 0%, #fb7185 40%, #e11d48 100%);
-  --grad-primary-hover: linear-gradient(135deg, #fecdd3 0%, #fda4af 40%, #f43f5e 100%);
+  --grad-primary: linear-gradient(135deg, #fb7185 0%, #e11d48 55%, #9f1239 100%);
+  --grad-primary-hover: linear-gradient(135deg, #fda4af 0%, #f43f5e 55%, #be123c 100%);
   --grad-text: linear-gradient(180deg, #fff1f3 0%, #fda4af 60%, #fb7185 100%);
   --zone-halo: rgb(225 29 72 / 0.22);
   --zone-halo-2: rgb(127 29 45 / 0.25);
