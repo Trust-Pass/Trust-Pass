@@ -61,3 +61,49 @@ test('visual tour of the main screens', async ({ page, browser }, info) => {
   }
   expect(errors).toEqual([]);
 });
+
+/** Every other screen, for the full design review (screens only, no extra assertions beyond loading). */
+test('visual tour of the remaining screens', async ({ page, browser }, info) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const shot = (name: string) => page.screenshot({ path: `test-results/tour/${info.project.name}-${name}.jpg`, fullPage: true, animations: 'disabled', type: 'jpeg', quality: 60 });
+
+  await page.goto('/register');
+  await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
+  await shot('20-register');
+  await page.goto('/forgot-password');
+  await shot('21-forgot-password');
+
+  await register(page, { name: 'Reham Alkhamees', email: uniqueEmail('tour2') });
+  await page.goto('/app/documents/upload');
+  await shot('22-upload');
+  const docId = await issueCredential(page);
+  await page.goto(`/app/documents/${docId}/share`);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await shot('23-share-form');
+  const url = await shareFields(page, docId, { fields: ['Enrollment status'], recipient: 'Example Company' });
+  const viewer = await newPhone(browser);
+  await viewer.goto(url);
+  await expect(viewer.getByTestId('verification-result')).toBeVisible();
+
+  for (const [path, name] of [
+    ['/app/analytics', '24-analytics'],
+    ['/app/verify', '25-verify'],
+    ['/app/activity', '26-activity'],
+    ['/app/credentials', '27-credentials'],
+    ['/app/settings', '28-settings'],
+    ['/app/scan', '29-qr-camera'],
+    ['/app/no-such-page', '30-not-found'],
+  ] as const) {
+    await page.goto(path);
+    await page.waitForLoadState('networkidle');
+    await shot(name);
+  }
+  await page.goto('/app/scan');
+  await page.getByRole('tab', { name: 'Paste a link' }).click();
+  await page.getByLabel('Link or QR code text').fill('https://www.alrajhibank.com.sa/en');
+  await page.getByRole('button', { name: 'Check', exact: true }).click();
+  await expect(page.getByTestId('qr-verdict')).toHaveAttribute('data-verdict', 'safe');
+  await shot('31-qr-safe');
+  expect(errors).toEqual([]);
+});
