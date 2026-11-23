@@ -14,6 +14,8 @@ const FEATURES = [
 ];
 
 /** A sample of what a recipient sees: two fields shared, two hidden. */
+const TEAM = ['Reham Alkhamees', 'Nouf Alfulaij', 'Layan Alshahrani', 'Rana Alharbi'];
+
 function Specimen() {
   const rows: Array<[string, string | null]> = [
     ['Full name', 'Reham Alkhamees'],
@@ -151,6 +153,17 @@ export function LandingPage() {
               IP Geolocation by DB-IP
             </a>
           </p>
+        </div>
+        <div className="page-pad mx-auto max-w-6xl pb-8" data-testid="credits">
+          <div className="border-t border-accent/10 pt-6 text-center">
+            <p className="text-xs font-medium tracking-wide text-accent">Developed by</p>
+            <ul className="mx-auto mt-3 flex max-w-3xl flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-ink" aria-label="Team members">
+              {TEAM.map((name) => (
+                <li key={name}>{name}</li>
+              ))}
+            </ul>
+            <p className="mt-4 text-xs text-slate-500">© 2026 TrustPass. All rights reserved.</p>
+          </div>
         </div>
       </footer>
     </div>
