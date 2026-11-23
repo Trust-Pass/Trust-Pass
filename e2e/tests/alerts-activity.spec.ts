@@ -44,7 +44,7 @@ async function readAlerts(list: Locator): Promise<Alert[]> {
   return out.sort((a, b) => a.kind!.localeCompare(b.kind!));
 }
 
-test('analytics alerts match the bell exactly; activity log hides and shows sign-in history', async ({ page, browser }, info) => {
+test('analytics alerts match the bell exactly; activity log hides sign-in history by default', async ({ page, browser }, info) => {
   test.setTimeout(150_000);
   const shot = (name: string) => page.screenshot({ path: `test-results/tour/${info.project.name}-${name}.jpg`, fullPage: true, type: 'jpeg', quality: 60 });
   const noSideScroll = async () => expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -72,7 +72,7 @@ test('analytics alerts match the bell exactly; activity log hides and shows sign
   // Document 2: its link runs out (moved into the past in this throwaway test database), then is opened
   // → "Expired link access blocked".
   const payslipId = await upload(page, 'Payslip');
-  const payslipUrl = await shareFields(page, payslipId, { recipient: 'Bank' });
+  const payslipUrl = await shareFields(page, payslipId, { includeFile: true, recipient: 'Bank' });
   expect(sql(`UPDATE sharing_links SET created_at = now() - interval '2 hours', expires_at = now() - interval '1 minute' WHERE document_id = '${payslipId}' RETURNING 1`)).toBe('1');
   expect((await recipient.request.get(`/api/share/${payslipUrl.split('/s/')[1]}`)).status()).toBe(410);
 
@@ -123,38 +123,47 @@ test('analytics alerts match the bell exactly; activity log hides and shows sign
   await expect(analyticsList.getByRole('listitem')).toHaveCount(2);
   expect(await readAlerts(analyticsList)).toEqual(bell);
 
-  // Activity log: sign-ins are there, then hidden, remembered after reloads, and shown again.
-  await page.goto('/app/activity');
+  // Activity log: sign-in history is hidden every time the page opens; "Show sign-in history" shows it,
+  // "Hide sign-in history" hides it again, and a refresh or a new visit starts hidden again.
   const log = page.locator('ol').first();
   const totalShown = async () => Number((await page.getByText(/^\d+ events$/).innerText()).split(' ')[0]);
-  await expect(log.getByText('Signed in', { exact: true }).first()).toBeVisible();
-  const fullTotal = await totalShown();
-  expect(fullTotal).toBeLessThanOrEqual(30); // one page
-  await page.getByRole('button', { name: 'Hide sign-in history' }).click();
-  await expect(page.getByRole('button', { name: 'Show hidden sign-in history' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(log.getByText('Signed in', { exact: true })).toHaveCount(0);
-  await expect(page.getByTestId('sign-ins-hidden')).toContainText('1 sign-in record is hidden from this view. They stay in your security log.');
-  await expect(log.getByText('Sharing link created').first()).toBeVisible();
-  await expect(log.getByText('Account created')).toBeVisible();
-  await expect.poll(totalShown).toBe(fullTotal - 1);
-  await expect(page.getByLabel('Event type').locator('option', { hasText: 'Signed in' })).toHaveCount(0);
-  await noSideScroll();
-  await shot('39-activity-hidden');
-  for (let i = 0; i < 2; i++) {
-    await page.reload();
-    await expect(page.getByRole('button', { name: 'Show hidden sign-in history' })).toBeVisible();
+  const expectHidden = async () => {
+    await expect(page.getByRole('button', { name: 'Show sign-in history' })).toHaveAttribute('aria-pressed', 'false');
     await expect(log.getByText('Sharing link created').first()).toBeVisible();
-    await expect(log.getByText('Signed in', { exact: true })).toHaveCount(0);
-  }
-  await page.getByRole('button', { name: 'Show hidden sign-in history' }).click();
-  await expect(page.getByRole('button', { name: 'Hide sign-in history' })).toHaveAttribute('aria-pressed', 'false');
-  await expect(log.getByText('Signed in', { exact: true }).first()).toBeVisible();
+    await expect(log.getByText(/^(Signed in|Signed out|Session signed out remotely)$/)).toHaveCount(0);
+    await expect(page.getByLabel('Event type').locator('option', { hasText: 'Signed in' })).toHaveCount(0);
+  };
+  await page.goto('/app/activity');
+  await expectHidden();
+  const hiddenTotal = await totalShown();
   await expect(page.getByTestId('sign-ins-hidden')).toHaveCount(0);
-  await expect.poll(totalShown).toBe(fullTotal);
-  await page.reload();
-  await expect(page.getByRole('button', { name: 'Hide sign-in history' })).toBeVisible();
-  await expect(log.getByText('Signed in', { exact: true }).first()).toBeVisible();
   await noSideScroll();
+  await shot('39-activity-default');
+
+  await page.getByRole('button', { name: 'Show sign-in history' }).click();
+  await expect(page.getByRole('button', { name: 'Hide sign-in history' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(log.getByText('Signed in', { exact: true }).first()).toBeVisible();
+  await expect.poll(totalShown).toBe(hiddenTotal + 1); // the one sign-in from the second device
+  expect(hiddenTotal + 1).toBeLessThanOrEqual(30); // one page
+  await expect(page.getByLabel('Event type').locator('option', { hasText: 'Signed in' })).toHaveCount(1);
+  await noSideScroll();
+  await shot('39b-activity-sign-ins-shown');
+
+  await page.getByRole('button', { name: 'Hide sign-in history' }).click();
+  await expectHidden();
+  await expect.poll(totalShown).toBe(hiddenTotal);
+
+  // Shown, then refreshed: hidden again. Same when leaving and reopening the page.
+  await page.getByRole('button', { name: 'Show sign-in history' }).click();
+  await expect(log.getByText('Signed in', { exact: true }).first()).toBeVisible();
+  await page.reload();
+  await expectHidden();
+  await page.getByRole('button', { name: 'Show sign-in history' }).click();
+  await expect(log.getByText('Signed in', { exact: true }).first()).toBeVisible();
+  await page.goto('/app/analytics');
+  await page.goto('/app/activity');
+  await expectHidden();
+  await expect.poll(totalShown).toBe(hiddenTotal);
 
   // Nothing stored was deleted or modified: activity and access records are byte-for-byte the same,
   // and every alert row (shown or hidden) is still there. The log is still append-only.

@@ -30,32 +30,19 @@ function describe(meta: Record<string, unknown>): string | null {
   return parts.length ? parts.join(' · ') : null;
 }
 
-const HIDE_SIGN_INS_KEY = 'trustpass.activity.hideSignIns';
 const SIGN_IN_TYPES: readonly string[] = SIGN_IN_EVENT_TYPES;
-
-/** The choice is remembered in this browser; it only changes what is shown, never the log. */
-function readHideSignIns(): boolean {
-  try {
-    return window.localStorage.getItem(HIDE_SIGN_INS_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
 
 export function ActivityPage() {
   const [page, setPage] = useState(1);
   const [type, setType] = useState('');
-  const [hideSignIns, setHideSignIns] = useState(readHideSignIns);
+  // Sign-in history (sign-ins, sign-outs, ended sessions) is hidden every time the page opens.
+  // This only changes what is shown: the stored log is never touched.
+  const [showSignIns, setShowSignIns] = useState(false);
+  const hideSignIns = !showSignIns;
   const toggleSignIns = () => {
-    const next = !hideSignIns;
-    setHideSignIns(next);
+    setShowSignIns(!showSignIns);
     setPage(1);
-    if (next && SIGN_IN_TYPES.includes(type)) setType('');
-    try {
-      window.localStorage.setItem(HIDE_SIGN_INS_KEY, next ? '1' : '0');
-    } catch {
-      /* the choice then lasts for this visit only */
-    }
+    if (showSignIns && SIGN_IN_TYPES.includes(type)) setType('');
   };
   const qs = new URLSearchParams({ page: String(page), ...(type ? { type } : {}), ...(hideSignIns ? { hideSignIns: '1' } : {}) });
   const { data, isLoading } = useQuery({ queryKey: ['activity', qs.toString()], queryFn: () => api<ActivityPageData>(`/api/activity?${qs}`) });
@@ -87,21 +74,16 @@ export function ActivityPage() {
             </Select>
             <Button
               variant="secondary"
-              aria-pressed={hideSignIns}
-              icon={hideSignIns ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+              aria-pressed={showSignIns}
+              icon={showSignIns ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               onClick={toggleSignIns}
               className="shrink-0"
             >
-              {hideSignIns ? 'Show hidden sign-in history' : 'Hide sign-in history'}
+              {showSignIns ? 'Hide sign-in history' : 'Show sign-in history'}
             </Button>
           </div>
         }
       />
-      {hideSignIns && data && data.hiddenSignIns > 0 && (
-        <p className="mb-3 text-[13px] text-slate-500" role="status" data-testid="sign-ins-hidden">
-          {data.hiddenSignIns} sign-in record{data.hiddenSignIns === 1 ? ' is' : 's are'} hidden from this view. They stay in your security log.
-        </p>
-      )}
       <Card>
         {isLoading || !data ? (
           <Spinner />
