@@ -124,14 +124,14 @@ export function VerifyPage() {
             <Card className="p-5">
               <h2 className="font-semibold text-ink">What the results mean</h2>
               <ul className="mt-3 space-y-3 text-sm text-slate-600">
-                <li className="flex gap-3">
-                  <TrustBadge status="verified" /> The digital signature is valid and the signing key belongs to a trusted issuer registered in TrustPass.
+                <li className="flex items-start gap-3">
+                  <span className="shrink-0"><TrustBadge status="verified" /></span> The digital signature is valid and the signing key belongs to a trusted issuer registered in TrustPass.
                 </li>
-                <li className="flex gap-3">
-                  <TrustBadge status="invalid" /> The signature does not match, or the document was changed after it was signed (or the credential expired).
+                <li className="flex items-start gap-3">
+                  <span className="shrink-0"><TrustBadge status="invalid" /></span> The signature does not match, or the document was changed after it was signed (or the credential expired).
                 </li>
-                <li className="flex gap-3">
-                  <TrustBadge status="unverified" unverifiedLabel="Unable to verify" /> No supported digital signature, or the signer is not a trusted issuer in TrustPass. A document's look or issuer name is never enough.
+                <li className="flex items-start gap-3">
+                  <span className="shrink-0"><TrustBadge status="unverified" unverifiedLabel="Unable to verify" /></span> No supported digital signature, or the signer is not a trusted issuer in TrustPass. A document's look or issuer name is never enough.
                 </li>
               </ul>
             </Card>
