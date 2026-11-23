@@ -99,11 +99,40 @@ describe('SD-JWT selective disclosure', () => {
     expect(result.result).toBe('invalid');
   });
 
-  it('treats a revoked issuer as invalid', async () => {
+  it('cannot verify credentials of a revoked issuer (its key is no longer trusted)', async () => {
     const credential = issue();
     const result = await verifySdJwt(credential.sdJwt, async () => ({ ...issuer, status: 'revoked' }), { now });
-    expect(result.result).toBe('invalid');
+    expect(result.result).toBe('unverified');
     expect(result.reason).toMatch(/revoked/);
+    // A changed credential of a revoked issuer is still invalid: the signature is checked first.
+    const [h, p, sig] = credential.sdJwt.split('~')[0]!.split('.');
+    const forged = `${h}.${p}.${Buffer.from('x'.repeat(64)).toString('base64url')}~`;
+    expect((await verifySdJwt(forged, async () => ({ ...issuer, status: 'revoked' }), { now })).result).toBe('invalid');
+    expect(sig).toBeTruthy();
+  });
+
+  it('never verifies by issuer name: a credential naming the trusted issuer but signed by an unregistered key', async () => {
+    const attacker = ed25519FromSeed(randomBytes(32));
+    const attackerKid = jwkThumbprint(publicKeyToJwk(attacker.publicKey));
+    // Same issuer identifier and claims as the real issuer, attacker's own key.
+    const credential = issue({ privateKey: attacker.privateKey, kid: attackerKid });
+    const result = await verifySdJwt(credential.sdJwt, resolve, { now });
+    expect(result.result).toBe('unverified');
+    expect(result.checks.find((c) => c.name === 'Digital signature')).toBeUndefined();
+  });
+
+  it('marks a valid signature over a credential that claims another issuer as invalid', async () => {
+    const credential = issue({ issuer: 'test:someone-else' });
+    const result = await verifySdJwt(credential.sdJwt, resolve, { now });
+    expect(result.checks.find((c) => c.name === 'Digital signature')?.passed).toBe(true);
+    expect(result.result).toBe('invalid');
+  });
+
+  it('cannot verify an unsupported signature algorithm', async () => {
+    const credential = issue();
+    const [, p, s] = credential.sdJwt.split('~')[0]!.split('.');
+    const header = Buffer.from(JSON.stringify({ alg: 'none', kid })).toString('base64url');
+    expect((await verifySdJwt(`${header}.${p}.${s}~`, resolve, { now })).result).toBe('unverified');
   });
 
   it('treats an expired credential as invalid', async () => {
@@ -121,9 +150,10 @@ describe('SD-JWT selective disclosure', () => {
     expect(bad.reason).toMatch(/modified/);
   });
 
-  it('rejects malformed input', async () => {
-    expect((await verifySdJwt('not-a-credential', resolve, { now })).result).toBe('invalid');
-    expect((await verifySdJwt('a.b.c', resolve, { now })).result).toBe('invalid');
+  it('cannot verify input without a supported signature (never "verified")', async () => {
+    expect((await verifySdJwt('not-a-credential', resolve, { now })).result).toBe('unverified');
+    expect((await verifySdJwt('a.b.c', resolve, { now })).result).toBe('unverified');
+    expect((await verifySdJwt('a.b.c~', resolve, { now })).result).toBe('unverified');
   });
 
   it('rejects duplicated disclosures', async () => {

@@ -27,8 +27,17 @@ const STYLES = {
   },
 };
 
-export function VerificationPanel({ verification, compact = false }: { verification: Verification; compact?: boolean }) {
-  const style = STYLES[verification.result];
+export function VerificationPanel({
+  verification,
+  compact = false,
+  unverifiedTitle,
+}: {
+  verification: Verification;
+  compact?: boolean;
+  /** The Verify page says "Unable to verify"; other pages keep "Unverified". */
+  unverifiedTitle?: string;
+}) {
+  const style = verification.result === 'unverified' && unverifiedTitle ? { ...STYLES.unverified, title: unverifiedTitle } : STYLES[verification.result];
   const Icon = style.icon;
   return (
     <div className={clsx('rounded-2xl p-4 ring-1 ring-inset sm:p-5', style.box)} data-testid="verification-result" data-result={verification.result}>

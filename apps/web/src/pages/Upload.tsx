@@ -1,7 +1,7 @@
 import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS, type Redaction } from '@trustpass/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { ArrowLeft, CheckCircle2, EyeOff, FileUp, KeyRound, Lock, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, EyeOff, FileUp, KeyRound, Lock } from 'lucide-react';
 import { useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { RedactionEditor } from '../components/RedactionEditor';
@@ -10,6 +10,9 @@ import { api, ApiError, errorMessage, uploadWithProgress } from '../lib/api';
 import { formatBytes } from '../lib/format';
 
 const MAX_MB = 10;
+const ACCEPTED = ['application/pdf', 'image/png', 'image/jpeg'];
+/** Shown only when an upload fails or a file is not supported. */
+const ACCEPTED_HINT = `Accepted files: PDF, PNG or JPEG, up to ${MAX_MB} MB.`;
 
 export function UploadPage() {
   const navigate = useNavigate();
@@ -19,7 +22,6 @@ export function UploadPage() {
   const [dragging, setDragging] = useState(false);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<string>('university_certificate');
-  const [claims, setClaims] = useState<Array<{ label: string; value: string }>>([]);
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
@@ -30,7 +32,11 @@ export function UploadPage() {
     if (!f) return;
     setError(null);
     if (f.size > MAX_MB * 1024 * 1024) {
-      setError(`That file is ${formatBytes(f.size)}. The limit is ${MAX_MB} MB.`);
+      setError(`That file is ${formatBytes(f.size)}, which is too large. ${ACCEPTED_HINT}`);
+      return;
+    }
+    if (f.type && !ACCEPTED.includes(f.type)) {
+      setError(`This type of file is not supported. ${ACCEPTED_HINT}`);
       return;
     }
     setFile(f);
@@ -45,7 +51,7 @@ export function UploadPage() {
     setFields({});
     const form = new FormData();
     // Metadata first, then the file: the server reads parts in order.
-    form.append('metadata', JSON.stringify({ title, category, claims: claims.filter((c) => c.label.trim() || c.value.trim()) }));
+    form.append('metadata', JSON.stringify({ title, category, claims: [] }));
     form.append('file', file);
     setProgress(0);
     try {
@@ -63,7 +69,10 @@ export function UploadPage() {
       navigate(`/app/documents/${res.document.id}`);
     } catch (err) {
       if (err instanceof ApiError) setFields(err.fields);
-      setError(errorMessage(err));
+      const message = errorMessage(err);
+      // File problems (unsupported or too large) say what is accepted; other errors do not need to.
+      const fileProblem = err instanceof ApiError && (err.code === 'unsupported_file' || err.code === 'file_too_large' || err.status === 413 || err.status === 415);
+      setError(fileProblem ? `${message} ${ACCEPTED_HINT}` : message);
       setProgress(null);
     }
   };
@@ -77,7 +86,6 @@ export function UploadPage() {
           </Link>
         }
         title="Upload a document"
-        description="PDF, PNG or JPEG up to 10 MB. The file is checked, encrypted with its own AES-256 key, and only then stored."
       />
       <form onSubmit={submit} className="space-y-5">
         <Card className="p-4 sm:p-5">
@@ -132,28 +140,7 @@ export function UploadPage() {
           </Field>
         </Card>
 
-        <Card className="space-y-3 p-4 sm:p-5">
-          <div>
-            <h2 className="font-semibold text-ink">Shareable fields (optional)</h2>
-            <p className="mt-0.5 text-sm text-slate-500">
-              Add facts from the document, like "Job title: Security Analyst", so you can share one fact without the whole file. These are marked <strong>self-declared</strong> because no issuer signed them.
-            </p>
-          </div>
-          {claims.map((c, i) => (
-            <div key={i} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
-              <Input aria-label={`Field ${i + 1} name`} placeholder="Field" value={c.label} maxLength={60} onChange={(e) => setClaims((cs) => cs.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} />
-              <Input aria-label={`Field ${i + 1} value`} placeholder="Value" value={c.value} maxLength={200} onChange={(e) => setClaims((cs) => cs.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} />
-              <button type="button" onClick={() => setClaims((cs) => cs.filter((_, j) => j !== i))} className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-400" aria-label={`Remove field ${i + 1}`}>
-                <Trash2 className="size-4" />
-              </button>
-            </div>
-          ))}
-          <Button variant="secondary" size="sm" icon={<Plus className="size-4" />} onClick={() => setClaims((cs) => [...cs, { label: '', value: '' }])} disabled={claims.length >= 20}>
-            Add a field
-          </Button>
-        </Card>
-
-        {file && ['application/pdf', 'image/png', 'image/jpeg'].includes(file.type) && (
+        {file && ACCEPTED.includes(file.type) && (
           <div data-testid="upload-sensitive">
           <Card className="space-y-3 p-4 sm:p-5">
             <Toggle
@@ -184,11 +171,7 @@ export function UploadPage() {
               </span>
             </div>
           </div>
-          <p className="mt-3 text-[13px] leading-relaxed text-slate-500">
-            TrustPass uses one method for every file: AES-256-GCM, a widely used standard for authenticated encryption. Offering weaker
-            alternatives would only add risk, so there is nothing else to choose. Your file gets its own random key, which is itself
-            encrypted before it is stored. After upload, use <strong>Check encryption now</strong> on the document to verify it yourself.
-          </p>
+          <p className="mt-3 text-[13px] text-slate-500">Your file is encrypted and securely stored.</p>
         </Card>
 
         {error && <Alert tone="error">{error}</Alert>}

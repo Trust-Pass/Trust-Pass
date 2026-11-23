@@ -159,7 +159,7 @@ function IssuersTab() {
   });
   return (
     <div className="space-y-3">
-      <Alert tone="info">Revoking an issuer makes every credential it signed verify as Invalid, immediately. Useful to demonstrate issuer compromise.</Alert>
+      <Alert tone="info">Revoking an issuer means nothing it signed can be verified any more, immediately: its key is no longer trusted. Useful to demonstrate issuer compromise.</Alert>
       {data?.issuers.map((i) => (
         <Card key={i.id} className="p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

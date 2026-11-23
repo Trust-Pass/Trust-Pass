@@ -76,11 +76,32 @@ export async function presentAndVerify(deps: AppDeps, sdJwt: string, disclosures
   return { presentation, outcome };
 }
 
+/** True when a PDF carries its own digital signature field (PAdES / Adobe), a format TrustPass does not check. */
+function hasPdfSignature(data: Buffer): boolean {
+  if (data.subarray(0, 5).toString('latin1') !== '%PDF-') return false;
+  const text = data.toString('latin1');
+  return /\/ByteRange\s*\[/.test(text) && /\/Type\s*\/Sig\b|\/FT\s*\/Sig\b/.test(text);
+}
+
+const unverifiedFile = (reason: string, detail: string): VerificationOutcome => ({
+  result: 'unverified',
+  reason,
+  checks: [{ name: 'Digital signature', passed: false, detail }],
+  issuer: null,
+  claims: [],
+  credentialId: null,
+  documentId: null,
+  expiresAt: null,
+});
+
 /**
- * Verify an arbitrary file:
- *  - its SHA-256 matches a credential signed by a trusted issuer -> check that credential
- *  - it carries a TrustPass credential id but the hash differs   -> Invalid (modified)
- *  - neither                                                     -> Unverified
+ * Verify an arbitrary file. Only a digital signature decides; the file's look, logo or the
+ * issuer name printed on it never does.
+ *  - its SHA-256 is bound into a credential: check that credential's signature, issuer and the hash
+ *      -> verified, or invalid / unverified as the signature check says
+ *  - it names a TrustPass credential but its hash differs: the stored credential's signature is
+ *    checked first; only a genuine signed credential makes the file "invalid" (modified)
+ *  - anything else: unverified (no supported signature, or no trusted issuer to check against)
  */
 export async function verifyFile(deps: AppDeps, data: Buffer): Promise<VerificationOutcome> {
   const fileHash = sha256Hex(data);
@@ -91,42 +112,44 @@ export async function verifyFile(deps: AppDeps, data: Buffer): Promise<Verificat
     return toOutcome(v, { documentId: byHash.documentId });
   }
 
+  // A credential id inside the file is only a pointer: anyone can type one into a PDF.
   const embeddedId = await readCredentialIdFromPdf(data);
   if (embeddedId) {
-    const credential = await deps.prisma.credential.findUnique({ where: { id: embeddedId }, include: { issuer: true } });
+    const credential = await deps.prisma.credential.findUnique({ where: { id: embeddedId } });
     if (credential) {
-      return {
-        result: 'invalid',
-        reason: 'The document was modified after the issuer signed it.',
-        checks: [
-          { name: 'Format', passed: true, detail: 'TrustPass certificate' },
-          { name: 'Trusted issuer', passed: true, detail: credential.issuer.name },
-          { name: 'Document integrity', passed: false, detail: 'SHA-256 of the file does not match the signed hash' },
-        ],
-        issuer: {
-          id: credential.issuer.id,
-          name: credential.issuer.name,
-          simulated: credential.issuer.isSimulated,
-          status: credential.issuer.status,
-        },
-        claims: [],
-        credentialId: credential.id,
-        documentId: null,
-        expiresAt: credential.expiresAt.toISOString(),
-      };
+      const sdJwt = await loadStoredCredential(deps, credential.documentId);
+      const signed = await verifySdJwt(createPresentation(sdJwt, []), issuerResolver(deps), { now: deps.now() });
+      const signatureOk = signed.checks.some((c) => c.name === 'Digital signature' && c.passed);
+      const issuerTrusted = signed.checks.some((c) => c.name === 'Trusted issuer' && c.passed);
+      if (signatureOk && issuerTrusted) {
+        // A genuine credential exists, signed for a different file: this file was changed.
+        return {
+          ...toOutcome(signed),
+          result: 'invalid',
+          reason: 'The document was modified after the issuer signed it.',
+          checks: [
+            ...signed.checks.filter((c) => c.name !== 'Expiry'),
+            { name: 'Document integrity', passed: false, detail: 'SHA-256 of this file does not match the hash the issuer signed' },
+          ],
+          claims: [],
+        };
+      }
+      // The credential it points to cannot itself be verified (revoked issuer or broken signature).
+      return { ...toOutcome(signed), result: 'unverified', reason: `This file cannot be verified: ${signed.reason.charAt(0).toLowerCase()}${signed.reason.slice(1)}`, claims: [] };
     }
   }
 
-  return {
-    result: 'unverified',
-    reason: 'No trusted issuer signature was found for this file. An uploaded file alone does not prove it is authentic.',
-    checks: [{ name: 'Trusted issuer', passed: false, detail: 'No signed credential matches this file' }],
-    issuer: null,
-    claims: [],
-    credentialId: null,
-    documentId: null,
-    expiresAt: null,
-  };
+  if (hasPdfSignature(data)) {
+    return unverifiedFile(
+      'This PDF has a digital signature in a format TrustPass cannot check (PDF signatures). Check it in a PDF reader that validates signatures.',
+      'PDF signature found; TrustPass checks only credentials from issuers in its registry',
+    );
+  }
+
+  return unverifiedFile(
+    'No supported digital signature was found. A file alone, however it looks, does not prove it is authentic.',
+    'No signed credential from a registered issuer matches this file',
+  );
 }
 
 export async function recordVerification(

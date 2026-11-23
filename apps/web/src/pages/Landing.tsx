@@ -1,6 +1,6 @@
 import { Clock, FileLock2, ListChecks, QrCode, ShieldAlert, Stamp } from 'lucide-react';
 import { useEffect } from 'react';
-import { Link, useLocation } from 'react-router';
+import { useLocation } from 'react-router';
 import { Logo } from '../components/Logo';
 import { Seal } from '../components/Seal';
 import { ButtonLink } from '../components/ui';
@@ -72,22 +72,14 @@ export function LandingPage() {
     <div className="min-h-dvh overflow-x-clip">
       <header className="page-pad mx-auto flex h-20 max-w-6xl items-center justify-between">
         <Logo />
-        <nav className="flex items-center gap-1 sm:gap-2">
-          {me ? (
+        {/* Signed-out visitors use the two buttons under the headline. */}
+        {me && (
+          <nav className="flex items-center gap-1 sm:gap-2">
             <ButtonLink to="/app" size="sm">
               Open dashboard
             </ButtonLink>
-          ) : (
-            <>
-              <Link to="/login" className="rounded-xl px-3 py-2 text-sm font-medium text-slate-600 hover:text-ink">
-                Sign in
-              </Link>
-              <ButtonLink to="/register" size="sm">
-                Create your vault
-              </ButtonLink>
-            </>
-          )}
-        </nav>
+          </nav>
+        )}
       </header>
 
       <section className="page-pad mx-auto grid max-w-6xl items-center gap-10 pt-4 pb-12 sm:pt-10 lg:grid-cols-[1.05fr_1fr] lg:pb-16">

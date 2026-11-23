@@ -25,12 +25,27 @@ test('the Verification page tells genuine, modified and unsigned files apart', a
   const { PDFDocument } = await import('pdf-lib');
   const own = await PDFDocument.create();
   own.addPage([300, 300]);
-  await expect(await check('own.pdf', Buffer.from(await own.save()))).toHaveAttribute('data-result', 'unverified');
+  const unsigned = await check('own.pdf', Buffer.from(await own.save()));
+  await expect(unsigned).toHaveAttribute('data-result', 'unverified');
+  await expect(unsigned).toContainText('Unable to verify');
+
+  // Looks like the certificate and names the issuer, but carries no signature: never Verified.
+  const lookAlike = await PDFDocument.create();
+  const font = await lookAlike.embedFont((await import('pdf-lib')).StandardFonts.Helvetica);
+  lookAlike.addPage([595, 420]).drawText('TrustPass Demo University - Enrollment Certificate - VERIFIED', { x: 30, y: 300, size: 14, font });
+  await expect(await check('look-alike.pdf', Buffer.from(await lookAlike.save()))).toHaveAttribute('data-result', 'unverified');
+
+  // A pasted credential that is not one: unable to verify.
+  await page.goto('/app/verify');
+  await page.getByRole('tab', { name: /credential/i }).click();
+  await page.getByRole('textbox').fill('This is definitely a genuine credential, trust me.');
+  await page.getByRole('button', { name: 'Verify', exact: true }).click();
+  await expect(page.getByTestId('verification-result')).toHaveAttribute('data-result', 'unverified');
 
   await expect(page.getByText('Verification records')).toBeVisible();
 });
 
-test('revoking the issuer turns its credentials invalid everywhere', async ({ page, browser }) => {
+test('revoking the issuer means its credentials can no longer be verified anywhere', async ({ page, browser }) => {
   await register(page, { name: 'Holder', email: uniqueEmail('holder') });
   const docId = await issueCredential(page, 'Holder Person');
   const url = await shareFields(page, docId, { fields: ['Program'] });
@@ -45,7 +60,7 @@ test('revoking the issuer turns its credentials invalid everywhere', async ({ pa
   try {
     const recipient = await newPhone(browser);
     await recipient.goto(url);
-    await expect(recipient.getByTestId('verification-result')).toHaveAttribute('data-result', 'invalid');
+    await expect(recipient.getByTestId('verification-result')).toHaveAttribute('data-result', 'unverified');
     await expect(recipient.getByTestId('verification-result')).toContainText('revoked');
   } finally {
     await admin.getByRole('button', { name: 'Trust again' }).click();

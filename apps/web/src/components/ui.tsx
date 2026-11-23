@@ -209,11 +209,11 @@ export function Badge({ tone = 'slate', children, icon, className }: { tone?: Ba
   );
 }
 
-export function TrustBadge({ status, size = 'sm' }: { status: TrustStatus; size?: 'sm' | 'lg' }) {
+export function TrustBadge({ status, size = 'sm', unverifiedLabel = 'Unverified' }: { status: TrustStatus; size?: 'sm' | 'lg'; unverifiedLabel?: string }) {
   const map = {
     verified: { tone: 'teal' as const, label: 'Verified', Icon: ShieldCheck },
     invalid: { tone: 'red' as const, label: 'Invalid', Icon: ShieldAlert },
-    unverified: { tone: 'amber' as const, label: 'Unverified', Icon: ShieldQuestion },
+    unverified: { tone: 'amber' as const, label: unverifiedLabel, Icon: ShieldQuestion },
   }[status];
   return (
     <Badge tone={map.tone} className={size === 'lg' ? 'px-3 py-1 text-sm' : undefined} icon={<map.Icon className={size === 'lg' ? 'size-4' : 'size-3.5'} aria-hidden />}>
