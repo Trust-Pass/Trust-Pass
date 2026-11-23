@@ -1,6 +1,6 @@
-import { SECURITY_EVENT_LABELS } from '@trustpass/shared';
+import { SECURITY_EVENT_LABELS, SIGN_IN_EVENT_TYPES } from '@trustpass/shared';
 import { useQuery } from '@tanstack/react-query';
-import { ScrollText } from 'lucide-react';
+import { Eye, EyeOff, ScrollText } from 'lucide-react';
 import { useState } from 'react';
 import { Badge, Button, Card, EmptyState, PageHeader, Select, Spinner } from '../components/ui';
 import { api } from '../lib/api';
@@ -10,6 +10,7 @@ interface ActivityPageData {
   page: number;
   pageSize: number;
   total: number;
+  hiddenSignIns: number;
   events: Array<{ id: string; type: string; severity: 'info' | 'warning' | 'high'; at: string; document: string | null; byYou: boolean; metadata: Record<string, unknown> }>;
 }
 
@@ -29,10 +30,34 @@ function describe(meta: Record<string, unknown>): string | null {
   return parts.length ? parts.join(' · ') : null;
 }
 
+const HIDE_SIGN_INS_KEY = 'trustpass.activity.hideSignIns';
+const SIGN_IN_TYPES: readonly string[] = SIGN_IN_EVENT_TYPES;
+
+/** The choice is remembered in this browser; it only changes what is shown, never the log. */
+function readHideSignIns(): boolean {
+  try {
+    return window.localStorage.getItem(HIDE_SIGN_INS_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export function ActivityPage() {
   const [page, setPage] = useState(1);
   const [type, setType] = useState('');
-  const qs = new URLSearchParams({ page: String(page), ...(type ? { type } : {}) });
+  const [hideSignIns, setHideSignIns] = useState(readHideSignIns);
+  const toggleSignIns = () => {
+    const next = !hideSignIns;
+    setHideSignIns(next);
+    setPage(1);
+    if (next && SIGN_IN_TYPES.includes(type)) setType('');
+    try {
+      window.localStorage.setItem(HIDE_SIGN_INS_KEY, next ? '1' : '0');
+    } catch {
+      /* the choice then lasts for this visit only */
+    }
+  };
+  const qs = new URLSearchParams({ page: String(page), ...(type ? { type } : {}), ...(hideSignIns ? { hideSignIns: '1' } : {}) });
   const { data, isLoading } = useQuery({ queryKey: ['activity', qs.toString()], queryFn: () => api<ActivityPageData>(`/api/activity?${qs}`) });
 
   return (
@@ -41,24 +66,42 @@ export function ActivityPage() {
         title="Activity log"
         description="Security events on your account. The log is append-only: the database rejects edits and deletions."
         actions={
-          <Select
-            aria-label="Event type"
-            value={type}
-            onChange={(e) => {
-              setType(e.target.value);
-              setPage(1);
-            }}
-            className="sm:w-60"
-          >
-            <option value="">All events</option>
-            {Object.entries(SECURITY_EVENT_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </Select>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <Select
+              aria-label="Event type"
+              value={type}
+              onChange={(e) => {
+                setType(e.target.value);
+                setPage(1);
+              }}
+              className="sm:w-60"
+            >
+              <option value="">All events</option>
+              {Object.entries(SECURITY_EVENT_LABELS)
+                .filter(([value]) => !(hideSignIns && SIGN_IN_TYPES.includes(value)))
+                .map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+            </Select>
+            <Button
+              variant="secondary"
+              aria-pressed={hideSignIns}
+              icon={hideSignIns ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+              onClick={toggleSignIns}
+              className="shrink-0"
+            >
+              {hideSignIns ? 'Show hidden sign-in history' : 'Hide sign-in history'}
+            </Button>
+          </div>
         }
       />
+      {hideSignIns && data && data.hiddenSignIns > 0 && (
+        <p className="mb-3 text-[13px] text-slate-500" role="status" data-testid="sign-ins-hidden">
+          {data.hiddenSignIns} sign-in record{data.hiddenSignIns === 1 ? ' is' : 's are'} hidden from this view. They stay in your security log.
+        </p>
+      )}
       <Card>
         {isLoading || !data ? (
           <Spinner />

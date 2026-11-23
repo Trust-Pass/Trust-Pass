@@ -395,6 +395,13 @@ export const requestCredentialSchema = z.object({
   program: z.enum(DEMO_PROGRAMS),
 });
 
+/**
+ * Sign-in history the owner may hide from their Activity Log view: successful sign-ins and
+ * sign-outs. Failed sign-in attempts and account lockouts are security warnings and stay visible.
+ * Hiding only filters the view; the append-only audit log is never changed.
+ */
+export const SIGN_IN_EVENT_TYPES = ['login_succeeded', 'logout', 'session_revoked'] as const;
+
 export const SECURITY_EVENT_LABELS: Record<string, string> = {
   account_created: 'Account created',
   login_succeeded: 'Signed in',

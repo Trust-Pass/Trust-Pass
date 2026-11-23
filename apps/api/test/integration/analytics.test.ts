@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { as, createLink, createTestContext, IPS, issueCredential, loginUser, makeAdmin, registerUser, resetDatabase, uploadDocument, type TestContext } from '../helpers';
+import { as, createLink, createTestContext, freshIp, IPS, issueCredential, loginUser, makeAdmin, registerUser, resetDatabase, uploadDocument, type TestContext } from '../helpers';
 
 let ctx: TestContext;
 beforeAll(async () => {
@@ -120,6 +120,37 @@ describe('access analytics', () => {
   });
 });
 
+describe('activity log: hide sign-in history', () => {
+  it('hides sign-ins and sign-outs from the view only; every record stays in the log', async () => {
+    const { owner } = await scenario();
+    await as(ctx, owner, { method: 'POST', url: '/api/auth/logout' });
+    const again = await loginUser(ctx, owner.email);
+    // A failed sign-in stays visible: it is a security warning, not history.
+    await ctx.app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: again.email, password: 'Wrong-Password-123!' }, remoteAddress: freshIp() });
+    const storedBefore = await ctx.prisma.securityEvent.count({ where: { userId: again.userId } });
+
+    const all = (await as(ctx, again, { method: 'GET', url: '/api/activity' })).json();
+    const types = all.events.map((e: { type: string }) => e.type);
+    expect(types).toEqual(expect.arrayContaining(['login_succeeded', 'logout', 'login_failed', 'link_created', 'document_uploaded']));
+    expect(all.hiddenSignIns).toBe(0);
+
+    const hidden = (await as(ctx, again, { method: 'GET', url: '/api/activity?hideSignIns=1' })).json();
+    const hiddenTypes = hidden.events.map((e: { type: string }) => e.type);
+    for (const t of ['login_succeeded', 'logout', 'session_revoked']) expect(hiddenTypes).not.toContain(t);
+    expect(hiddenTypes).toEqual(expect.arrayContaining(['login_failed', 'link_created', 'document_uploaded']));
+    const signIns = all.events.filter((e: { type: string }) => ['login_succeeded', 'logout', 'session_revoked'].includes(e.type)).length;
+    expect(hidden.hiddenSignIns).toBe(signIns);
+    expect(hidden.total).toBe(all.total - signIns);
+    // A sign-in type filter while hidden shows nothing; shown again, it is all there.
+    expect((await as(ctx, again, { method: 'GET', url: '/api/activity?hideSignIns=1&type=login_succeeded' })).json().events).toEqual([]);
+    expect((await as(ctx, again, { method: 'GET', url: '/api/activity?hideSignIns=0' })).json().total).toBe(all.total);
+
+    // Nothing was deleted or changed: the append-only log still has every row.
+    expect(await ctx.prisma.securityEvent.count({ where: { userId: again.userId } })).toBe(storedBefore);
+    await expect(ctx.prisma.securityEvent.deleteMany({ where: { userId: again.userId, eventType: 'login_succeeded' } })).rejects.toThrow(/append-only/);
+  });
+});
+
 describe('audit log integrity', () => {
   it('rejects updates and deletes of log rows at the database level', async () => {
     await scenario();
@@ -157,9 +188,13 @@ describe('notifications', () => {
     expect(list.unread).toBe(1);
     const session = (await as(ctx, owner, { method: 'GET', url: '/api/auth/session' })).json();
     expect(session.user?.unreadNotifications ?? session.unreadNotifications).toBe(1);
-    // ...but the security records behind the Analytics "Security alerts" card are unchanged.
-    const alerts = (await as(ctx, owner, { method: 'GET', url: '/api/analytics' })).json().alerts as Array<{ type: string }>;
-    expect(alerts.map((a) => a.type).sort()).toEqual(['alert_expired_link', 'alert_new_country', 'alert_new_country']);
+    // Analytics "Security alerts" shows exactly the same alerts as the bell...
+    const alerts = (await as(ctx, owner, { method: 'GET', url: '/api/analytics' })).json().alerts;
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toMatchObject({ id: list.notifications[0].id, kind: 'expired_link', ...EXPIRED, document: 'University Certificate' });
+    // ...while the first-view records are still stored, and access is still logged.
+    expect(await ctx.prisma.notification.count({ where: { userId: owner.userId, type: 'alert_new_country' } })).toBe(2);
+    expect(await ctx.prisma.accessLog.count({ where: { ownerId: owner.userId } })).toBe(6);
   });
 
   it('repeated blocked attempts raise one "Repeated access attempts" alert', async () => {
@@ -170,6 +205,9 @@ describe('notifications', () => {
     const list = (await as(ctx, owner, { method: 'GET', url: '/api/notifications' })).json();
     expect(list.notifications).toHaveLength(1);
     expect(list.notifications[0]).toMatchObject({ kind: 'repeated_attempts', ...REPEATED, document: 'Payslip', read: false });
+    const alerts = (await as(ctx, owner, { method: 'GET', url: '/api/analytics' })).json().alerts;
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toMatchObject({ kind: 'repeated_attempts', ...REPEATED, document: 'Payslip' });
     // Detection and logging are untouched.
     expect(await ctx.prisma.securityEvent.count({ where: { linkId: link.id, eventType: 'repeated_denied_access' } })).toBe(1);
     expect(await ctx.prisma.accessLog.count({ where: { linkId: link.id, outcome: 'denied_country' } })).toBe(5);
@@ -197,7 +235,10 @@ describe('notifications', () => {
     }
     const stored = (await ctx.prisma.notification.findMany({ select: { type: true } })).map((n) => n.type);
     for (const gone of ['link_downloaded', 'credential_issued', 'link_received', 'org_member_added']) expect(stored).not.toContain(gone);
-    // The security events are still logged.
+    // Analytics shows no alert for any of it (revoked-link attempts and first views included)...
+    expect((await as(ctx, owner, { method: 'GET', url: '/api/analytics' })).json().alerts).toEqual([]);
+    expect(await ctx.prisma.notification.count({ where: { userId: owner.userId, type: { in: ['alert_after_end', 'alert_new_country'] } } })).toBeGreaterThan(0);
+    // ...and the security events are still logged.
     const events = (await ctx.prisma.securityEvent.findMany({ where: { userId: owner.userId }, select: { eventType: true } })).map((e) => e.eventType);
     expect(events).toEqual(expect.arrayContaining(['recipient_downloaded', 'link_revoked']));
     expect(await ctx.prisma.accessLog.count({ where: { linkId: link.id, outcome: 'denied_revoked' } })).toBe(1);

@@ -1,10 +1,10 @@
 import { Prisma } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
-import { ACCESS_OUTCOMES } from '@trustpass/shared';
+import { ACCESS_OUTCOMES, SIGN_IN_EVENT_TYPES } from '@trustpass/shared';
 import { z } from 'zod';
 import { notFound } from '../lib/errors';
 import { requireUser } from '../plugins/auth';
-import { fillPlaceholders, ownerLabels } from '../services/metadata';
+import { ownerLabels } from '../services/metadata';
 import { SECURITY_NOTIFICATION_TEXT, securityNotificationKind, securityNotificationWhere } from '../services/audit';
 import { linkStatus } from './sharing';
 
@@ -15,8 +15,6 @@ const rangeSchema = z.object({
   documentId: z.string().uuid().optional(),
 });
 
-// Security alert records shown on Analytics (expired-link attempts have their own type since 23 Nov).
-const ALERT_TYPES = ['alert_new_country', 'alert_after_end', 'alert_expired_link', 'alert_denied_burst', 'account_locked'];
 
 /** An "attempt" is a details view, or any denied request (a granted file fetch is part of a view). */
 const attemptFilter: Prisma.AccessLogWhereInput = { OR: [{ resource: 'details' }, { outcome: { not: 'granted' } }] };
@@ -71,7 +69,8 @@ export async function insightRoutes(app: FastifyInstance) {
       }),
       prisma.accessLog.groupBy({ by: ['documentId', 'outcome'], where, _count: { _all: true } }),
       prisma.notification.findMany({
-        where: { userId: user.id, type: { in: ALERT_TYPES }, createdAt: { gte: from, lt: end } },
+        // The same two alert kinds as the notifications bell (services/audit.ts).
+        where: { ...securityNotificationWhere(user.id), createdAt: { gte: from, lt: end } },
         orderBy: { createdAt: 'desc' },
         take: 10,
       }),
@@ -144,14 +143,19 @@ export async function insightRoutes(app: FastifyInstance) {
           .filter(([k]) => k !== 'granted')
           .reduce((n, [, v]) => n + v, 0),
       })),
-      alerts: alerts.map((a) => ({
-        id: a.id,
-        type: a.type,
-        title: a.title,
-        body: fillPlaceholders(a.body, { document: labels.title(a.documentId) ?? labels.linkTitle(a.linkId), recipient: labels.recipient(a.linkId) }),
-        at: a.createdAt,
-        linkId: a.linkId,
-      })),
+      alerts: alerts.map((a) => {
+        const kind = securityNotificationKind(a.type);
+        return {
+          id: a.id,
+          type: a.type,
+          kind,
+          title: SECURITY_NOTIFICATION_TEXT[kind].title,
+          body: SECURITY_NOTIFICATION_TEXT[kind].description,
+          document: labels.title(a.documentId) ?? labels.linkTitle(a.linkId) ?? null,
+          at: a.createdAt,
+          linkId: a.linkId,
+        };
+      }),
     };
   });
 
@@ -202,14 +206,27 @@ export async function insightRoutes(app: FastifyInstance) {
   app.get('/api/activity', async (request) => {
     const { user } = requireUser(request);
     const query = z
-      .object({ page: z.coerce.number().int().min(1).max(1000).default(1), type: z.string().max(60).optional() })
+      .object({
+        page: z.coerce.number().int().min(1).max(1000).default(1),
+        type: z.string().max(60).optional(),
+        // "Hide sign-in history": a view filter only; the stored audit log is not touched.
+        hideSignIns: z.enum(['1', '0']).optional(),
+      })
       .parse(request.query);
     const pageSize = 30;
+    const hideSignIns = query.hideSignIns === '1';
     // Users only ever see events filed under their own account.
-    const where: Prisma.SecurityEventWhereInput = { userId: user.id, ...(query.type ? { eventType: query.type } : {}) };
-    const [rows, total] = await Promise.all([
+    const where: Prisma.SecurityEventWhereInput = {
+      userId: user.id,
+      AND: [
+        ...(query.type ? [{ eventType: query.type }] : []),
+        ...(hideSignIns ? [{ eventType: { notIn: [...SIGN_IN_EVENT_TYPES] } }] : []),
+      ],
+    };
+    const [rows, total, hiddenSignIns] = await Promise.all([
       prisma.securityEvent.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (query.page - 1) * pageSize, take: pageSize }),
       prisma.securityEvent.count({ where }),
+      hideSignIns ? prisma.securityEvent.count({ where: { userId: user.id, eventType: { in: [...SIGN_IN_EVENT_TYPES] } } }) : Promise.resolve(0),
     ]);
     // Logs store ids only (E4): titles and recipients are decrypted here, for the owner.
     const labels = await ownerLabels(deps, user.id, rows.map((r) => r.documentId), rows.map((r) => r.linkId));
@@ -217,6 +234,8 @@ export async function insightRoutes(app: FastifyInstance) {
       page: query.page,
       pageSize,
       total,
+      /** How many sign-in records the current view leaves out (0 when they are shown). */
+      hiddenSignIns,
       events: rows.map((r) => {
         const recipient = labels.recipient(r.linkId);
         const metadata = r.metadata && typeof r.metadata === 'object' && !Array.isArray(r.metadata) ? r.metadata : {};

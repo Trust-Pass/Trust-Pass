@@ -4,7 +4,7 @@
 name: ui-preview
 on:
   push:
-    branches: ['claude/ui-turquoise', 'claude/final-improvements', 'claude/sensitive-info', 'claude/ios-pdfjs-fix', 'claude/stage1-ui', 'claude/notifications']
+    branches: ['claude/ui-turquoise', 'claude/final-improvements', 'claude/sensitive-info', 'claude/ios-pdfjs-fix', 'claude/stage1-ui', 'claude/notifications', 'claude/alerts-activity']
 permissions:
   contents: write
 jobs:
@@ -36,7 +36,7 @@ jobs:
       - run: pnpm --filter @trustpass/web build
       - run: pnpm --filter @trustpass/e2e exec playwright install --with-deps chromium
       - name: Visual tour
-        run: pnpm --filter @trustpass/e2e exec playwright test tests/visual-tour.spec.ts tests/notifications.spec.ts
+        run: pnpm --filter @trustpass/e2e exec playwright test tests/visual-tour.spec.ts tests/notifications.spec.ts tests/alerts-activity.spec.ts
       - name: Publish screenshots to the ui-preview branch
         if: always()
         run: |

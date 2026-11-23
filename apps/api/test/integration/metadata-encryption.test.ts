@@ -98,9 +98,10 @@ describe('new rows (E3/E4/E5)', () => {
     expect(one).toMatchObject({ recipientLabel: RECIPIENT, document: { title: TITLE } });
     expect(one.fields.map((f: { label: string }) => f.label)).toEqual(['Employer']);
 
-    // The first-view alert is shown on Analytics (no longer a notification), names filled in there.
-    const alerts = (await get('/api/analytics')).alerts;
-    expect(alerts[0].body).toContain(`"${TITLE}" (${RECIPIENT})`);
+    // Security alerts (bell and Analytics) name the document for its owner, from the sealed title.
+    await ctx.prisma.notification.create({ data: { userId: owner.userId, type: 'alert_expired_link', title: 'x', body: 'x', linkId: link.id, documentId } });
+    expect((await get('/api/notifications')).notifications[0].document).toBe(TITLE);
+    expect((await get('/api/analytics')).alerts[0].document).toBe(TITLE);
     const activity = (await get('/api/activity')).events;
     expect(activity.find((e: { type: string }) => e.type === 'link_created')).toMatchObject({ document: TITLE, metadata: { recipient: RECIPIENT } });
     const log = (await get('/api/analytics/access-log')).rows;
@@ -134,8 +135,11 @@ describe('new rows (E3/E4/E5)', () => {
     expect(doc).toMatchObject({ title: null, titleEncrypted: null, plaintextSha256: null, sha256Encrypted: null });
     const row = await ctx.prisma.sharingLink.findUniqueOrThrow({ where: { id: link.id } });
     expect(row).toMatchObject({ recipientLabel: null, recipientLabelEncrypted: null });
+    await ctx.prisma.notification.create({ data: { userId: owner.userId, type: 'alert_expired_link', title: 'x', body: 'x', linkId: link.id, documentId } });
+    const notes = (await as(ctx, owner, { method: 'GET', url: '/api/notifications' })).json().notifications;
+    expect(notes[0].document).toBe('Deleted document');
     const alerts = (await as(ctx, owner, { method: 'GET', url: '/api/analytics' })).json().alerts;
-    expect(alerts[0].body).toContain('"Deleted document"');
+    expect(alerts[0].document).toBe('Deleted document');
   });
 });
 
@@ -215,8 +219,10 @@ describe('backfill of rows written before E3 (keys encrypt-metadata)', () => {
     expect(fileRes.statusCode).toBe(200);
     const share = (await ctx.app.inject({ method: 'GET', url: `/api/share/${link.token}`, remoteAddress: IPS.SA })).json();
     expect(share.fields).toEqual([{ label: 'Employer', value: 'Aramco', source: 'self_declared' }]);
-    const alerts = (await as(ctx, owner, { method: 'GET', url: '/api/analytics' })).json().alerts;
-    expect(alerts.find((n: { body: string }) => n.body.startsWith('Your link for'))!.body).toContain(`"${TITLE}" (${RECIPIENT})`);
+    // The legacy first-view notification is rewritten to placeholders: no names left in it.
+    const legacy = await ctx.prisma.notification.findFirstOrThrow({ where: { userId: owner.userId, type: 'alert_new_country' } });
+    expect(legacy.body).toContain('{document}');
+    expect(legacy.body).not.toContain(TITLE);
 
     // Second run: nothing to do.
     const again = await encryptLegacyMetadata({ config: ctx.config, prisma: ctx.prisma });

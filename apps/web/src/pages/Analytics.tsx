@@ -1,6 +1,6 @@
 import { ACCESS_OUTCOMES } from '@trustpass/shared';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, Ban, CheckCircle2, Clock, Globe2, Link2, MapPin, ShieldAlert, Users } from 'lucide-react';
+import { AlertTriangle, Ban, CheckCircle2, Clock, Globe2, Link2, Lock, MapPin, ShieldAlert, Users } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Badge, Button, Card, CardHeader, EmptyState, Input, OUTCOME_UI, OutcomeBadge, PageHeader, Segmented, Select, Spinner, StatCard } from '../components/ui';
@@ -28,7 +28,8 @@ interface AnalyticsData {
   byCountry: Array<{ country: string | null; granted: number; denied: number }>;
   byDocument: Array<{ documentId: string; title: string; granted: number; denied: number }>;
   daily: Array<{ day: string; granted: number; denied: number }>;
-  alerts: Array<{ id: string; type: string; title: string; body: string; at: string }>;
+  /** Same two kinds as the notifications bell: repeated access attempts and expired-link attempts. */
+  alerts: Array<{ id: string; type: string; kind: 'repeated_attempts' | 'expired_link'; title: string; body: string; document: string | null; at: string }>;
 }
 
 interface LogPage {
@@ -202,14 +203,26 @@ export function AnalyticsPage() {
               {data.alerts.length === 0 ? (
                 <p className="px-5 py-6 text-sm text-slate-500">Nothing unusual in this period.</p>
               ) : (
-                <ul className="divide-y divide-slate-100">
-                  {data.alerts.map((a) => (
-                    <li key={a.id} className="px-4 py-3 sm:px-5">
-                      <p className="text-sm font-semibold text-ink">{a.title}</p>
-                      <p className="mt-0.5 text-sm text-slate-600">{a.body}</p>
-                      <p className="mt-1 text-xs text-slate-400">{relativeTime(a.at)}</p>
-                    </li>
-                  ))}
+                <ul className="divide-y divide-slate-100" data-testid="security-alerts">
+                  {data.alerts.map((a) => {
+                    const Icon = a.kind === 'repeated_attempts' ? ShieldAlert : Lock;
+                    return (
+                      <li key={a.id} className="flex items-start gap-3 px-4 py-3 sm:px-5" data-kind={a.kind}>
+                        <Icon className="mt-0.5 size-[18px] shrink-0 text-amber-500" aria-hidden />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold text-ink">{a.title}</span>
+                          <span className="mt-0.5 block text-sm text-slate-600">{a.body}</span>
+                          <span className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-slate-400">
+                            <span className="truncate">Document: {a.document ?? 'Unknown document'}</span>
+                            <span aria-hidden>·</span>
+                            <time className="shrink-0" dateTime={a.at}>
+                              {relativeTime(a.at)}
+                            </time>
+                          </span>
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </Card>
