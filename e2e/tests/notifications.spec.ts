@@ -33,6 +33,7 @@ test('notifications: normal activity is quiet; repeated attempts raise one clear
   await page.goto('/app/links');
   await page.getByRole('button', { name: 'Revoke' }).first().click();
   await page.getByRole('button', { name: 'Revoke now' }).click();
+  await expect(page.getByRole('tab', { name: /Revoked/ })).toContainText('1');
   for (let i = 0; i < 4; i++) expect((await recipient.request.get(`/api/share/${token}`)).status()).toBe(410);
 
   await page.goto('/app');
