@@ -215,7 +215,7 @@ export function AnalyticsPage() {
                           <span className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-slate-400">
                             <span className="truncate">Document: {a.document ?? 'Unknown document'}</span>
                             <span aria-hidden>·</span>
-                            <time className="shrink-0" dateTime={a.at}>
+                            <time className="shrink-0" dateTime={a.at} title={formatDateTime(a.at)}>
                               {relativeTime(a.at)}
                             </time>
                           </span>
