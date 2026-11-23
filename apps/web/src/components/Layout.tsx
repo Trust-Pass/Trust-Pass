@@ -9,6 +9,7 @@ import {
   GraduationCap,
   LayoutDashboard,
   Link2,
+  Lock,
   LogOut,
   Menu,
   QrCode,
@@ -17,7 +18,6 @@ import {
   Shield,
   ShieldAlert,
   ShieldCheck,
-  ShieldX,
   Upload,
   X,
 } from 'lucide-react';
@@ -167,39 +167,41 @@ function NotificationsPanel({ open, onClose }: { open: boolean; onClose: () => v
           body="You will be alerted here if someone keeps trying to open your document, or opens a link after it expired."
         />
       ) : (
-        <ul className="-mx-2 divide-y divide-slate-100" data-testid="notification-list">
+        <ul className="space-y-3" data-testid="notification-list">
           {data.notifications.map((n) => {
-            const Icon = n.kind === 'repeated_attempts' ? ShieldAlert : ShieldX;
+            const Icon = n.kind === 'repeated_attempts' ? ShieldAlert : Lock;
             return (
               <li key={n.id} data-kind={n.kind} data-read={n.read}>
-                <button type="button" onClick={() => openNotification(n)} className="flex w-full items-start gap-3 rounded-xl px-2 py-3 text-left hover:bg-slate-50">
-                  <span
-                    className={clsx(
-                      'relative mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl ring-1 ring-inset',
-                      n.kind === 'repeated_attempts' ? 'bg-red-50 text-red-500 ring-red-200' : 'bg-amber-50 text-amber-600 ring-amber-200',
-                    )}
-                    aria-hidden
-                  >
-                    <Icon className="size-[18px]" />
-                    {!n.read && <span className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-red-500 ring-2 ring-surface-raised" />}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline justify-between gap-2">
-                      <span className={clsx('text-sm text-ink', n.read ? 'font-medium' : 'font-semibold')}>
+                <button
+                  type="button"
+                  onClick={() => openNotification(n)}
+                  className={clsx(
+                    'relative w-full rounded-2xl p-4 text-left ring-1 ring-inset transition-colors hover:bg-slate-50',
+                    n.read ? 'ring-slate-200' : 'bg-amber-50/40 ring-amber-200',
+                  )}
+                >
+                  <span className="flex items-start justify-between gap-3">
+                    <span className="flex min-w-0 items-start gap-2.5">
+                      <Icon className="mt-0.5 size-5 shrink-0 text-amber-500" aria-hidden />
+                      <span className="text-[15px] leading-snug font-semibold text-ink">
                         {n.title}
                         {!n.read && <span className="sr-only"> (unread)</span>}
                       </span>
-                      <time className="shrink-0 text-xs text-slate-400" dateTime={n.at} title={formatDateTime(n.at)}>
-                        {relativeTime(n.at)}
-                      </time>
                     </span>
-                    <span className="mt-0.5 block text-sm text-slate-600">{n.body}</span>
-                    {n.document && (
-                      <span className="mt-1.5 flex min-w-0 items-center gap-1 text-xs text-slate-500">
-                        <FileText className="size-3.5 shrink-0" aria-hidden />
-                        <span className="truncate">{n.document}</span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      {!n.read && <span className="size-2 rounded-full bg-red-500" aria-hidden />}
+                      <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
+                        Security alert
                       </span>
-                    )}
+                    </span>
+                  </span>
+                  <span className="mt-2 block text-sm text-slate-600">{n.body}</span>
+                  <span className="mt-2 flex min-w-0 items-center gap-1.5 text-xs text-slate-500">
+                    <span className="truncate">Document: {n.document ?? 'Unknown document'}</span>
+                    <span aria-hidden>·</span>
+                    <time className="shrink-0" dateTime={n.at} title={formatDateTime(n.at)}>
+                      {relativeTime(n.at)}
+                    </time>
                   </span>
                 </button>
               </li>

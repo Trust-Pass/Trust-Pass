@@ -66,7 +66,7 @@ export type SecurityNotificationKind = 'repeated_attempts' | 'expired_link';
 
 export const SECURITY_NOTIFICATION_TEXT: Record<SecurityNotificationKind, { title: string; description: string }> = {
   repeated_attempts: { title: 'Repeated access attempts', description: 'Someone tried to access your document multiple times.' },
-  expired_link: { title: 'Expired link opened', description: 'Someone tried to open your document after the link expired. Access was blocked.' },
+  expired_link: { title: 'Expired link access blocked', description: 'Someone tried to open your document after the link expired. Access was blocked.' },
 };
 
 export function securityNotificationWhere(userId: string) {

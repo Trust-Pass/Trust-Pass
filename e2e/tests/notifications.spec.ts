@@ -46,7 +46,8 @@ test('notifications: normal activity is quiet; repeated attempts raise one clear
   await expect(item).toHaveAttribute('data-read', 'false');
   await expect(item).toContainText('Repeated access attempts');
   await expect(item).toContainText('Someone tried to access your document multiple times.');
-  await expect(item).toContainText('November payslip');
+  await expect(item).toContainText('Security alert');
+  await expect(item).toContainText('Document: November payslip');
   await expect(item.locator('time')).toHaveAttribute('datetime', /\d{4}-\d{2}-\d{2}T/);
   await expect(item).toContainText('(unread)');
   await page.screenshot({ path: `test-results/tour/${info.project.name}-37-notifications.jpg`, type: 'jpeg', quality: 60 });

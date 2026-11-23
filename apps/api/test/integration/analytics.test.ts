@@ -145,7 +145,7 @@ describe('audit log integrity', () => {
 
 describe('notifications', () => {
   const REPEATED = { title: 'Repeated access attempts', body: 'Someone tried to access your document multiple times.' };
-  const EXPIRED = { title: 'Expired link opened', body: 'Someone tried to open your document after the link expired. Access was blocked.' };
+  const EXPIRED = { title: 'Expired link access blocked', body: 'Someone tried to open your document after the link expired. Access was blocked.' };
 
   it('are security alerts only: an expired-link attempt, with the document name and time', async () => {
     const { owner } = await scenario();
