@@ -40,12 +40,13 @@ export async function getOwnedDocument(deps: AppDeps, id: string, ownerId: strin
 export function quickTrust(
   document: Document & { credential: (Credential & { issuer: Issuer }) | null },
   now: Date,
-): { status: 'verified' | 'invalid' | 'unverified'; label: string } {
+): { status: 'verified' | 'invalid' | 'expired' | 'unverified'; label: string } {
   if (document.kind !== 'credential' || !document.credential) {
     return { status: 'unverified', label: 'Uploaded by you, not verified by an issuer' };
   }
-  if (document.credential.issuer.status !== 'trusted') return { status: 'invalid', label: 'Issuer no longer trusted' };
-  if (document.credential.expiresAt <= now) return { status: 'invalid', label: 'Credential expired' };
+  // Same rules as the full check: a revoked issuer cannot be verified; expired is not invalid.
+  if (document.credential.issuer.status !== 'trusted') return { status: 'unverified', label: 'Issuer no longer trusted' };
+  if (document.credential.expiresAt <= now) return { status: 'expired', label: 'Credential expired' };
   return { status: 'verified', label: `Signed by ${document.credential.issuer.name}` };
 }
 

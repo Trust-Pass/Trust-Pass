@@ -1,17 +1,5 @@
 import clsx from 'clsx';
-import {
-  AlertTriangle,
-  Check,
-  CheckCircle2,
-  Copy,
-  Info,
-  Loader2,
-  ShieldAlert,
-  ShieldCheck,
-  ShieldQuestion,
-  X,
-  XCircle,
-} from 'lucide-react';
+import { AlertTriangle, CalendarX2, Check, CheckCircle2, Copy, Info, Loader2, ShieldAlert, ShieldCheck, ShieldQuestion, X, XCircle } from 'lucide-react';
 import {
   forwardRef,
   useEffect,
@@ -213,6 +201,7 @@ export function TrustBadge({ status, size = 'sm', unverifiedLabel = 'Unverified'
   const map = {
     verified: { tone: 'teal' as const, label: 'Verified', Icon: ShieldCheck },
     invalid: { tone: 'red' as const, label: 'Invalid', Icon: ShieldAlert },
+    expired: { tone: 'slate' as const, label: 'Expired', Icon: CalendarX2 },
     unverified: { tone: 'amber' as const, label: unverifiedLabel, Icon: ShieldQuestion },
   }[status];
   return (

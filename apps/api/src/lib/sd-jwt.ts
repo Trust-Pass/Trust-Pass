@@ -119,7 +119,7 @@ export interface VerificationCheck {
 }
 
 export interface SdJwtVerification {
-  result: 'verified' | 'invalid' | 'unverified';
+  result: 'verified' | 'invalid' | 'expired' | 'unverified';
   reason: string;
   checks: VerificationCheck[];
   issuer: IssuerRecordForVerify | null;
@@ -149,6 +149,7 @@ export async function verifySdJwt(
   // Results follow three rules:
   //  - verified:   a valid signature by a key in the TrustPass issuer registry whose issuer is trusted
   //  - invalid:    the signature does not match, or what was signed was changed (claims, file, issuer)
+  //  - expired:    all of the above holds, but the credential is past its validity period
   //  - unverified: no supported signature to check, or the key is not a trusted registered issuer
   // Nothing is decided from how a document looks or from the issuer name it shows.
   const parts = presentation.trim().split('~');
@@ -235,13 +236,7 @@ export async function verifySdJwt(
     detail: `${disclosed.length} of ${signedDigests.size} signed claims disclosed; the rest stay hidden`,
   });
 
-  if (typeof payload.exp !== 'number' || payload.exp * 1000 <= options.now.getTime()) {
-    checks.push({ name: 'Expiry', passed: false, detail: 'The credential has expired' });
-    const when = typeof payload.exp === 'number' ? new Date(payload.exp * 1000).toISOString().slice(0, 10) : 'unknown date';
-    return { ...fail('invalid', `The credential expired on ${when}.`, issuer, payload), disclosed };
-  }
-  checks.push({ name: 'Expiry', passed: true, detail: `Valid until ${new Date(payload.exp * 1000).toISOString().slice(0, 10)}` });
-
+  // Tampering is checked before expiry: a changed document is Invalid whether or not it expired.
   if (options.fileHash !== undefined) {
     if (options.fileHash !== payload.document_hash) {
       checks.push({ name: 'Document integrity', passed: false, detail: 'File hash does not match the signed hash' });
@@ -249,6 +244,25 @@ export async function verifySdJwt(
     }
     checks.push({ name: 'Document integrity', passed: true, detail: 'SHA-256 of the file matches the signed hash' });
   }
+
+  if (typeof payload.exp !== 'number') {
+    // Without a validity period the credential is not one TrustPass can vouch for.
+    checks.push({ name: 'Expiry', passed: false, detail: 'The credential has no validity period' });
+    return { ...fail('unverified', 'The credential has no validity period, so it cannot be verified.', issuer, payload), disclosed };
+  }
+  if (payload.exp * 1000 <= options.now.getTime()) {
+    const when = new Date(payload.exp * 1000).toISOString().slice(0, 10);
+    checks.push({ name: 'Expiry', passed: false, detail: `Expired on ${when}` });
+    return {
+      result: 'expired',
+      reason: `The signature is valid and the document is unchanged, but the credential expired on ${when}.`,
+      checks,
+      issuer,
+      payload,
+      disclosed,
+    };
+  }
+  checks.push({ name: 'Expiry', passed: true, detail: `Valid until ${new Date(payload.exp * 1000).toISOString().slice(0, 10)}` });
 
   return {
     result: 'verified',

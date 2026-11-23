@@ -6,7 +6,7 @@ import { logEvent } from '../services/audit';
 import { DEMO_ISSUER, ensureDemoIssuer, issueEnrollmentCredential } from '../services/issuer';
 import { getSettings } from '../services/settings';
 import { memberOrgIds } from '../services/users';
-import { recordVerification, verifyFile, verifyPresentation } from '../services/verification';
+import { displayResult, recordVerification, verifyFile, verifyPresentation } from '../services/verification';
 
 export async function verificationRoutes(app: FastifyInstance) {
   const deps = app.deps;
@@ -70,7 +70,7 @@ export async function verificationRoutes(app: FastifyInstance) {
     return {
       records: records.map((r) => ({
         id: r.id,
-        result: r.result,
+        result: displayResult(r),
         method: r.method,
         reason: r.reason,
         issuer: issuers.find((i) => i.id === r.issuerId)?.name ?? null,

@@ -135,11 +135,26 @@ describe('SD-JWT selective disclosure', () => {
     expect((await verifySdJwt(`${header}.${p}.${s}~`, resolve, { now })).result).toBe('unverified');
   });
 
-  it('treats an expired credential as invalid', async () => {
+  it('reports a validly signed credential past its validity period as expired, not invalid', async () => {
     const credential = issue();
-    const result = await verifySdJwt(credential.sdJwt, resolve, { now: new Date('2028-01-01T00:00:00Z') });
-    expect(result.result).toBe('invalid');
-    expect(result.reason).toMatch(/expired/);
+    const later = new Date('2028-01-01T00:00:00Z');
+    const result = await verifySdJwt(credential.sdJwt, resolve, { now: later });
+    expect(result.result).toBe('expired');
+    expect(result.reason).toMatch(/signature is valid/);
+    expect(result.reason).toMatch(/expired on 2027-11-01/);
+    expect(result.checks.find((c) => c.name === 'Digital signature')?.passed).toBe(true);
+    // With its own file: unchanged -> expired; changed -> invalid (tampering wins over expiry).
+    expect((await verifySdJwt(credential.sdJwt, resolve, { now: later, fileHash: 'a'.repeat(64) })).result).toBe('expired');
+    expect((await verifySdJwt(credential.sdJwt, resolve, { now: later, fileHash: 'b'.repeat(64) })).result).toBe('invalid');
+    // A forged signature on an expired credential is invalid.
+    const [h, p] = credential.sdJwt.split('~')[0]!.split('.');
+    const forged = `${h}.${p}.${Buffer.from('x'.repeat(64)).toString('base64url')}~`;
+    expect((await verifySdJwt(forged, resolve, { now: later })).result).toBe('invalid');
+    // A forged claim in an expired credential is invalid.
+    const fake = Buffer.from(JSON.stringify(['salt', 'full_name', 'Someone Else'])).toString('base64url');
+    expect((await verifySdJwt(`${credential.sdJwt}${fake}~`, resolve, { now: later })).result).toBe('invalid');
+    // An expired credential of a revoked issuer cannot be verified.
+    expect((await verifySdJwt(credential.sdJwt, async () => ({ ...issuer, status: 'revoked' }), { now: later })).result).toBe('unverified');
   });
 
   it('checks the document hash when a file is presented', async () => {

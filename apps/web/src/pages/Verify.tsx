@@ -128,7 +128,10 @@ export function VerifyPage() {
                   <span className="shrink-0"><TrustBadge status="verified" /></span> The digital signature is valid and the signing key belongs to a trusted issuer registered in TrustPass.
                 </li>
                 <li className="flex items-start gap-3">
-                  <span className="shrink-0"><TrustBadge status="invalid" /></span> The signature does not match, or the document was changed after it was signed (or the credential expired).
+                  <span className="shrink-0"><TrustBadge status="invalid" /></span> The signature does not match, or the document was changed after it was signed.
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="shrink-0"><TrustBadge status="expired" /></span> The signature is valid and the document is unchanged, but the credential is past its validity period.
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="shrink-0"><TrustBadge status="unverified" unverifiedLabel="Unable to verify" /></span> No supported digital signature, or the signer is not a trusted issuer in TrustPass. A document's look or issuer name is never enough.

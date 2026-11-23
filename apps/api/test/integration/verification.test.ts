@@ -92,14 +92,35 @@ describe('document authenticity', () => {
     expect(issue.statusCode).toBe(409);
   });
 
-  it('marks expired credentials as invalid', async () => {
+  it('reports an unchanged, validly signed certificate past its validity period as expired', async () => {
     const s = await registerUser(ctx);
-    const { pdf } = await certificate(s);
+    const { id, pdf } = await certificate(s);
     ctx.clock.advance(366 * 24 * 3600_000);
     const fresh = await loginUser(ctx, s.email);
     const v = await verifyFile(fresh, pdf);
-    expect(v.result).toBe('invalid');
-    expect(v.reason).toMatch(/expired/);
+    expect(v.result).toBe('expired');
+    expect(v.reason).toMatch(/signature is valid/);
+    expect(v.checks.find((c: { name: string }) => c.name === 'Digital signature').passed).toBe(true);
+    expect(v.checks.find((c: { name: string }) => c.name === 'Document integrity').passed).toBe(true);
+
+    // The same expired certificate changed by one byte is invalid, not expired.
+    const modified = Buffer.from(pdf);
+    const at = modified.indexOf('stream\n') + 'stream\n'.length + 10;
+    modified[at] = modified[at]! ^ 0x01;
+    expect((await verifyFile(fresh, modified)).result).toBe('invalid');
+
+    // The pasted credential of an expired certificate is expired as well.
+    const cred = await as(ctx, fresh, { method: 'GET', url: `/api/documents/${id}/credential` });
+    const pasted = await as(ctx, fresh, { method: 'POST', url: '/api/verify/presentation', payload: { presentation: cred.body } });
+    expect(pasted.json().verification.result).toBe('expired');
+
+    // Records show "Expired" (stored without any database change) and the document badge agrees.
+    const records = (await as(ctx, fresh, { method: 'GET', url: '/api/verify/records' })).json().records;
+    expect(records.map((r: { result: string }) => r.result).sort()).toEqual(['expired', 'expired', 'invalid']);
+    const doc = (await as(ctx, fresh, { method: 'GET', url: `/api/documents/${id}` })).json().document;
+    expect(doc.trust).toMatchObject({ status: 'expired', label: 'Credential expired' });
+    const stored = await ctx.prisma.verificationRecord.findMany({ select: { result: true } });
+    expect(stored.map((r) => r.result).sort()).toEqual(['invalid', 'unverified', 'unverified']);
   });
 
   it('a look-alike PDF naming a real credential is invalid only because that credential is genuinely signed', async () => {

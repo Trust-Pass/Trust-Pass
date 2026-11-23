@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { CheckCircle2, ShieldAlert, ShieldCheck, ShieldQuestion, XCircle } from 'lucide-react';
+import { CalendarX2, CheckCircle2, ShieldAlert, ShieldCheck, ShieldQuestion, XCircle } from 'lucide-react';
 import { formatDate } from '../lib/format';
 import type { Verification } from '../lib/types';
 
@@ -17,6 +17,13 @@ const STYLES = {
     box: 'bg-red-50 ring-red-200',
     iconBox: 'bg-red-600 text-white',
     text: 'text-red-950',
+  },
+  expired: {
+    icon: CalendarX2,
+    title: 'Expired',
+    box: 'bg-slate-100 ring-slate-300',
+    iconBox: 'bg-slate-500 text-white',
+    text: 'text-slate-900',
   },
   unverified: {
     icon: ShieldQuestion,

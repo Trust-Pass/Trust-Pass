@@ -1,4 +1,4 @@
-export type TrustStatus = 'verified' | 'invalid' | 'unverified';
+export type TrustStatus = 'verified' | 'invalid' | 'expired' | 'unverified';
 
 export interface User {
   id: string;

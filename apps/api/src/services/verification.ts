@@ -29,7 +29,8 @@ export function issuerResolver(deps: AppDeps) {
 }
 
 export interface VerificationOutcome {
-  result: 'verified' | 'invalid' | 'unverified';
+  /** "expired": a valid signature from a trusted issuer, unchanged document, past its validity period. */
+  result: 'verified' | 'invalid' | 'expired' | 'unverified';
   reason: string;
   checks: VerificationCheck[];
   issuer: { id: string; name: string; simulated: boolean; status: string } | null;
@@ -163,12 +164,15 @@ export async function recordVerification(
     documentId?: string | null;
   },
 ) {
+  // The stored result field has three values (verified, invalid, unverified). An expired check is
+  // kept as "unverified" there, with its failed Expiry check in `checks`; displayResult() reads it
+  // back as "expired". This avoids a database change.
   const credentialExists = outcome.credentialId
     ? await deps.prisma.credential.findUnique({ where: { id: outcome.credentialId }, select: { id: true } })
     : null;
   return deps.prisma.verificationRecord.create({
     data: {
-      result: outcome.result,
+      result: outcome.result === 'expired' ? 'unverified' : outcome.result,
       method: context.method,
       reason: outcome.reason,
       checks: outcome.checks as unknown as Prisma.InputJsonValue,
@@ -180,4 +184,14 @@ export async function recordVerification(
       verifiedByOrgId: context.orgId ?? null,
     },
   });
+}
+
+/** The result to show for a stored verification record (see recordVerification for "expired"). */
+export function displayResult(record: { result: 'verified' | 'invalid' | 'unverified'; checks: unknown }): VerificationOutcome['result'] {
+  if (record.result !== 'unverified' || !Array.isArray(record.checks)) return record.result;
+  const checks = record.checks as Array<{ name?: string; passed?: boolean }>;
+  const signed = checks.some((c) => c.name === 'Digital signature' && c.passed === true);
+  const trusted = checks.some((c) => c.name === 'Trusted issuer' && c.passed === true);
+  const expired = checks.some((c) => c.name === 'Expiry' && c.passed === false && /^Expired on/.test(String((c as { detail?: string }).detail ?? '')));
+  return signed && trusted && expired ? 'expired' : 'unverified';
 }
