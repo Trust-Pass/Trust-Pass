@@ -98,8 +98,9 @@ describe('new rows (E3/E4/E5)', () => {
     expect(one).toMatchObject({ recipientLabel: RECIPIENT, document: { title: TITLE } });
     expect(one.fields.map((f: { label: string }) => f.label)).toEqual(['Employer']);
 
-    const notifications = (await get('/api/notifications')).notifications;
-    expect(notifications[0].body).toContain(`"${TITLE}" (${RECIPIENT})`);
+    // The first-view alert is shown on Analytics (no longer a notification), names filled in there.
+    const alerts = (await get('/api/analytics')).alerts;
+    expect(alerts[0].body).toContain(`"${TITLE}" (${RECIPIENT})`);
     const activity = (await get('/api/activity')).events;
     expect(activity.find((e: { type: string }) => e.type === 'link_created')).toMatchObject({ document: TITLE, metadata: { recipient: RECIPIENT } });
     const log = (await get('/api/analytics/access-log')).rows;
@@ -119,13 +120,13 @@ describe('new rows (E3/E4/E5)', () => {
     for (const url of [`/api/documents/${documentId}`, `/api/links/${link.id}`]) {
       expect((await as(ctx, other, { method: 'GET', url })).statusCode).toBe(404);
     }
-    for (const url of ['/api/documents', '/api/links', '/api/notifications', '/api/activity', '/api/analytics/access-log', '/api/dashboard']) {
+    for (const url of ['/api/documents', '/api/links', '/api/notifications', '/api/activity', '/api/analytics', '/api/analytics/access-log', '/api/dashboard']) {
       const res = await as(ctx, other, { method: 'GET', url });
       expect(res.body).not.toMatch(/Passport|Riyadh Bank/);
     }
   });
 
-  it('deleting a document erases its metadata; old notifications say "Deleted document"', async () => {
+  it('deleting a document erases its metadata; old alerts say "Deleted document"', async () => {
     const owner = await registerUser(ctx);
     const { documentId, link } = await seed(owner);
     expect((await as(ctx, owner, { method: 'DELETE', url: `/api/documents/${documentId}` })).statusCode).toBe(200);
@@ -133,8 +134,8 @@ describe('new rows (E3/E4/E5)', () => {
     expect(doc).toMatchObject({ title: null, titleEncrypted: null, plaintextSha256: null, sha256Encrypted: null });
     const row = await ctx.prisma.sharingLink.findUniqueOrThrow({ where: { id: link.id } });
     expect(row).toMatchObject({ recipientLabel: null, recipientLabelEncrypted: null });
-    const notes = (await as(ctx, owner, { method: 'GET', url: '/api/notifications' })).json().notifications;
-    expect(notes[0].body).toContain('"Deleted document"');
+    const alerts = (await as(ctx, owner, { method: 'GET', url: '/api/analytics' })).json().alerts;
+    expect(alerts[0].body).toContain('"Deleted document"');
   });
 });
 
@@ -214,8 +215,8 @@ describe('backfill of rows written before E3 (keys encrypt-metadata)', () => {
     expect(fileRes.statusCode).toBe(200);
     const share = (await ctx.app.inject({ method: 'GET', url: `/api/share/${link.token}`, remoteAddress: IPS.SA })).json();
     expect(share.fields).toEqual([{ label: 'Employer', value: 'Aramco', source: 'self_declared' }]);
-    const notes = (await as(ctx, owner, { method: 'GET', url: '/api/notifications' })).json().notifications;
-    expect(notes.find((n: { body: string }) => n.body.startsWith('Your link for'))!.body).toContain(`"${TITLE}" (${RECIPIENT})`);
+    const alerts = (await as(ctx, owner, { method: 'GET', url: '/api/analytics' })).json().alerts;
+    expect(alerts.find((n: { body: string }) => n.body.startsWith('Your link for'))!.body).toContain(`"${TITLE}" (${RECIPIENT})`);
 
     // Second run: nothing to do.
     const again = await encryptLegacyMetadata({ config: ctx.config, prisma: ctx.prisma });

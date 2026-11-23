@@ -143,8 +143,12 @@ export type AccessOutcome = 'granted' | 'denied_revoked' | 'denied_expired' | 'd
 export interface Notification {
   id: string;
   type: string;
+  /** Notifications are security alerts only: these two kinds. */
+  kind: 'repeated_attempts' | 'expired_link';
   title: string;
   body: string;
+  /** The affected document's name (shown to its owner). */
+  document: string | null;
   read: boolean;
   at: string;
   linkId: string | null;

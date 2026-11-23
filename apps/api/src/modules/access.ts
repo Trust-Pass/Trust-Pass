@@ -142,11 +142,14 @@ async function raiseAlerts(
   }
 
   if (outcome === 'denied_revoked' || outcome === 'denied_expired') {
+    // Expired-link attempts are one of the two notifications the owner sees; revoked-link attempts
+    // stay a security alert record (Analytics), not a notification.
+    const type = outcome === 'denied_expired' ? 'alert_expired_link' : 'alert_after_end';
     const since = new Date(current.getTime() - 60 * 60_000);
-    if (!(await recentlyNotified(prisma, link.ownerId, 'alert_after_end', link.id, since))) {
+    if (!(await recentlyNotified(prisma, link.ownerId, type, link.id, since))) {
       await notify(prisma, {
         userId: link.ownerId,
-        type: 'alert_after_end',
+        type,
         title: `Someone tried a ${outcome === 'denied_revoked' ? 'revoked' : 'expired'} link`,
         body: `An attempt was made to open your link for "{document}" ({recipient}) after it ${outcome === 'denied_revoked' ? 'was revoked' : 'expired'}. It was blocked.`,
         linkId: link.id,
@@ -332,8 +335,6 @@ async function sendWatermarkedFile(deps: AppDeps, reply: FastifyReply, link: Gat
   return reply.headers(fileResponseHeaders('application/pdf')).send(watermarked);
 }
 
-const DOWNLOAD_NOTICE_WINDOW_MS = 60 * 60_000;
-
 /** Checked before the gate too, so a refused download is never logged as a granted one. */
 function assertDownloadAllowed(link: GateLink) {
   if (!link.includeFile) throw new AppError(403, 'file_not_shared', 'The owner shared selected details only, not the file.');
@@ -399,20 +400,6 @@ async function sendRecipientDownload(
     metadata: { copyRef, accessLogId: decision.logId.toString(), country: decision.country, sizeBytes: copy.length, fileMode: fileModeOf(link), watermark: watermarkOn(info) },
     at: current,
   });
-  const since = new Date(current.getTime() - DOWNLOAD_NOTICE_WINDOW_MS);
-  if (!(await recentlyNotified(prisma, link.ownerId, 'link_downloaded', link.id, since))) {
-    await notify(prisma, {
-      userId: link.ownerId,
-      type: 'link_downloaded',
-      title: 'A recipient downloaded your document',
-      body: watermarkOn(info)
-        ? `"{document}" was downloaded through your link for {recipient} as a watermarked copy (reference ${copyRef}).`
-        : `"{document}" was downloaded through your link for {recipient}, without a watermark as you chose (reference ${copyRef}).`,
-      linkId: link.id,
-      documentId: link.documentId,
-      at: current,
-    });
-  }
 
   return reply
     .headers({

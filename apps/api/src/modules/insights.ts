@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { notFound } from '../lib/errors';
 import { requireUser } from '../plugins/auth';
 import { fillPlaceholders, ownerLabels } from '../services/metadata';
+import { SECURITY_NOTIFICATION_TEXT, securityNotificationKind, securityNotificationWhere } from '../services/audit';
 import { linkStatus } from './sharing';
 
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -14,7 +15,8 @@ const rangeSchema = z.object({
   documentId: z.string().uuid().optional(),
 });
 
-const ALERT_TYPES = ['alert_new_country', 'alert_after_end', 'alert_denied_burst', 'account_locked'];
+// Security alert records shown on Analytics (expired-link attempts have their own type since 23 Nov).
+const ALERT_TYPES = ['alert_new_country', 'alert_after_end', 'alert_expired_link', 'alert_denied_burst', 'account_locked'];
 
 /** An "attempt" is a details view, or any denied request (a granted file fetch is part of a view). */
 const attemptFilter: Prisma.AccessLogWhereInput = { OR: [{ resource: 'details' }, { outcome: { not: 'granted' } }] };
@@ -231,25 +233,34 @@ export async function insightRoutes(app: FastifyInstance) {
     };
   });
 
+  /** Security alerts only: repeated access attempts and expired-link attempts (services/audit.ts). */
   app.get('/api/notifications', async (request) => {
     const { user } = requireUser(request);
+    const where = securityNotificationWhere(user.id);
     const [items, unread] = await Promise.all([
-      prisma.notification.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' }, take: 50 }),
-      prisma.notification.count({ where: { userId: user.id, readAt: null } }),
+      prisma.notification.findMany({ where, orderBy: { createdAt: 'desc' }, take: 50 }),
+      prisma.notification.count({ where: { ...where, readAt: null } }),
     ]);
     const labels = await ownerLabels(deps, user.id, items.map((n) => n.documentId), items.map((n) => n.linkId));
     return {
       unread,
-      notifications: items.map((n) => ({
-        id: n.id,
-        type: n.type,
-        title: n.title,
-        body: fillPlaceholders(n.body, { document: labels.title(n.documentId) ?? labels.linkTitle(n.linkId), recipient: labels.recipient(n.linkId) }),
-        read: Boolean(n.readAt),
-        at: n.createdAt,
-        linkId: n.linkId,
-        documentId: n.documentId,
-      })),
+      notifications: items.map((n) => {
+        const kind = securityNotificationKind(n.type);
+        const text = SECURITY_NOTIFICATION_TEXT[kind];
+        return {
+          id: n.id,
+          type: n.type,
+          kind,
+          title: text.title,
+          body: text.description,
+          // The document's name, decrypted for its owner only (stored notifications hold ids, E4).
+          document: labels.title(n.documentId) ?? labels.linkTitle(n.linkId) ?? null,
+          read: Boolean(n.readAt),
+          at: n.createdAt,
+          linkId: n.linkId,
+          documentId: n.documentId,
+        };
+      }),
     };
   });
 

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { hashToken, linkTokenAad, open, randomToken, seal } from '../lib/crypto';
 import { AppError, badRequest, notFound, parse } from '../lib/errors';
 import { requireUser } from '../plugins/auth';
-import { logEvent, notify } from '../services/audit';
+import { logEvent } from '../services/audit';
 import { loadDataKey } from '../services/documents';
 import { dataKeys, openClaimLabel, openRecipientLabel, openTitle, openWatermark, sealRecipientLabel, sealWatermark, TITLE_SELECT } from '../services/metadata';
 import { readDocumentFile } from '../services/documents';
@@ -208,21 +208,6 @@ export async function sharingRoutes(app: FastifyInstance) {
         if (redacted) await Promise.all(redacted.written.map((k) => deps.storage.delete(k).catch(() => undefined)));
         throw err;
       });
-
-      if (recipientOrgId) {
-        const members = await prisma.organizationMember.findMany({ where: { orgId: recipientOrgId }, select: { userId: true } });
-        for (const m of members) {
-          if (m.userId === user.id) continue;
-          await notify(prisma, {
-            userId: m.userId,
-            type: 'link_received',
-            title: 'A document was shared with your organization',
-            // The title stays out of stored notifications (E4); the inbox shows it after its access checks.
-            body: `${user.fullName} shared a document with your organization. Open it from the organization dashboard.`,
-            linkId: link.id,
-          });
-        }
-      }
 
       return reply.status(201).send({
         link: {

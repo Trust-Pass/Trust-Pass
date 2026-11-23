@@ -100,16 +100,18 @@ describe('integrity alerts', () => {
       expect(res.json().error.code).toBe('integrity_error');
     }
 
-    const ownerNotes = (await as(ctx, owner, { method: 'GET', url: '/api/notifications' })).json().notifications;
-    const ownerAlerts = ownerNotes.filter((n: { type: string }) => n.type === 'integrity_alert');
-    expect(ownerAlerts).toHaveLength(1); // not repeated within the hour
-    expect(ownerAlerts[0].body).toContain('"Secret contract"');
-
-    const adminNotes = (await as(ctx, admin, { method: 'GET', url: '/api/notifications' })).json().notifications;
-    const adminAlerts = adminNotes.filter((n: { type: string }) => n.type === 'integrity_alert');
+    // The integrity alert is still raised and stored for the owner and the admin (not repeated
+    // within the hour), and logged; it is no longer shown in the notifications bell, which is
+    // reserved for repeated-access and expired-link alerts.
+    const ownerAlerts = await ctx.prisma.notification.findMany({ where: { userId: owner.userId, type: 'integrity_alert' } });
+    expect(ownerAlerts).toHaveLength(1);
+    const adminAlerts = await ctx.prisma.notification.findMany({ where: { userId: admin.userId, type: 'integrity_alert' } });
     expect(adminAlerts).toHaveLength(1);
-    expect(adminAlerts[0].body).toContain(id.slice(0, 8));
-    expect(JSON.stringify(adminNotes)).not.toContain('Secret contract');
+    expect(adminAlerts[0]!.body).toContain(id.slice(0, 8));
+    expect(JSON.stringify(adminAlerts)).not.toContain('Secret contract');
+    expect(await ctx.prisma.securityEvent.count({ where: { documentId: id, eventType: 'integrity_check_failed' } })).toBeGreaterThan(0);
+    const adminNotes = (await as(ctx, admin, { method: 'GET', url: '/api/notifications' })).json().notifications;
+    expect(adminNotes.filter((n: { type: string }) => n.type === 'integrity_alert')).toHaveLength(0);
     // Stored rows hold no title either.
     expect(JSON.stringify(await ctx.prisma.notification.findMany())).not.toContain('Secret contract');
 

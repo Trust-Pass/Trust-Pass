@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { as, createLink, createTestContext, IPS, loginUser, makeAdmin, registerUser, resetDatabase, uploadDocument, type TestContext } from '../helpers';
+import { as, createLink, createTestContext, IPS, issueCredential, loginUser, makeAdmin, registerUser, resetDatabase, uploadDocument, type TestContext } from '../helpers';
 
 let ctx: TestContext;
 beforeAll(async () => {
@@ -96,7 +96,7 @@ describe('access analytics', () => {
     expect(types.filter((t) => t === 'alert_new_country')).toHaveLength(2); // SA and AE
     // Only 2 denials fall inside any 10-minute window here, below the burst threshold of 3.
     expect(types).not.toContain('alert_denied_burst');
-    expect(types).toContain('alert_after_end');
+    expect(types).toContain('alert_expired_link');
     for (const n of notes) expect(`${n.title} ${n.body}`).not.toMatch(/attack|hacker|malicious/i);
   });
 
@@ -144,6 +144,84 @@ describe('audit log integrity', () => {
 });
 
 describe('notifications', () => {
+  const REPEATED = { title: 'Repeated access attempts', body: 'Someone tried to access your document multiple times.' };
+  const EXPIRED = { title: 'Expired link opened', body: 'Someone tried to open your document after the link expired. Access was blocked.' };
+
+  it('are security alerts only: an expired-link attempt, with the document name and time', async () => {
+    const { owner } = await scenario();
+    const list = (await as(ctx, owner, { method: 'GET', url: '/api/notifications' })).json();
+    // First views from SA and AE are not notifications any more...
+    expect(list.notifications).toHaveLength(1);
+    expect(list.notifications[0]).toMatchObject({ kind: 'expired_link', ...EXPIRED, document: 'University Certificate', read: false });
+    expect(new Date(list.notifications[0].at).getTime()).toBeGreaterThan(0);
+    expect(list.unread).toBe(1);
+    const session = (await as(ctx, owner, { method: 'GET', url: '/api/auth/session' })).json();
+    expect(session.user?.unreadNotifications ?? session.unreadNotifications).toBe(1);
+    // ...but the security records behind the Analytics "Security alerts" card are unchanged.
+    const alerts = (await as(ctx, owner, { method: 'GET', url: '/api/analytics' })).json().alerts as Array<{ type: string }>;
+    expect(alerts.map((a) => a.type).sort()).toEqual(['alert_expired_link', 'alert_new_country', 'alert_new_country']);
+  });
+
+  it('repeated blocked attempts raise one "Repeated access attempts" alert', async () => {
+    const owner = await registerUser(ctx);
+    const docId = (await uploadDocument(ctx, owner, { title: 'Payslip' })).json().document.id;
+    const link = await createLink(ctx, owner, docId, { includeFile: true, allowedCountries: ['SA'] });
+    for (let i = 0; i < 5; i++) await open(link.token, IPS.US);
+    const list = (await as(ctx, owner, { method: 'GET', url: '/api/notifications' })).json();
+    expect(list.notifications).toHaveLength(1);
+    expect(list.notifications[0]).toMatchObject({ kind: 'repeated_attempts', ...REPEATED, document: 'Payslip', read: false });
+    // Detection and logging are untouched.
+    expect(await ctx.prisma.securityEvent.count({ where: { linkId: link.id, eventType: 'repeated_denied_access' } })).toBe(1);
+    expect(await ctx.prisma.accessLog.count({ where: { linkId: link.id, outcome: 'denied_country' } })).toBe(5);
+  });
+
+  it('normal activity raises no notification: views, downloads, revoked links, certificates, sharing', async () => {
+    const owner = await registerUser(ctx);
+    const member = await registerUser(ctx);
+    const docId = (await uploadDocument(ctx, owner, { title: 'Contract' })).json().document.id;
+    const link = await createLink(ctx, owner, docId, { includeFile: true, allowDownload: true });
+    await open(link.token, IPS.SA); // first view
+    expect((await ctx.app.inject({ method: 'GET', url: `/api/share/${link.token}/download`, remoteAddress: IPS.SA })).statusCode).toBe(200);
+    await as(ctx, owner, { method: 'POST', url: `/api/links/${link.id}/revoke` });
+    await open(link.token, IPS.SA); // a revoked link: blocked, recorded, not a notification
+    await issueCredential(ctx, owner);
+    // An organization adds a member, and the owner shares a document with that organization.
+    const orgOwner = await registerUser(ctx, { organization: 'Example Co' });
+    const added = await as(ctx, orgOwner, { method: 'POST', url: `/api/organizations/${orgOwner.orgId}/members`, payload: { email: member.email, role: 'member' } });
+    expect(added.statusCode).toBe(201);
+    await createLink(ctx, owner, docId, { recipientType: 'organization', recipientOrgId: orgOwner.orgId, includeFile: true });
+
+    for (const who of [owner, member, orgOwner]) {
+      const list = (await as(ctx, who, { method: 'GET', url: '/api/notifications' })).json();
+      expect(list).toMatchObject({ unread: 0, notifications: [] });
+    }
+    const stored = (await ctx.prisma.notification.findMany({ select: { type: true } })).map((n) => n.type);
+    for (const gone of ['link_downloaded', 'credential_issued', 'link_received', 'org_member_added']) expect(stored).not.toContain(gone);
+    // The security events are still logged.
+    const events = (await ctx.prisma.securityEvent.findMany({ where: { userId: owner.userId }, select: { eventType: true } })).map((e) => e.eventType);
+    expect(events).toEqual(expect.arrayContaining(['recipient_downloaded', 'link_revoked']));
+    expect(await ctx.prisma.accessLog.count({ where: { linkId: link.id, outcome: 'denied_revoked' } })).toBe(1);
+  });
+
+  it('older stored notifications: expired-link alerts still show, other kinds stay hidden and uncounted', async () => {
+    const owner = await registerUser(ctx);
+    const docId = (await uploadDocument(ctx, owner, { title: 'Lease' })).json().document.id;
+    const link = await createLink(ctx, owner, docId, { includeFile: true });
+    const base = { userId: owner.userId, linkId: link.id, documentId: docId };
+    await ctx.prisma.notification.createMany({
+      data: [
+        { ...base, type: 'alert_after_end', title: 'Someone tried a expired link', body: 'x' },
+        { ...base, type: 'alert_after_end', title: 'Someone tried a revoked link', body: 'x' },
+        { ...base, type: 'link_downloaded', title: 'A recipient downloaded your document', body: 'x' },
+        { ...base, type: 'credential_issued', title: 'New credential', body: 'x' },
+      ],
+    });
+    const list = (await as(ctx, owner, { method: 'GET', url: '/api/notifications' })).json();
+    expect(list.unread).toBe(1);
+    expect(list.notifications).toHaveLength(1);
+    expect(list.notifications[0]).toMatchObject({ kind: 'expired_link', ...EXPIRED, document: 'Lease' });
+  });
+
   it('can be marked read', async () => {
     const { owner } = await scenario();
     const list = (await as(ctx, owner, { method: 'GET', url: '/api/notifications' })).json();

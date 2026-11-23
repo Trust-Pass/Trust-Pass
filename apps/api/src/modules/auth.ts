@@ -13,7 +13,7 @@ import { AppError, notFound, parse } from '../lib/errors';
 import { describeConnection } from '../lib/connection';
 import { userAgentFamily } from '../lib/user-agent';
 import { clearSessionCookie, requireUser, startSession } from '../plugins/auth';
-import { logEvent, notify } from '../services/audit';
+import { logEvent, notify, securityNotificationWhere } from '../services/audit';
 import { publicUser, userOrganizations } from '../services/users';
 
 // OWASP-recommended Argon2id parameters (19 MiB, 2 iterations).
@@ -174,7 +174,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.get('/api/auth/session', async (request) => {
     if (!request.auth) return { authenticated: false };
     const { user, session } = request.auth;
-    const unread = await prisma.notification.count({ where: { userId: user.id, readAt: null } });
+    const unread = await prisma.notification.count({ where: { ...securityNotificationWhere(user.id), readAt: null } });
     return {
       authenticated: true,
       user: publicUser(user),
@@ -186,7 +186,7 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.get('/api/auth/me', async (request) => {
     const { user, session } = requireUser(request);
-    const unread = await prisma.notification.count({ where: { userId: user.id, readAt: null } });
+    const unread = await prisma.notification.count({ where: { ...securityNotificationWhere(user.id), readAt: null } });
     return {
       user: publicUser(user),
       organizations: await userOrganizations(prisma, user.id),

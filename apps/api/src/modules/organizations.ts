@@ -4,7 +4,7 @@ import { addMemberSchema, updateMemberSchema } from '@trustpass/shared';
 import { z } from 'zod';
 import { AppError, forbidden, notFound, parse } from '../lib/errors';
 import { requireUser } from '../plugins/auth';
-import { logEvent, notify } from '../services/audit';
+import { logEvent } from '../services/audit';
 
 const orgParams = z.object({ orgId: z.string().uuid() });
 const memberParams = z.object({ orgId: z.string().uuid(), userId: z.string().uuid() });
@@ -79,12 +79,6 @@ export async function organizationRoutes(app: FastifyInstance) {
     if (exists) throw new AppError(409, 'already_member', 'That person is already a member');
     await prisma.organizationMember.create({ data: { orgId, userId: target.id, role: input.role } });
     await logEvent(prisma, { userId: user.id, actorUserId: user.id, eventType: 'org_member_added', metadata: { orgId, member: target.id, role: input.role } });
-    await notify(prisma, {
-      userId: target.id,
-      type: 'org_member_added',
-      title: `You joined ${member.organization.name}`,
-      body: `${user.fullName} added you to ${member.organization.name} as ${input.role}. Documents shared with the organization now appear in your organization dashboard.`,
-    });
     return reply.status(201).send({ ok: true });
   });
 

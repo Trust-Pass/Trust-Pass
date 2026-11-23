@@ -15,6 +15,9 @@ import {
   ScrollText,
   Settings,
   Shield,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldX,
   Upload,
   X,
 } from 'lucide-react';
@@ -22,7 +25,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode 
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { api } from '../lib/api';
 import { useAuth, useMe } from '../lib/auth';
-import { initials, relativeTime } from '../lib/format';
+import { formatDateTime, initials, relativeTime } from '../lib/format';
 import type { Notification } from '../lib/types';
 import { Logo } from './Logo';
 import { Button, EmptyState, Modal, Spinner } from './ui';
@@ -137,8 +140,8 @@ function NotificationsPanel({ open, onClose }: { open: boolean; onClose: () => v
   const openNotification = (n: Notification) => {
     if (!n.read) markRead.mutate(n.id);
     onClose();
-    if (n.type === 'link_received') navigate('/app/org');
-    else if (n.linkId) navigate('/app/links');
+    // Both alerts are about a sharing link: open Shared links, where it can be revoked.
+    if (n.linkId) navigate('/app/links');
     else if (n.documentId) navigate(`/app/documents/${n.documentId}`);
   };
 
@@ -158,21 +161,50 @@ function NotificationsPanel({ open, onClose }: { open: boolean; onClose: () => v
       {isLoading ? (
         <Spinner />
       ) : !data || data.notifications.length === 0 ? (
-        <EmptyState icon={<Bell className="size-6" />} title="No notifications yet" body="Security alerts about your links and documents will appear here." />
+        <EmptyState
+          icon={<ShieldCheck className="size-6" />}
+          title="No security alerts"
+          body="You will be alerted here if someone keeps trying to open your document, or opens a link after it expired."
+        />
       ) : (
-        <ul className="-mx-2 divide-y divide-slate-100">
-          {data.notifications.map((n) => (
-            <li key={n.id}>
-              <button type="button" onClick={() => openNotification(n)} className="flex w-full gap-3 rounded-xl px-2 py-3 text-left hover:bg-slate-50">
-                <span className={clsx('mt-1.5 size-2 shrink-0 rounded-full', n.read ? 'bg-transparent' : n.type.startsWith('alert') ? 'bg-amber-500' : 'bg-teal-500')} />
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-ink">{n.title}</span>
-                  <span className="mt-0.5 block text-sm text-slate-600">{n.body}</span>
-                  <span className="mt-1 block text-xs text-slate-400">{relativeTime(n.at)}</span>
-                </span>
-              </button>
-            </li>
-          ))}
+        <ul className="-mx-2 divide-y divide-slate-100" data-testid="notification-list">
+          {data.notifications.map((n) => {
+            const Icon = n.kind === 'repeated_attempts' ? ShieldAlert : ShieldX;
+            return (
+              <li key={n.id} data-kind={n.kind} data-read={n.read}>
+                <button type="button" onClick={() => openNotification(n)} className="flex w-full items-start gap-3 rounded-xl px-2 py-3 text-left hover:bg-slate-50">
+                  <span
+                    className={clsx(
+                      'relative mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl ring-1 ring-inset',
+                      n.kind === 'repeated_attempts' ? 'bg-red-50 text-red-500 ring-red-200' : 'bg-amber-50 text-amber-600 ring-amber-200',
+                    )}
+                    aria-hidden
+                  >
+                    <Icon className="size-[18px]" />
+                    {!n.read && <span className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-red-500 ring-2 ring-surface-raised" />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline justify-between gap-2">
+                      <span className={clsx('text-sm text-ink', n.read ? 'font-medium' : 'font-semibold')}>
+                        {n.title}
+                        {!n.read && <span className="sr-only"> (unread)</span>}
+                      </span>
+                      <time className="shrink-0 text-xs text-slate-400" dateTime={n.at} title={formatDateTime(n.at)}>
+                        {relativeTime(n.at)}
+                      </time>
+                    </span>
+                    <span className="mt-0.5 block text-sm text-slate-600">{n.body}</span>
+                    {n.document && (
+                      <span className="mt-1.5 flex min-w-0 items-center gap-1 text-xs text-slate-500">
+                        <FileText className="size-3.5 shrink-0" aria-hidden />
+                        <span className="truncate">{n.document}</span>
+                      </span>
+                    )}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </Modal>

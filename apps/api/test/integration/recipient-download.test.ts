@@ -216,10 +216,8 @@ describe('recipient download: the protected copy', () => {
     for (const e of events) {
       expect(JSON.stringify(e.metadata)).not.toMatch(/Secret Contract Title|Example Company/);
     }
-    // One notification for the owner per hour, not one per download.
-    const notes = await ctx.prisma.notification.findMany({ where: { userId: s.userId, type: 'link_downloaded' } });
-    expect(notes).toHaveLength(1);
-    expect(notes[0]!.body).not.toMatch(/Secret Contract Title|Example Company/);
+    // Downloads are normal activity: logged above as security events, not notifications.
+    expect(await ctx.prisma.notification.count({ where: { userId: s.userId } })).toBe(0);
   });
 
   it('refuses a tampered original instead of producing a copy', async () => {

@@ -5,7 +5,6 @@ import { AppError } from '../lib/errors';
 import { renderCertificate } from '../lib/pdf';
 import { ed25519FromSeed, issueSdJwt, jwkThumbprint, publicKeyToJwk } from '../lib/sd-jwt';
 import type { AppDeps } from '../types';
-import { notify } from './audit';
 import { storeEncryptedDocument } from './documents';
 import { getSettings } from './settings';
 
@@ -155,12 +154,5 @@ export async function issueEnrollmentCredential(
     },
   });
 
-  await notify(prisma, {
-    userId: holder.id,
-    type: 'credential_issued',
-    title: 'New credential from TrustPass Demo University',
-    body: 'Your enrollment certificate was issued and digitally signed. You can now share selected fields from it.',
-    documentId: document.id,
-  });
   return document;
 }
