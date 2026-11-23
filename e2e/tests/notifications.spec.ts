@@ -53,7 +53,7 @@ test('notifications: normal activity is quiet; repeated attempts raise one clear
   await expect(item).toContainText('(unread)');
   await page.screenshot({ path: `test-results/tour/${info.project.name}-37-notifications.jpg`, type: 'jpeg', quality: 60 });
   // Nothing about the view, the download or the revoked attempts themselves.
-  await expect(page.getByText(/downloaded|First view|revoked link/i)).toHaveCount(0);
+  await expect(page.getByTestId('notification-list').getByText(/downloaded|First view|revoked link/i)).toHaveCount(0);
 
   // Opening it marks it read and goes to Shared links.
   await item.getByRole('button').click();
