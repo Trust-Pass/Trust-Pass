@@ -217,7 +217,8 @@ describe('recipient download: the protected copy', () => {
       expect(JSON.stringify(e.metadata)).not.toMatch(/Secret Contract Title|Example Company/);
     }
     // Downloads are normal activity: logged above as security events, not notifications.
-    expect(await ctx.prisma.notification.count({ where: { userId: s.userId } })).toBe(0);
+    expect(await ctx.prisma.notification.count({ where: { userId: s.userId, type: 'link_downloaded' } })).toBe(0);
+    expect((await as(ctx, s, { method: 'GET', url: '/api/notifications' })).json()).toMatchObject({ unread: 0, notifications: [] });
   });
 
   it('refuses a tampered original instead of producing a copy', async () => {

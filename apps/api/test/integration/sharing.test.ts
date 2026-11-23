@@ -204,7 +204,8 @@ describe('recipient restrictions', () => {
     expect(viaInbox.statusCode).toBe(200);
     expect(await ctx.prisma.verificationRecord.count({ where: { verifiedByOrgId: company.orgId } })).toBe(2);
     expect((await as(ctx, outsider, { method: 'GET', url: `/api/inbox/${link.id}`, ip: IPS.SA })).statusCode).toBe(404);
-    expect(await ctx.prisma.notification.count({ where: { userId: company.userId, type: 'link_received' } })).toBe(1);
+    // Sharing is normal activity: no notification for the organization (security alerts only).
+    expect(await ctx.prisma.notification.count({ where: { userId: company.userId, type: 'link_received' } })).toBe(0);
 
     const logs = await ctx.prisma.accessLog.findMany({ where: { linkId: link.id }, orderBy: { id: 'asc' } });
     expect(logs.map((l) => l.outcome)).toEqual(['denied_recipient', 'denied_recipient', 'granted', 'granted', 'denied_recipient']);
