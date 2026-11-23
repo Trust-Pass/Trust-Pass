@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { FileSearch, FileUp, History, KeyRound } from 'lucide-react';
+import { FileSearch, FileUp, History, Info, KeyRound } from 'lucide-react';
 import { useRef, useState, type FormEvent } from 'react';
-import { Alert, Button, Card, CardHeader, PageHeader, Spinner, Tabs, Textarea, TrustBadge } from '../components/ui';
+import { Alert, Button, Card, CardHeader, Modal, PageHeader, Spinner, Tabs, Textarea, TrustBadge } from '../components/ui';
 import { VerificationPanel } from '../components/VerificationPanel';
 import { api, errorMessage } from '../lib/api';
 import { formatDateTime } from '../lib/format';
@@ -25,6 +25,7 @@ export function VerifyPage() {
   const [result, setResult] = useState<Verification | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const records = useQuery({ queryKey: ['verify-records'], queryFn: () => api<{ records: RecordRow[] }>('/api/verify/records') });
 
@@ -103,7 +104,19 @@ export function VerifyPage() {
         </Card>
 
         <div className="space-y-4">
-          {result ? (
+          {/* The meaning of each result lives behind a small Info button to keep the page short. */}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setInfoOpen(true)}
+              aria-haspopup="dialog"
+              aria-label="Info: what the verification results mean"
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-slate-600 ring-1 ring-inset ring-slate-300 hover:bg-accent/10 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <Info className="size-4" aria-hidden /> Info
+            </button>
+          </div>
+          {result && (
             <div className="space-y-4">
               <VerificationPanel verification={result} unverifiedTitle="Unable to verify" />
               {result.claims.length > 0 && (
@@ -120,27 +133,26 @@ export function VerifyPage() {
                 </Card>
               )}
             </div>
-          ) : (
-            <Card className="p-5">
-              <h2 className="font-semibold text-ink">What the results mean</h2>
-              <ul className="mt-3 space-y-3 text-sm text-slate-600">
-                <li className="flex items-start gap-3">
-                  <span className="shrink-0"><TrustBadge status="verified" /></span> The digital signature is valid and the signing key belongs to a trusted issuer registered in TrustPass.
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="shrink-0"><TrustBadge status="invalid" /></span> The signature does not match, or the document was changed after it was signed.
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="shrink-0"><TrustBadge status="expired" /></span> The signature is valid and the document is unchanged, but the credential is past its validity period.
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="shrink-0"><TrustBadge status="unverified" unverifiedLabel="Unable to verify" /></span> No supported digital signature, or the signer is not a trusted issuer in TrustPass. A document's look or issuer name is never enough.
-                </li>
-              </ul>
-            </Card>
           )}
         </div>
       </div>
+
+      <Modal open={infoOpen} onClose={() => setInfoOpen(false)} title="What the results mean">
+        <ul className="space-y-3 text-sm text-slate-600" data-testid="results-legend">
+          <li className="flex items-start gap-3">
+            <span className="shrink-0"><TrustBadge status="verified" /></span> The digital signature is valid and the signing key belongs to a trusted issuer registered in TrustPass.
+          </li>
+          <li className="flex items-start gap-3">
+            <span className="shrink-0"><TrustBadge status="invalid" /></span> The signature does not match, or the document was changed after it was signed.
+          </li>
+          <li className="flex items-start gap-3">
+            <span className="shrink-0"><TrustBadge status="expired" /></span> The signature is valid and the document is unchanged, but the credential is past its validity period.
+          </li>
+          <li className="flex items-start gap-3">
+            <span className="shrink-0"><TrustBadge status="unverified" unverifiedLabel="Unable to verify" /></span> No supported digital signature, or the signer is not a trusted issuer in TrustPass. A document's look or issuer name is never enough.
+          </li>
+        </ul>
+      </Modal>
 
       <Card>
         <CardHeader title="Verification records" subtitle="Checks by you and your organization." icon={<History className="size-5" />} />

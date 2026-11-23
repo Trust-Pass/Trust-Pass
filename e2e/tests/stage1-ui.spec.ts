@@ -60,3 +60,53 @@ test('upload: short page; file rules only on a failed or unsupported file; uploa
   await page.getByRole('button', { name: 'Check encryption now' }).click();
   await expect(page.getByTestId('encryption-check-result')).toHaveAttribute('data-ok', 'true');
 });
+
+test('verify: the meaning of each result is behind a small Info button, easy to open and close', async ({ page }) => {
+  await register(page, { name: 'Info Reader', email: uniqueEmail('info') });
+  await page.goto('/app/verify');
+  // Clean page: no legend until asked for.
+  await expect(page.getByText('What the results mean')).toHaveCount(0);
+  const info = page.getByRole('button', { name: 'Info: what the verification results mean' });
+  await expect(info).toBeVisible();
+  await expect(info).toHaveText('Info');
+
+  await info.click();
+  const dialog = page.getByRole('dialog').filter({ hasText: 'What the results mean' });
+  await expect(dialog).toBeVisible();
+  const legend = dialog.getByTestId('results-legend');
+  await expect(legend.getByRole('listitem')).toHaveCount(4);
+  await expect(legend).toContainText('Verified The digital signature is valid and the signing key belongs to a trusted issuer registered in TrustPass.');
+  await expect(legend).toContainText('Invalid The signature does not match, or the document was changed after it was signed.');
+  await expect(legend).toContainText('Expired The signature is valid and the document is unchanged, but the credential is past its validity period.');
+  await expect(legend).toContainText(
+    "Unable to verify No supported digital signature, or the signer is not a trusted issuer in TrustPass. A document's look or issuer name is never enough.",
+  );
+  // The whole dialog fits on screen, with nothing sideways.
+  const box = (await dialog.boundingBox())!;
+  const viewport = page.viewportSize()!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
+  expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1);
+
+  // Close button, Escape and a tap outside all close it; focus returns to the page.
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await expect(dialog).toBeHidden();
+  await info.click();
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await info.click();
+  await expect(dialog).toBeVisible();
+  await page.mouse.click(5, 5);
+  await expect(dialog).toBeHidden();
+
+  // Verification itself is unchanged: an unsigned file is still "Unable to verify".
+  const { PDFDocument } = await import('pdf-lib');
+  const own = await PDFDocument.create();
+  own.addPage([300, 300]);
+  await page.getByLabel('File to verify').setInputFiles({ name: 'own.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await own.save()) });
+  await page.getByRole('button', { name: 'Verify', exact: true }).click();
+  await expect(page.getByTestId('verification-result')).toHaveAttribute('data-result', 'unverified');
+  await expect(page.getByTestId('verification-result')).toContainText('Unable to verify');
+  await expect(info).toBeVisible();
+});

@@ -37,6 +37,11 @@ test('visual tour of the main screens', async ({ page, browser }, info) => {
   await shot('07-documents');
   await page.goto('/app/links');
   await shot('08-links');
+  await page.goto('/app/verify');
+  await page.getByRole('button', { name: 'Info: what the verification results mean' }).click();
+  await expect(page.getByTestId('results-legend')).toBeVisible();
+  await shot('25b-verify-info');
+  await page.keyboard.press('Escape');
   await page.goto('/app/scan');
   await page.getByRole('tab', { name: 'Paste a link' }).click();
   await page.getByLabel('Link or QR code text').fill('https://www.paypal.com@paypa1-secure.xyz/login');
