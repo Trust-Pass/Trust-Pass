@@ -8,7 +8,7 @@ import { login, newPhone, register, shareFields, uniqueEmail } from './helpers';
 // without changing a single stored record. Runs on phone (Chromium), desktop and iPhone Safari (WebKit).
 
 const DB = process.env.E2E_DATABASE_URL ?? 'postgresql://trustpass:trustpass_dev@localhost:5432/trustpass_e2e';
-const sql = (query: string) => execFileSync('psql', [DB, '-tAX', '-v', 'ON_ERROR_STOP=1', '-c', query], { encoding: 'utf8', stdio: 'pipe' }).trim();
+const sql = (query: string) => execFileSync('psql', [DB, '-qtAX', '-v', 'ON_ERROR_STOP=1', '-c', query], { encoding: 'utf8', stdio: 'pipe' }).trim();
 
 /** A fingerprint of every activity record of this user: any edit or delete changes it. */
 const fingerprint = (userId: string) =>
