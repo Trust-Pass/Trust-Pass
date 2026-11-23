@@ -52,11 +52,19 @@ async function letterPdf() {
   return Buffer.from(await pdf.save());
 }
 
+/**
+ * Errors of the kind this regression is about: a missing built-in or a PDF that could not be
+ * prepared. (WebKit also logs requests cancelled by page changes, e.g. "... due to access control
+ * checks"; those are not PDF errors and are left out.)
+ */
+const PDF_ERROR = /getOrInsert|is not a function|could not be prepared|pdf/i;
 function collectErrors(page: Page) {
   const errors: string[] = [];
-  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('pageerror', (e) => {
+    if (PDF_ERROR.test(e.message)) errors.push(e.message);
+  });
   page.on('console', (m) => {
-    if (m.type() === 'error' && /getOrInsert|is not a function/.test(m.text())) errors.push(m.text());
+    if (m.type() === 'error' && PDF_ERROR.test(m.text())) errors.push(m.text());
   });
   return errors;
 }
